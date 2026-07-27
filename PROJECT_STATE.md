@@ -2,7 +2,7 @@
 
 > Este arquivo é o centro de controle do projeto. Atualizado a cada sessão de trabalho.
 > Pode ser lido por qualquer instância do Claude Code em qualquer máquina para retomar o contexto.
-> Última atualização: 2026-07-12 (Sessão 16, fim — **Fase 7.5 completa** (abstração multi-provider do chat de IA), **bug real de ROE corrigido** (Banks puxava ROE errado do BPAC11 — bolsai misturava lucro trimestral com TTM; trocado por cálculo direto na CVM) **e Payout automatizado e depois refinado pra média de 5 anos** (também via CVM — evita que um ano fora da curva distorça o número, achado real testando VALE3/ITUB4; corrigido também um bug pontual de coluna zerada no BBDC4) — faltando 7.6/7.7 (Claude/OpenAI de verdade) e a ideia nova 7.9 (config de múltiplas chaves nomeadas + redesenho do painel do chat) na Fase 7; migrar LPA/VPA/dividendo pra CVM registrado como ideia (não implementada, `shares_outstanding` da CVM tem bugs pontuais imprevisíveis); shares_outstanding de tickers "unit" (BPAC11) segue como limitação conhecida sem fix.)
+> Última atualização: 2026-07-27 (Sessão 28, início — ideia de auto-fill RNAV registrada em Fase 2.5)
 
 ---
 
@@ -247,6 +247,7 @@ Pra maioria das empresas "normais" (o grosso da lista), esse caminho sozinho já
   - Nenhuma migration nova — os thresholds de `nvt_ratio` (0.9/1.3) e `fees_vs_emission` (0.5/0.1) já estavam semeados desde a Sessão 1 (`m20260709_212958_create_crypto_score_tables.rs`), só nunca tinham fonte automatizada. `main.py::main_crypto` ganhou `collect_crypto_fees_vs_emission`/`collect_crypto_nvt_ratio`, mesmo padrão de `_record_crypto_indicator` dos outros 2. `CryptoScorePanel.tsx`: botão e comentário atualizados pra citar os 4 indicadores automatizados.
   - Testado ponta a ponta contra as APIs reais: `docker compose run ... .venv/bin/python3 main.py crypto` rodado de verdade (NVT Ratio 0,982 → NEUTRAL, Fees vs Emission 0,0139 → RED — ambos conferidos manualmente antes de codar), linhas reais confirmadas em `crypto_indicators` via `sqlite3` do módulo Python (o binário `sqlite3` da imagem Docker não está no PATH — achado: um shim de node-modules faz `node` tentar carregar `./sqlite3` como módulo, gerando `Cannot find module`; contornado usando `python3 -c "import sqlite3..."` em vez do binário CLI). `npx tsc --noEmit` limpo. **Confirmado pelo usuário no app real** ("deu boa, os dois indicadores apareceram")
 - [ ] 2.4 — Fallback de extração via PDF (`pdf_extractor.py` — pdfplumber + Claude), quando necessário
+- [ ] 2.5 — **Ideia registrada (Sessão 28, não implementada)**: auto-fill dos campos do RNAV (`net_cash`, `inventory_at_market_value`) a partir do balanço CVM já baixado — `net_cash` = caixa (`1.01`) − dívida bruta (`2.01.04.01` + `2.02.01.04`), `inventory` = estoques (`2.03`). `landbank` continua manual (não vem de balanço, precisa de notas explicativas). O frontend do RNAV (`RnavForm.tsx`) só preenche `currentPrice` e `sharesOutstanding` hoje — os 3 campos específicos do RNAV são sempre manuais por design.
 
 ---
 
