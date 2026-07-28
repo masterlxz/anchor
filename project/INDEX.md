@@ -3,7 +3,7 @@
 > Este projeto usa a mesma estrutura de arquivos do TruthID (outro projeto do mesmo dono): o estado
 > foi dividido em arquivos menores dentro desta pasta (`project/`), em vez de um único
 > `PROJECT_STATE.md` monolítico na raiz.
-> Última atualização: 2026-07-28 (Sessão 29 — estado do projeto migrado de `PROJECT_STATE.md` para `project/`, seguindo a estrutura do TruthID; Fase 10 corrigida (Django/Postgres era equívoco do Gemini) e ampliada — carteira pertence ao Workspace, rentabilidade histórica via TWR/Dietz Modificado)
+> Última atualização: 2026-07-28 (Sessão 29 — estado do projeto migrado de `PROJECT_STATE.md` para `project/`, seguindo a estrutura do TruthID; Fase 10 corrigida (Django/Postgres era equívoco do Gemini), ampliada (carteira pertence ao Workspace, rentabilidade histórica via TWR/Dietz Modificado) e com ordem de implementação decidida — Workspace nasce single-user, multi-ativos é a primeira fatia)
 
 ---
 

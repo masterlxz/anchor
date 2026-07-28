@@ -520,6 +520,7 @@ Isso fecha, do lado do TruthID (Sessão 114 de lá), **a pendência "nenhuma tro
 - App passa a ser centrado em **Workspaces**: carteiras, teses, listas e anexos pertencem a um Workspace, não a um usuário direto.
 - Fluxo: login via TruthID → tela inicial lista Workspaces próprios (Owner) e Workspaces em que o usuário foi convidado (Membro/Convidado) → botão "Criar Novo Workspace".
 - RBAC granular por membro, definido pelo Owner/Admin: papéis padrão `Owner`/`Admin`/`Editor`/`Viewer`, mais flags específicas — `can_add_transactions`, `can_delete_transactions`, `can_create_theses`, `can_manage_members`.
+- **Decidido (continuação da Sessão 29)**: pra destravar o início da Fase 10 sem depender do problema de permissão descentralizada (ressalva acima), o Workspace **nasce single-user** — convite/membro externo/RBAC ativo entre pessoas diferentes fica pra depois, ver "Ordem de Implementação" no fim desta fase.
 
 **2. Consolidação de Carteiras & Multi-Ativos**
 - Um Workspace pode conter múltiplas carteiras de investimento pra consolidação global.
@@ -591,11 +592,15 @@ No desenho da Fase 10, `Lancamento` mapeia naturalmente pra `Transactions` (já 
 
 **Exemplo numérico** (do rascunho original, confirma a fórmula): janeiro começa com R$10.000, aporte de R$2.000 no dia 10 (peso ≈ 21/31 ≈ 0,68), fecha com R$12.500 → `R_jan = (12.500 − 10.000 − 2.000) / (10.000 + 2.000×0,68) = 500/11.360 ≈ 4,4%`. Fevereiro começa com R$12.500, sem fluxo, fecha com R$12.250 → `R_fev = (12.250 − 12.500)/12.500 = −2,0%`. Consolidado jan+fev: `(1,044 × 0,98) − 1 ≈ 2,3%`.
 
-**Checklist original trazido junto pelo dono do projeto** (só registrado, nada planejado em detalhe ainda):
-- [ ] 10.1 — Definir a estrutura de dados (`workspaces`, `portfolios`, `theses`, `assets`) em SQLite/SeaORM, mesmo padrão do resto do projeto — sem backend novo
-- [ ] 10.2 — Modelagem de `Workspace` e `WorkspaceMember`. **Depende da ressalva acima**: se "Workspace" aqui significa só organizar as próprias carteiras (sem convidar ninguém), é tabela simples; se significa multiusuário de verdade, depende de resolver a permissão descentralizada primeiro
-- [ ] 10.3 — Login e integração via TruthID pro fluxo multi-usuário (diferente do uso atual do TruthID no projeto, que é só assinatura delegada pra sync — Fase 8)
-- [ ] 10.4 — Tabela unificada de `Transactions` com suporte a metadados de Renda Fixa/Tesouro
-- [ ] 10.5 — Seletor de Workspaces na tela inicial
-- [ ] 10.6 — Rentabilidade histórica (backfill) por carteira: cálculo mensal via Método de Dietz Modificado (TWR), consolidação mês→ano→total, tabela `SnapshotMensal` por `portfolio_id`+`ano_mes` — depende de série histórica de preço de fechamento por ativo (não só preço atual), inclusive pra ativos já vendidos; decisões de proventos/meses-sem-lançamento/carteira-zerada ainda em aberto (ver seção 7 acima)
+**Ordem de implementação decidida com o dono do projeto (continuação da Sessão 29, via `AskUserQuestion`)**:
+
+**Workspace nasce single-user** — um único Workspace implícito (o próprio dono), sem convite/membro externo, sem RBAC ativo ainda. Essa escolha destrava começar a Fase 10 sem precisar resolver a permissão descentralizada primeiro (ver ressalva acima) — convite/multiusuário real vira uma fatia à parte, bloqueada até esse problema estar resolvido (provavelmente amarrado à Fase 8). **Primeira fatia concreta escolhida pra quando começarmos: multi-ativos.**
+
+- [ ] 10.1 — Fundação: schema `Workspace`/`Portfolio` (SQLite/SeaORM) — Workspace single-user, sem `WorkspaceMember`/convite ainda. Pré-requisito de tudo abaixo.
+- [ ] 10.2 — **Primeira fatia, decidida com o dono do projeto**: Multi-ativos — Stocks internacionais (moeda USD), Tesouro Direto detalhado, Renda Fixa geral no schema de `Transactions` (substitui o antigo item "tabela unificada de `Transactions`")
+- [ ] 10.3 — Rentabilidade histórica (TWR/Dietz Modificado, ver seção 7 acima) — tecnicamente não depende do Workspace/multi-ativos prontos; ordem relativa às fatias 10.4/10.5 ainda não decidida, pode furar a fila se fizer mais sentido na hora
+- [ ] 10.4 — Watchlists + favoritos — a mais simples das três restantes, boa pra validar o modelo de Workspace na prática; ordem relativa a 10.3/10.5 ainda não decidida
+- [ ] 10.5 — Teses + anexos — precisa decidir armazenamento de arquivo (S3/MinIO/R2) antes de começar (infra nova que as outras fatias não exigem); ordem relativa a 10.3/10.4 ainda não decidida
+- [ ] 10.6 — Seletor de múltiplos Workspaces na tela inicial (ex.: "Pessoal" vs "Família") — só faz sentido se o dono do projeto quiser mais de um Workspace próprio; não depende de multiusuário
+- [ ] 10.7 — **Bloqueada, não planejada**: convite + RBAC ativo entre pessoas diferentes + login TruthID multiusuário (diferente do uso atual do TruthID no projeto, que é só assinatura delegada pra sync — Fase 8) — depende de resolver a permissão descentralizada primeiro (ver ressalva acima)
 
