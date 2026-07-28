@@ -1,7 +1,7 @@
 # data-collector
 
 Coletores de dados em Python (ações BR + cripto) que escrevem direto no banco SQLite
-compartilhado com o app (`../desktop`). Ver `PROJECT_STATE.md` na raiz do repo — Fase 2
+compartilhado com o app (`../desktop`). Ver `../project/PHASE.md` — Fase 2
 (desenho completo das fontes está lá, seção "Fase 2 — Coleta de Dados").
 
 ## Setup
@@ -24,6 +24,6 @@ Disparado pelo app via o comando Tauri `run_stock_collector`
 
 ## Implementado
 
-Ver `PROJECT_STATE.md` na raiz do repo (seção "Fase 2 — Coleta de Dados")
-para o estado atual e o log de sessões — este arquivo não é atualizado a
-cada mudança de fonte de dado.
+Ver `../project/PHASE.md` (seção "Fase 2 — Coleta de Dados")
+para o estado atual e `../project/SESSIONS.md` para o log de sessões — este
+arquivo não é atualizado a cada mudança de fonte de dado.

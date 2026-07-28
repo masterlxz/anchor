@@ -1,5 +1,5 @@
 # Tickers fictícios/públicos usados como exemplo (não é o portfólio real do
-# usuário — ver "Diretriz de segurança" no PROJECT_STATE.md). Cotação via
+# usuário — ver "Diretriz de segurança" em project/GUIDELINES.md). Cotação via
 # Yahoo Finance funciona pra qualquer ticker real da B3, não só os 4 abaixo
 # — este arquivo só serve pra rodar o coletor em lote (`python main.py`,
 # sem `--ticker`); o fetch por ticker nos formulários de valuation não

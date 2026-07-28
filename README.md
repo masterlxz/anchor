@@ -26,7 +26,7 @@ a UI built around exactly that workflow.
 - **AI chat panel**: ask questions about your own saved valuations/alerts using your own Gemini,
   Claude, or OpenAI API key — read-only access to your data, key stored in the OS keyring.
 - **(in progress)** Cross-device sync via [TruthID](https://github.com/masterlxz/truthid) + IPFS —
-  no server operated by this project; see `PROJECT_STATE.md`, Fase 8.
+  no server operated by this project; see [`project/PHASE.md`](project/PHASE.md), Fase 8.
 
 ## Architecture
 
@@ -58,8 +58,8 @@ forge test
 ## Status
 
 This is a personal project built incrementally, session by session, at a background pace — not
-every phase is finished. `PROJECT_STATE.md` at the repo root has the full roadmap, architecture
-decisions, and session-by-session history.
+every phase is finished. [`project/`](project/) has the full roadmap, architecture decisions, and
+session-by-session history — start at [`project/INDEX.md`](project/INDEX.md).
 
 ## Security
 
