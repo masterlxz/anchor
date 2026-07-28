@@ -508,11 +508,13 @@ Isso fecha, do lado do TruthID (Sessão 114 de lá), **a pendência "nenhuma tro
 
 ---
 
-### Fase 10 — Remodelagem para Workspaces Colaborativos & Multi-Ativos (ideia levantada na Sessão 29, não iniciada)
+### Fase 10 — Remodelagem para Workspaces Colaborativos & Multi-Ativos (ideia levantada na Sessão 29, decisão de stack confirmada — mesma stack do projeto, não iniciada)
 
 **Objetivo**: evoluir o Practice Valuation de app desktop single-user pra uma plataforma colaborativa de Intelligence & Portfolio Management (estilo Status Invest / Investidor10 + Notion), com múltiplos usuários por Workspace, autenticação via TruthID, e suporte a mais classes de ativos além de ações BR.
 
-**⚠️ Nota importante, a resolver antes de qualquer código**: a ideia original (trazida pelo dono do projeto num rascunho à parte, registrada abaixo tal como veio) menciona um "App Django" e modelagem em PostgreSQL. Isso conflita com as decisões de arquitetura já tomadas na Sessão 1 (Tauri + Rust + React/TS, SQLite local, sem servidor próprio — ver "Decisões de Arquitetura em Aberto") e com o resto do projeto sendo single-user/local. Antes de qualquer implementação real, decidir com o dono do projeto: **(a)** é um pivô real pra arquitetura cliente-servidor com Postgres/Django, saindo do modelo "app local sem servidor"? ou **(b)** os conceitos (workspaces, RBAC, multi-ativos, teses, watchlists) devem ser adaptados pra continuar rodando sobre SQLite local, com colaboração resolvida via o sync descentralizado da Fase 8 (TruthID + IPFS) em vez de um backend central? Essa escolha muda o desenho inteiro, não só detalhes de implementação — nada abaixo foi filtrado por essa decisão, é o brainstorm bruto.
+**Decisão de arquitetura (Sessão 29, resolvida)**: o rascunho original mencionava "App Django" e PostgreSQL — o dono do projeto confirmou que isso veio de uma sugestão equivocada do Gemini ao ajudar a escrever o rascunho, não uma intenção real de trocar de stack. **Fica mantido o padrão já decidido no resto do projeto**: Tauri + Rust + React/TS, SQLite local, sem servidor próprio operado pelo Practice Valuation (ver "Decisões de Arquitetura em Aberto"). Os conceitos abaixo (workspaces, RBAC, multi-ativos, teses, watchlists) precisam ser adaptados pra rodar sobre esse modelo.
+
+**⚠️ Ressalva honesta que continua em aberto**: isso não é só trocar "Postgres" por "SQLite" no papel. Um Workspace com Owner/Admin/Editor/Viewer de verdade — várias pessoas diferentes, em máquinas diferentes, escrevendo no mesmo Workspace — pressupõe **alguém arbitrando quem pode escrever o quê**. Num servidor central isso é trivial (checar `role` numa query antes de aceitar o `UPDATE`). De forma descentralizada, sem servidor do Practice Valuation, isso é um problema bem mais difícil: teria que apoiar em cima do sync da Fase 8 (TruthID + IPFS) e resolver permissão via algo tipo capability/assinatura em vez de uma checagem de banco — nada disso está desenhado ainda. Vale separar, quando a hora chegar, o que é "só mais schema no SQLite de sempre" (multi-ativos, watchlists, teses+anexos — não dependem de multiusuário nenhum) do que é de fato "colaboração entre pessoas diferentes" (Workspaces com convite/RBAC — esse sim exige resolver o problema acima antes de começar a codar).
 
 **1. Arquitetura Multi-Tenant & Colaboração (Workspaces)**
 - App passa a ser centrado em **Workspaces**: carteiras, teses, listas e anexos pertencem a um Workspace, não a um usuário direto.
@@ -535,7 +537,7 @@ Isso fecha, do lado do TruthID (Sessão 114 de lá), **a pendência "nenhuma tro
 - Favoritos: marcação rápida de ativos pra destaque no dashboard do Workspace.
 - Watchlists nomeadas (ex.: "Ações de Dividendos", "Turnarounds pra Acompanhar") com anotações e preço-alvo por ativo.
 
-**6. Rascunho de modelagem de banco trazido junto** (Postgres, ver nota acima sobre o conflito de arquitetura):
+**6. Rascunho de modelagem de banco trazido junto** (formato ilustrativo do brainstorm original; ao planejar de verdade, vira migration SeaORM/SQLite como todo o resto do projeto — ver Fase 1):
 ```sql
 -- Workspaces & Membros
 Workspaces (id, name, owner_truthid, created_at)
@@ -553,9 +555,9 @@ Watchlists (id, workspace_id, name)
 WatchlistItems (id, watchlist_id, asset_id, target_price, notes)
 ```
 
-**Checklist original trazido junto pelo dono do projeto** (só registrado, nada planejado em detalhe — depende da decisão de arquitetura da nota acima):
-- [ ] 10.1 — Definir a estrutura do backend (`workspaces`, `portfolios`, `theses`, `assets`) — arquitetura concreta ainda em aberto (servidor/Postgres novo vs. adaptação do modelo local atual)
-- [ ] 10.2 — Modelagem de `Workspace` e `WorkspaceMember`
+**Checklist original trazido junto pelo dono do projeto** (só registrado, nada planejado em detalhe ainda):
+- [ ] 10.1 — Definir a estrutura de dados (`workspaces`, `portfolios`, `theses`, `assets`) em SQLite/SeaORM, mesmo padrão do resto do projeto — sem backend novo
+- [ ] 10.2 — Modelagem de `Workspace` e `WorkspaceMember`. **Depende da ressalva acima**: se "Workspace" aqui significa só organizar as próprias carteiras (sem convidar ninguém), é tabela simples; se significa multiusuário de verdade, depende de resolver a permissão descentralizada primeiro
 - [ ] 10.3 — Login e integração via TruthID pro fluxo multi-usuário (diferente do uso atual do TruthID no projeto, que é só assinatura delegada pra sync — Fase 8)
 - [ ] 10.4 — Tabela unificada de `Transactions` com suporte a metadados de Renda Fixa/Tesouro
 - [ ] 10.5 — Seletor de Workspaces na tela inicial
