@@ -8,6 +8,7 @@ pub mod collector;
 pub mod conversation;
 pub mod crypto_indicator;
 pub mod dcf;
+pub mod document_extraction;
 pub mod gordon;
 pub mod graham;
 pub mod projected_ceiling;

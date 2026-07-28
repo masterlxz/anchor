@@ -5,6 +5,7 @@ import { useExternalStoreRuntime } from "@assistant-ui/react";
 import type { AppendMessage, ThreadMessageLike } from "@assistant-ui/react";
 import type { AppError } from "../types";
 import type { ApiKeySummary } from "../settings/SettingsPage";
+import { DEFAULT_MODEL_BY_PROVIDER } from "../ai/modelDefaults";
 
 // Fase 7.10.4 — a pending/resolved AI-proposed valuation creation, joined
 // onto its `ai_message` by the backend. `payload`/`preview` already arrive
@@ -43,14 +44,6 @@ export type ProposeValuationArgs = {
 // in flight — only one can exist at a time (sending is disabled meanwhile),
 // replaced by the real row once the mutation settles and the query refetches.
 const OPTIMISTIC_USER_MESSAGE_ID = -1;
-
-// Mesmo tier barato/rápido por provider já usado em `ChatPanel.tsx` (7.9.5) —
-// só sugestão de modelo default, o campo continua livre pra editar.
-const DEFAULT_MODEL_BY_PROVIDER: Record<string, string> = {
-  gemini: "gemini-3.1-flash-lite",
-  claude: "claude-haiku-4-5",
-  openai: "gpt-5-mini",
-};
 
 function convertMessage(message: ConversationMessage): ThreadMessageLike {
   const isAssistant = message.role === "model";

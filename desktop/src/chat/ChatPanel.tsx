@@ -6,6 +6,7 @@ import type { GeminiContent } from "./types";
 import type { ApiKeySummary } from "../settings/SettingsPage";
 import { PROVIDER_LABELS } from "../settings/SettingsPage";
 import ApiKeyGate from "./ApiKeyGate";
+import { DEFAULT_MODEL_BY_PROVIDER } from "../ai/modelDefaults";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,16 +17,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SendIcon, XIcon } from "lucide-react";
-
-// Tier barato/rápido por provider, mesmo espírito de "gemini-3.1-flash-lite"
-// — isso aqui é um widget de pergunta rápida sobre dado já salvo, não um
-// agente de código. Usado só pra sugerir um modelo quando a chave escolhida
-// troca de provider; o campo de modelo continua livre pra editar.
-const DEFAULT_MODEL_BY_PROVIDER: Record<string, string> = {
-  gemini: "gemini-3.1-flash-lite",
-  claude: "claude-haiku-4-5",
-  openai: "gpt-5-mini",
-};
 
 function MessageBubble({ message }: { message: GeminiContent }) {
   const isUser = message.role === "user";

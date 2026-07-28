@@ -19,6 +19,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(db)
         .manage(AtomicBool::new(false))
         .invoke_handler(tauri::generate_handler![
@@ -45,6 +46,7 @@ pub fn run() {
             commands::api_key::rename_api_key,
             commands::api_key::delete_api_key,
             commands::chat::ask_ai,
+            commands::document_extraction::extract_document_data,
             commands::conversation::list_conversations,
             commands::conversation::create_conversation,
             commands::conversation::rename_conversation,

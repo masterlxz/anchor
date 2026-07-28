@@ -1,14 +1,41 @@
 import { useState, type FormEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useMutation } from "@tanstack/react-query";
-import { RefreshCw } from "lucide-react";
+import { FileText, RefreshCw } from "lucide-react";
 import type { AppError, ValuationModel } from "../types";
 import { useTickerCollector } from "../collector/useTickerCollector";
 import ValuationResult from "../components/ValuationResult";
 import Field from "../components/Field";
+import DocumentExtractDialog from "../ai/DocumentExtractDialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+const LANDBANK_INSTRUCTIONS =
+  "Read this investor-relations or earnings-release PDF for a Brazilian " +
+  "real-estate developer and find the company's total landbank (banco de " +
+  "terrenos) at market value, in R$ millions, as of the most recent " +
+  "reporting date in the document. Respond with just that number.";
+
+const LANDBANK_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    landbank_millions: {
+      type: "number",
+      description: "Total landbank value in R$ millions",
+    },
+  },
+  required: ["landbank_millions"],
+  additionalProperties: false,
+};
+
+function parseLandbankResult(raw: unknown): { landbank_millions: number } {
+  const value = (raw as Record<string, unknown> | null)?.landbank_millions;
+  if (typeof value !== "number") {
+    throw new Error("The AI's response didn't include a valid number.");
+  }
+  return { landbank_millions: value };
+}
 
 type CalculateRnavRequest = {
   ticker: string;
@@ -47,6 +74,7 @@ function RnavForm() {
 
   const tickerCollector = useTickerCollector();
   const [tickerError, setTickerError] = useState<string | null>(null);
+  const [landbankDialogOpen, setLandbankDialogOpen] = useState(false);
 
   const mutation = useMutation<
     RnavValuationResponse,
@@ -156,13 +184,30 @@ function RnavForm() {
           </Field>
 
           <Field label="Landbank at market value (R$ millions)">
-            <Input
-              required
-              type="number"
-              step="0.01"
-              value={landbank}
-              onChange={(e) => setLandbank(e.currentTarget.value)}
-            />
+            <div className="flex gap-2">
+              <Input
+                required
+                type="number"
+                step="0.01"
+                value={landbank}
+                onChange={(e) => setLandbank(e.currentTarget.value)}
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => setLandbankDialogOpen(true)}
+                aria-label="Extract landbank from a PDF"
+                title="Extract landbank from a PDF"
+              >
+                <FileText />
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Not in structured balance-sheet data — extract from an
+              investor-relations PDF, or enter manually.
+            </p>
           </Field>
 
           <Field label="Inventory at market value (R$ millions)">
@@ -213,6 +258,22 @@ function RnavForm() {
           error={mutation.error ?? null}
           isSuccess={mutation.isSuccess}
           valuation={mutation.data?.valuation ?? null}
+        />
+
+        <DocumentExtractDialog<{ landbank_millions: number }>
+          open={landbankDialogOpen}
+          onOpenChange={setLandbankDialogOpen}
+          title="Extract landbank from PDF"
+          instructions={LANDBANK_INSTRUCTIONS}
+          jsonSchema={LANDBANK_JSON_SCHEMA}
+          parseResult={parseLandbankResult}
+          renderPreview={(result) => (
+            <p>
+              Landbank found: R${" "}
+              {result.landbank_millions.toLocaleString("en-US")} million
+            </p>
+          )}
+          onAccept={(result) => setLandbank(String(result.landbank_millions))}
         />
       </CardContent>
     </Card>
