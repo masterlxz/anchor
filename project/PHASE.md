@@ -525,7 +525,7 @@ Isso fecha, do lado do TruthID (Sessão 114 de lá), **a pendência "nenhuma tro
 **2. Consolidação de Carteiras & Multi-Ativos**
 - Um Workspace pode conter múltiplas carteiras de investimento pra consolidação global.
 - **Confirmado explicitamente pelo dono do projeto (continuação da Sessão 29)**: a carteira (`Portfolio`) pertence ao **Workspace**, não a um membro individual — mesmo modelo já refletido no rascunho de banco abaixo (`Portfolios(id, workspace_id, ...)`, sem `user_id`). Um Workspace com 3 membros compartilha as mesmas carteiras; não existe "minha carteira dentro do workspace" separada da carteira de outro membro — é a carteira do Workspace, e quem pode mexer nela é resolvido pelo RBAC (item 1), não por dono individual da carteira.
-- Classes de ativos propostas: Ações (Brasil, já suportado hoje), Stocks internacionais (moeda base USD, novo), Criptomoedas (paridades principais, fração de ativos), Tesouro Direto detalhado (nome do título, taxa contratada, indexador, data de aplicação/vencimento), Renda Fixa geral (emissor, taxa % CDI/Pré/Pós, vencimento, liquidez).
+- Classes de ativos propostas: Ações (Brasil, já suportado hoje), Stocks internacionais (moeda base USD, novo), Criptomoedas (paridades principais, fração de ativos), Tesouro Direto detalhado (nome do título, taxa contratada, indexador, data de aplicação/vencimento), Renda Fixa geral (emissor, taxa % CDI/Pré/Pós, vencimento, liquidez). **Lista ampliada e detalhada na Sessão 30** — ver item 8 abaixo (FII, REIT, ETF, Metal, Imóvel, Empresa não listada, mais o modelo de listagem/exposição/classe).
 
 **3. Pesquisa Centralizada & Tela de Análise**
 - Barra de busca global (command bar / spotlight) centralizando a pesquisa de qualquer ativo (ações/stocks/cripto/renda fixa) ou tese.
@@ -592,15 +592,74 @@ No desenho da Fase 10, `Lancamento` mapeia naturalmente pra `Transactions` (já 
 
 **Exemplo numérico** (do rascunho original, confirma a fórmula): janeiro começa com R$10.000, aporte de R$2.000 no dia 10 (peso ≈ 21/31 ≈ 0,68), fecha com R$12.500 → `R_jan = (12.500 − 10.000 − 2.000) / (10.000 + 2.000×0,68) = 500/11.360 ≈ 4,4%`. Fevereiro começa com R$12.500, sem fluxo, fecha com R$12.250 → `R_fev = (12.250 − 12.500)/12.500 = −2,0%`. Consolidado jan+fev: `(1,044 × 0,98) − 1 ≈ 2,3%`.
 
+**8. Modelo Detalhado de Multi-Ativos: Exposição, Novas Classes e Anexos** (rascunho à parte, `practice-valuation-carteira-multiativo (1).md`, conteúdo transcrito aqui e arquivo removido, Sessão 30). Detalha e substitui a lista simples de classes do item 2 acima — é o desenho de como a fatia 10.2 (multi-ativos) deve funcionar de fato.
+
+**Classes de ativo suportadas**: Ação (B3 e bolsas americanas), FII, REIT (equivalente americano do FII — FII usa P/VP e dividend yield em BRL, REIT usa FFO/AFFO e cap rate em USD, mas convivem na mesma "família" de fundo imobiliário na UI), ETF (B3 e bolsa americana, expansível a outros países no futuro), Cripto, Metal (ouro, prata, etc.), Imóvel (ativo físico, cadastro manual) e Empresa não listada (equity privado, cadastro manual).
+
+**Modelo central — listagem ≠ exposição ≠ classe**: hoje cada ativo tende a ter implicitamente um único país, herdado da fonte de dados (bolsa de negociação). O modelo separa três conceitos:
+
+| Conceito | O que representa | Origem |
+|---|---|---|
+| Listagem/exchange | Onde o ativo é negociado (ex.: NASDAQ, B3) | Puxado automático da fonte de dados, editável |
+| Exposição | A que país(es) ou categoria especial o ativo realmente expõe o investidor | Padrão = país da listagem, editável pelo usuário |
+| Classe do ativo | Ação, FII, REIT, ETF, cripto, metal, imóvel, empresa não listada | Cadastro do ativo |
+
+Exposição é **um ou mais países com peso % somando 100%, OU uma categoria especial** (cripto, metal_ouro, metal_prata, etc.) — mutuamente exclusivo por ativo. Campo sugerido `tipo_exposicao = pais | categoria_especial`, com tabela `ativo_exposicao_pais (ativo_id, pais, peso_%)` pro caso de país. Exemplos: Banco Inter negociado nos EUA → listagem EUA (auto), exposição 100% Brasil (editado manualmente), classe Ação; IVVB11 → listagem B3 (auto), exposição 100% EUA (editado), classe ETF; ETF brasileiro de cripto → listagem B3, exposição categoria_especial (cripto) — fora do cálculo de alocação por país; ETF de ouro → mesma lógica, categoria_especial (metal_ouro).
+
+**Automatização da exposição**: puxar a exposição real de um ETF via fact sheet tem custo alto de implementação com pouco ganho no estágio atual — abordagem pro MVP é override manual por ativo (cadastra uma vez, fica salvo); evolução futura possível seria uma base curada própria de ETFs conhecidos, community-maintained.
+
+**Metais como classe**: preço puxado automaticamente (cotação ao vivo, como cripto, sem valor manual); quantidade cadastrada em **gramas**, não "ações/cotas" — pede um campo `unidade_medida` no ativo (`acao`, `cota`, `grama`, `unidade`), generalizando o cálculo de posição pra `quantidade × preço_unitário` independente da classe. Fonte de cotação provavelmente é uma API diferente das já usadas — mais um provider seguindo o padrão de "cada classe pode ter sua fonte própria".
+
+**Imóvel** (ativo físico, cadastro manual, sem fonte de dados externa): fotos/documentos anexos (escritura, ITBI, impostos pagos), endereço, valor de compra (fixo, histórico), histórico de avaliações `(data, valor, origem: manual | reajuste_automatico)`. Reajuste automático por % anual — mecanismo de cálculo (ao vivo vs. snapshot periódico) **ainda não decidido**, adiado pra implementação.
+
+**Empresa não listada** (equity privado, mesmo padrão do imóvel): percentual de participação, quantidade de ações, valor de compra, valor atual (editável manualmente, mesmo mecanismo de histórico do imóvel), valuation total da empresa, fotos/foto de perfil da empresa. **Ponto em aberto**: percentual, quantidade de ações e valuation total são matematicamente relacionados (`percentual = suas_ações / total_de_ações_da_empresa`; `sua_participação_R$ = percentual × valuation_total`), mas isso só fecha se o total de ações emitidas pela empresa for conhecido — nem sempre disponível em empresa não listada. Decidir se o percentual é validado contra esses campos ou se é um valor digitado independente.
+
+**Generalização `AtivoManual`**: Imóvel e Empresa não listada compartilham o mesmo esqueleto — cadastro manual, sem fonte de dados externa, histórico de valor, anexos. Faz sentido um tipo base `AtivoManual` (nome, valor de compra, histórico de valor, anexos), com cada subtipo adicionando só os campos específicos (endereço vs. participação societária).
+
+**Anexos (sistema polimórfico único)**: em vez de um sistema de anexo por feature (imóvel, empresa, lançamento), um único subsistema reutilizável: `anexo (id, entidade_tipo, entidade_id, arquivo, tipo_documento, data)`, onde `entidade_tipo` pode ser `imovel`, `empresa` ou `lancamento` — todos passam pelo mesmo código de upload/storage, só muda o rótulo do tipo de documento. (Mesma necessidade de storage de arquivo já levantada em `ThesisAttachment`, item 4 acima — decidir na implementação se vira o mesmo mecanismo ou fica separado.)
+
+**Busca unificada de ativos**: uma única busca cobrindo todas as classes negociadas em bolsa (não inclui Imóvel/Empresa não listada, que são cadastro manual direto, sem ticker). Arquitetura híbrida: catálogo local pré-indexado (`ativo_catalogo`: ticker, nome, classe, exchange, fonte_dados) populado por job de sync periódico, busca instantânea pro caso comum; atualização sob demanda — se a busca não encontra o ativo no catálogo local, cai pra fan-out ao vivo nas APIs externas, e se encontrar, indexa no catálogo pra próxima busca. UX: cada resultado exibe classe + exchange + exposição (ex.: "BIDI3 — Ação — B3 — 🇧🇷" vs. "INTR — Stock — NASDAQ — 🇧🇷"), pra resolver o caso de ativos do mesmo emissor negociados em mercados diferentes (ex.: Banco Inter).
+
+**Decisões em aberto trazidas por este rascunho**: mecanismo de reajuste automático de imóvel (ao vivo vs. snapshot); validação cruzada percentual/quantidade/valuation de empresa não listada; automação de exposição de ETF via fact sheet (adiado — override manual no MVP).
+
+**9. Gestão de Custódias/Contas** (rascunho à parte, `practice-valuation-mobile-custodia-nome.md`, seção 4, conteúdo transcrito aqui e arquivo removido, Sessão 30). Nova dimensão no modelo, ortogonal à classe do ativo: **onde** cada investimento está guardado (corretora, exchange, hardware wallet, banco), independente do que o ativo é.
+
+Entidade `Custodia`: cadastro livre pelo usuário, sem nada pré-pronto (ex.: "Rico", "Nomad", "Bipa", "Ledger"). Campo `instituicao` (nome da corretora/exchange/wallet) e campo `titular` (CPF/CNPJ ou identificação do titular da conta) — dois campos separados na mesma entidade, sem precisar de hierarquia adicional. Permite agrupar por qualquer uma das duas dimensões: "tudo que está na Rico" (soma titulares) ou "tudo que é meu CNPJ" (soma instituições).
+
+Posição quebrada por custódia: `posicao (ativo_id, custodia_id, quantidade)` — um mesmo ativo pode estar dividido entre múltiplas custódias (ex.: parte do BTC na Binance, parte na Ledger). Total do ativo na carteira = soma de todas as linhas de posição. Resumo consolidado da carteira soma tudo, ignorando titular/custódia por padrão — o detalhamento é uma visão adicional, não a visão default.
+
+Tela de gerenciamento de contas: seção própria na navegação, separada do cadastro de ativo. Lista de custódias cadastradas, cada uma mostrando total consolidado ali dentro + breakdown por classe de ativo. Duas visões possíveis a partir da mesma tabela `posicao` — por custódia (o que está em cada lugar) e por ativo (onde cada ativo está distribuído) — não duplica dado, só agrupa diferente.
+
+Lançamentos com custódia e taxa: vínculo à custódia acontece no momento do lançamento (compra/transferência já pede em qual custódia está entrando), não como passo manual separado. Novo tipo de lançamento **transferência** entre custódias, com `custodia_origem`, `custodia_destino`, `quantidade`. Campo `taxa` genérico, aplicável a qualquer tipo de lançamento (compra, venda, transferência) — reaproveita a estrutura de lançamento já existente (`Lancamento`/`Transactions`, ver item 7 acima), sem tabela separada.
+
+**Decisão em aberto**: taxa de transferência sempre no próprio ativo transferido, ou pode ser em ativo/moeda diferente (ex.: taxa de rede em cripto vs. corretagem em BRL) — não decidido.
+
 **Ordem de implementação decidida com o dono do projeto (continuação da Sessão 29, via `AskUserQuestion`)**:
 
 **Workspace nasce single-user** — um único Workspace implícito (o próprio dono), sem convite/membro externo, sem RBAC ativo ainda. Essa escolha destrava começar a Fase 10 sem precisar resolver a permissão descentralizada primeiro (ver ressalva acima) — convite/multiusuário real vira uma fatia à parte, bloqueada até esse problema estar resolvido (provavelmente amarrado à Fase 8). **Primeira fatia concreta escolhida pra quando começarmos: multi-ativos.**
 
 - [ ] 10.1 — Fundação: schema `Workspace`/`Portfolio` (SQLite/SeaORM) — Workspace single-user, sem `WorkspaceMember`/convite ainda. Pré-requisito de tudo abaixo.
-- [ ] 10.2 — **Primeira fatia, decidida com o dono do projeto**: Multi-ativos — Stocks internacionais (moeda USD), Tesouro Direto detalhado, Renda Fixa geral no schema de `Transactions` (substitui o antigo item "tabela unificada de `Transactions`")
+- [ ] 10.2 — **Primeira fatia, decidida com o dono do projeto**: Multi-ativos — Stocks internacionais (moeda USD), Tesouro Direto detalhado, Renda Fixa geral no schema de `Transactions` (substitui o antigo item "tabela unificada de `Transactions`"); escopo ampliado na Sessão 30 com FII/REIT/ETF/Cripto/Metal/Imóvel/Empresa não listada e o modelo de listagem/exposição/classe (ver item 8) e com Gestão de Custódias/Contas (ver item 9)
 - [ ] 10.3 — Rentabilidade histórica (TWR/Dietz Modificado, ver seção 7 acima) — tecnicamente não depende do Workspace/multi-ativos prontos; ordem relativa às fatias 10.4/10.5 ainda não decidida, pode furar a fila se fizer mais sentido na hora
 - [ ] 10.4 — Watchlists + favoritos — a mais simples das três restantes, boa pra validar o modelo de Workspace na prática; ordem relativa a 10.3/10.5 ainda não decidida
 - [ ] 10.5 — Teses + anexos — precisa decidir armazenamento de arquivo (S3/MinIO/R2) antes de começar (infra nova que as outras fatias não exigem); ordem relativa a 10.3/10.4 ainda não decidida
 - [ ] 10.6 — Seletor de múltiplos Workspaces na tela inicial (ex.: "Pessoal" vs "Família") — só faz sentido se o dono do projeto quiser mais de um Workspace próprio; não depende de multiusuário
 - [ ] 10.7 — **Bloqueada, não planejada**: convite + RBAC ativo entre pessoas diferentes + login TruthID multiusuário (diferente do uso atual do TruthID no projeto, que é só assinatura delegada pra sync — Fase 8) — depende de resolver a permissão descentralizada primeiro (ver ressalva acima)
+
+---
+
+### Fase 11 — Rebranding (Anchor), App Mobile & Empacotamento Desktop (ideia levantada na Sessão 30, não iniciada)
+
+**Objetivo**: renomear o app, ganhar um cliente mobile completo e empacotar o desktop como instalador standalone (sem exigir Python instalado na máquina do usuário) — três decisões trazidas juntas num segundo rascunho à parte (`practice-valuation-mobile-custodia-nome.md`, conteúdo transcrito aqui e arquivo removido; a 4ª ideia do mesmo rascunho, Gestão de Custódias, foi pra Fase 10 item 9 por pertencer ao modelo de carteira, não a essa fase).
+
+**1. Nome do app → Anchor**: critérios usados na escolha — em inglês, remetendo a segurança/controle do próprio patrimônio (mesma linha conceitual do TruthID — self-custody, sem intermediário), curto e fácil de pronunciar em qualquer idioma. Como é software open-source, não há preocupação de conflito de marca/domínio. **Decisão de nome registrada — execução do rename (repo, pastas, README, referências internas) ainda não feita.**
+
+**2. App mobile**: completo, replicando todas as funções que o desktop tem e terá. Framework escolhido: **Flutter** — base de código separada do desktop, resolve de saída o problema de o sidecar Python não rodar em mobile. (Atualiza o item "Companion mobile" do Roadmap, que antes era só uma ideia solta sem framework decidido.)
+
+**3. Empacotamento do desktop (Tauri + Python)**: sidecar Python compilado pra binário standalone via **PyInstaller** ou **Nuitka**, sem exigir Python instalado na máquina do usuário. Binário registrado em `tauri.conf.json` (`bundle.externalBin`), empacotado junto no instalador final do Tauri (NSIS/MSI, `.dmg`, `.deb`/AppImage). CI: **GitHub Actions**, com matrix build (`windows-latest`, `macos-latest`, `ubuntu-latest`) compilando o sidecar nativamente em cada runner antes do step do `tauri-action`, que gera os instaladores e publica na release. Atenção: nome do binário do sidecar precisa incluir o target triple da plataforma (ex.: `sidecar-x86_64-pc-windows-msvc.exe`) pro Tauri localizar corretamente.
+
+**Etapas**:
+- [ ] 11.1 — Executar o rename pra Anchor (repo, pastas, README, referências internas)
+- [ ] 11.2 — App mobile em Flutter, replicando as funções do desktop
+- [ ] 11.3 — Empacotamento do sidecar Python (PyInstaller/Nuitka) + CI GitHub Actions (matrix build) gerando instaladores standalone
 
