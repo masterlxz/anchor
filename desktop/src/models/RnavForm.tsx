@@ -71,6 +71,12 @@ function RnavForm() {
     }
     if (data.dcfFundamentals) {
       setSharesOutstanding(String(data.dcfFundamentals.shares_outstanding));
+      setNetCash(
+        String(data.dcfFundamentals.cash - data.dcfFundamentals.total_debt),
+      );
+      if (data.dcfFundamentals.inventory !== null) {
+        setInventoryAtMarketValue(String(data.dcfFundamentals.inventory));
+      }
       filled++;
     }
     if (filled === 0) {
@@ -167,6 +173,10 @@ function RnavForm() {
               value={inventoryAtMarketValue}
               onChange={(e) => setInventoryAtMarketValue(e.currentTarget.value)}
             />
+            <p className="text-xs text-muted-foreground">
+              Auto-filled with CVM book value — adjust to market value if
+              known.
+            </p>
           </Field>
 
           <Field label="Net cash — cash minus debt, can be negative (R$ millions)">

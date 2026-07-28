@@ -379,25 +379,32 @@ def fetch_payout(ticker_cvm_codes: dict[str, str]) -> list[dict]:
 
 
 def fetch_dcf_fundamentals(ticker_cvm_codes: dict[str, str]) -> list[dict]:
-    """Busca os 8 campos do DCF/Stock Lookup derivados de dados contábeis da
-    CVM (EBIT, alíquota efetiva, D&A, Capex, ΔNWC, dívida total, caixa,
-    receita líquida) pra cada ticker. `shares_outstanding` não vem daqui —
-    ver nota no topo do arquivo.
+    """Busca os 9 campos do DCF/Stock Lookup/RNAV derivados de dados
+    contábeis da CVM (EBIT, alíquota efetiva, D&A, Capex, ΔNWC, dívida
+    total, caixa, receita líquida, estoque) pra cada ticker.
+    `shares_outstanding` não vem daqui — ver nota no topo do arquivo.
 
     `ticker_cvm_codes` é {ticker: cvm_code} — já resolvido via
     `acoes_bolsai.fetch_fundamentals` (mesma chamada que já busca LPA/VPA/ROE,
     sem chamada extra só pra achar a empresa). Retorna uma lista de dicts
     com `ticker`, `reference_year`, `ebit`, `tax_rate`,
     `depreciation_amortization` (pode ser `None`), `capex` (pode ser
-    `None`), `nwc_change`, `total_debt`, `cash`, `revenue`. Um ticker sem
-    dado encontrável (ex.: banco — taxonomia de DRE diferente, ver
-    domain/dcf.rs) é ignorado, não derruba o restante.
+    `None`), `nwc_change`, `total_debt`, `cash`, `revenue`, `inventory`. Um
+    ticker sem dado encontrável (ex.: banco — taxonomia de DRE diferente,
+    ver domain/dcf.rs) é ignorado, não derruba o restante.
 
     `revenue` (Sessão 20, pra margem líquida do Stock Lookup) usa a conta
     "3.01" da DRE ("Receita de Venda de Bens e/ou Serviços" na maioria das
     empresas, rótulo muda pra banco/seguradora mas o código é igualmente
     estável) — confirmado contra o zip real: mesma cobertura exata da conta
     "3.05" do EBIT (436 de 436 empresas com EBIT também têm receita).
+
+    `inventory` (Sessão 29, pra auto-fill do RNAV) usa a conta "1.01.04" do
+    BPA — mesmo código já lido dentro de `_nwc_change` pra esse mesmo
+    ticker (Estoques, Ativo Circulante), só que aqui devolvido isolado em
+    vez de só entrar na conta do ΔNWC. Não é uma leitura nova de risco: se
+    essa conta não existisse pra um ticker, `_nwc_change` já teria
+    derrubado o ticker inteiro antes de chegar aqui.
     """
     zip_path = _resolve_zip_path()
     results = []
@@ -442,6 +449,7 @@ def fetch_dcf_fundamentals(ticker_cvm_codes: dict[str, str]) -> list[dict]:
                     ),
                     "cash": _find_exact(company_bpa, "1.01.01"),
                     "revenue": _find_exact(company_dre, "3.01"),
+                    "inventory": _find_exact(company_bpa, "1.01.04"),
                 }
             )
         except (KeyError, LookupError, IndexError):

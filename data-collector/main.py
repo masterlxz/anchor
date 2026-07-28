@@ -161,8 +161,8 @@ def collect_stock_dcf_fundamentals(fundamentals: list[dict]) -> list[dict]:
     conn.executemany(
         "INSERT INTO stock_dcf_fundamentals (ticker, reference_year, ebit, "
         "depreciation_amortization, capex, nwc_change, total_debt, cash, "
-        "shares_outstanding, source, fetched_at, tax_rate, revenue) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "shares_outstanding, source, fetched_at, tax_rate, revenue, inventory) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
             (
                 r["ticker"],
@@ -178,6 +178,7 @@ def collect_stock_dcf_fundamentals(fundamentals: list[dict]) -> list[dict]:
                 now,
                 r["tax_rate"],
                 r["revenue"],
+                r["inventory"],
             )
             for r in records
         ],
@@ -415,7 +416,8 @@ def main(ticker: str | None = None) -> int:
             f"D&A {'n/a' if da is None else f'{da:.1f}'} / "
             f"Capex {'n/a' if capex is None else f'{capex:.1f}'} / "
             f"ΔNWC {item['nwc_change']:.1f} / Debt {item['total_debt']:.1f} / "
-            f"Cash {item['cash']:.1f} / Revenue {item['revenue']:.1f} (R$ millions)"
+            f"Cash {item['cash']:.1f} / Revenue {item['revenue']:.1f} / "
+            f"Inventory {item['inventory']:.1f} (R$ millions)"
         )
     print(f"Updated {len(dcf_fundamentals)} DCF fundamentals record(s)")
 

@@ -40,6 +40,7 @@ export type StockDcfFundamentals = {
   source: string;
   fetched_at: string;
   revenue: number | null;
+  inventory: number | null;
 };
 
 export type StockDividendPayment = {
