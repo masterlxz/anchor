@@ -2,7 +2,7 @@
 
 > Este arquivo é o centro de controle do projeto. Atualizado a cada sessão de trabalho.
 > Pode ser lido por qualquer instância do Claude Code em qualquer máquina para retomar o contexto.
-> Última atualização: 2026-07-27 (Sessão 28, início — ideia de auto-fill RNAV registrada em Fase 2.5)
+> Última atualização: 2026-07-28 (Sessão 29 — ideia grande de remodelagem para Workspaces Colaborativos & Multi-Ativos registrada em Fase 10, não iniciada)
 
 ---
 
@@ -88,6 +88,7 @@ Fase 6 — Publicação (GitHub público)               [~] Em andamento (6.2 RE
 Fase 7 — Chat de IA Integrado                      [x] Completa (7.1 a 7.10.6 — Sessão 27 (2026-07-21) fechou a fase inteira, entregando 7.10.3 (contador de tokens) e 7.10.4 (IA propõe criar valuation, com confirmação humana obrigatória) na mesma sessão; testado ponta a ponta pelo usuário no app real, incl. aprovar/descartar/reload; Claude/OpenAI seguem sem teste contra API real por falta de chave de teste — não bloqueia o fechamento da fase, é uma pendência à parte — ver Fases Detalhadas)
 Fase 8 — Sync Multi-Dispositivo via TruthID+IPFS  [~] Em andamento — Sessão 23 (2026-07-16): transporte cross-device do `/sign-request` validado ponta a ponta; Sessão 24 (2026-07-21): fatia 8.1 (contrato próprio `SyncRegistry` + leitura via `eth_call`) implementada e testada — deploy real em Base Sepolia ainda pendente, aguardando revisão do dono do projeto; ver Fases Detalhadas
 Fase 9 — Tela de Pesquisa de Ação (Stock Lookup)  [x] Completa — 9.1 a 9.5 concluídas, nenhuma pendência conhecida
+Fase 10 — Remodelagem para Workspaces Colaborativos & Multi-Ativos [ ] Não iniciada — ideia grande registrada na Sessão 29, decisão de arquitetura em aberto (ver Fases Detalhadas)
 ```
 
 ---
@@ -635,6 +636,60 @@ Isso fecha, do lado do TruthID (Sessão 114 de lá), **a pendência "nenhuma tro
 
 ---
 
+### Fase 10 — Remodelagem para Workspaces Colaborativos & Multi-Ativos (ideia levantada na Sessão 29, não iniciada)
+
+**Objetivo**: evoluir o Practice Valuation de app desktop single-user pra uma plataforma colaborativa de Intelligence & Portfolio Management (estilo Status Invest / Investidor10 + Notion), com múltiplos usuários por Workspace, autenticação via TruthID, e suporte a mais classes de ativos além de ações BR.
+
+**⚠️ Nota importante, a resolver antes de qualquer código**: a ideia original (trazida pelo dono do projeto num rascunho à parte, registrada abaixo tal como veio) menciona um "App Django" e modelagem em PostgreSQL. Isso conflita com as decisões de arquitetura já tomadas na Sessão 1 (Tauri + Rust + React/TS, SQLite local, sem servidor próprio — ver "Decisões de Arquitetura em Aberto") e com o resto do projeto sendo single-user/local. Antes de qualquer implementação real, decidir com o dono do projeto: **(a)** é um pivô real pra arquitetura cliente-servidor com Postgres/Django, saindo do modelo "app local sem servidor"? ou **(b)** os conceitos (workspaces, RBAC, multi-ativos, teses, watchlists) devem ser adaptados pra continuar rodando sobre SQLite local, com colaboração resolvida via o sync descentralizado da Fase 8 (TruthID + IPFS) em vez de um backend central? Essa escolha muda o desenho inteiro, não só detalhes de implementação — nada abaixo foi filtrado por essa decisão, é o brainstorm bruto.
+
+**1. Arquitetura Multi-Tenant & Colaboração (Workspaces)**
+- App passa a ser centrado em **Workspaces**: carteiras, teses, listas e anexos pertencem a um Workspace, não a um usuário direto.
+- Fluxo: login via TruthID → tela inicial lista Workspaces próprios (Owner) e Workspaces em que o usuário foi convidado (Membro/Convidado) → botão "Criar Novo Workspace".
+- RBAC granular por membro, definido pelo Owner/Admin: papéis padrão `Owner`/`Admin`/`Editor`/`Viewer`, mais flags específicas — `can_add_transactions`, `can_delete_transactions`, `can_create_theses`, `can_manage_members`.
+
+**2. Consolidação de Carteiras & Multi-Ativos**
+- Um Workspace pode conter múltiplas carteiras de investimento pra consolidação global.
+- Classes de ativos propostas: Ações (Brasil, já suportado hoje), Stocks internacionais (moeda base USD, novo), Criptomoedas (paridades principais, fração de ativos), Tesouro Direto detalhado (nome do título, taxa contratada, indexador, data de aplicação/vencimento), Renda Fixa geral (emissor, taxa % CDI/Pré/Pós, vencimento, liquidez).
+
+**3. Pesquisa Centralizada & Tela de Análise**
+- Barra de busca global (command bar / spotlight) centralizando a pesquisa de qualquer ativo (ações/stocks/cripto/renda fixa) ou tese.
+- Tela unificada do ativo: dados de mercado (cotação, variação, gráficos, valuation), posição consolidada no Workspace (preço médio, total investido, P&L), e teses/notas do Workspace vinculadas àquele ativo.
+
+**4. Teses de Investimento, Documentos e Anexos**
+- `Thesis`: vinculável a um ativo específico (ex.: tese em WEGE3) ou global/macro (ex.: "Cenário de Juros 2027"), editor Markdown/Rich Text.
+- `ThesisAttachment`: anexar PDFs (relatórios de RI, fatos relevantes, lâminas), planilhas e imagens — armazenamento em bucket (S3/MinIO/Cloudflare R2) com metadados no banco.
+
+**5. Listas de Ativos (Watchlists) & Favoritos**
+- Favoritos: marcação rápida de ativos pra destaque no dashboard do Workspace.
+- Watchlists nomeadas (ex.: "Ações de Dividendos", "Turnarounds pra Acompanhar") com anotações e preço-alvo por ativo.
+
+**6. Rascunho de modelagem de banco trazido junto** (Postgres, ver nota acima sobre o conflito de arquitetura):
+```sql
+-- Workspaces & Membros
+Workspaces (id, name, owner_truthid, created_at)
+WorkspaceMembers (id, workspace_id, user_truthid, role, permissions_json)
+
+-- Carteiras e Transações
+Portfolios (id, workspace_id, name, description)
+Assets (id, ticker, name, asset_class, currency)
+Transactions (id, portfolio_id, asset_id, type, quantity, price, date, fees, fixed_income_metadata_json)
+
+-- Teses, Documentos e Watchlists
+Theses (id, workspace_id, asset_id NULL, title, content_markdown, created_by)
+ThesisAttachments (id, thesis_id, file_url, file_name, file_size)
+Watchlists (id, workspace_id, name)
+WatchlistItems (id, watchlist_id, asset_id, target_price, notes)
+```
+
+**Checklist original trazido junto pelo dono do projeto** (só registrado, nada planejado em detalhe — depende da decisão de arquitetura da nota acima):
+- [ ] 10.1 — Definir a estrutura do backend (`workspaces`, `portfolios`, `theses`, `assets`) — arquitetura concreta ainda em aberto (servidor/Postgres novo vs. adaptação do modelo local atual)
+- [ ] 10.2 — Modelagem de `Workspace` e `WorkspaceMember`
+- [ ] 10.3 — Login e integração via TruthID pro fluxo multi-usuário (diferente do uso atual do TruthID no projeto, que é só assinatura delegada pra sync — Fase 8)
+- [ ] 10.4 — Tabela unificada de `Transactions` com suporte a metadados de Renda Fixa/Tesouro
+- [ ] 10.5 — Seletor de Workspaces na tela inicial
+
+---
+
 ## Decisões de Arquitetura em Aberto
 
 | Decisão | Opções | Status |
@@ -665,6 +720,7 @@ Isso fecha, do lado do TruthID (Sessão 114 de lá), **a pendência "nenhuma tro
 - **Mais indicadores de cripto pagos** (Glassnode/CryptoQuant — MVRV, Puell, Netflow) se o usuário decidir assinar
 - **Companion mobile** — só se fizer sentido depois do desktop estar redondo
 - **Mais metodologias de valuation** conforme o usuário for trazendo (Bazin/preço-teto, Graham, DCF, EV/EBITDA setorial, etc.)
+- **Remodelagem pra plataforma colaborativa multi-tenant** (Workspaces, RBAC, multi-ativos, teses/anexos, watchlists) — ideia grande registrada na Sessão 29, ver Fase 10 em "Fases Detalhadas"; decisão de arquitetura (servidor/Postgres vs. adaptar pro modelo local atual) ainda em aberto
 
 ---
 
@@ -1136,6 +1192,13 @@ Isso fecha, do lado do TruthID (Sessão 114 de lá), **a pendência "nenhuma tro
 - `cargo check`/`cargo test --lib`: **77/77** (5 novos: parsing de tool-call dos 3 provedores + 2 de `parse_propose_valuation_args`), sem regressão. `npx tsc --noEmit` limpo.
 - **Testado ponta a ponta pelo usuário no app real**, os 3 casos do checklist: proposta aprovada (valuation #91 criada de verdade, conferido via `sqlite3` direto no banco — "funcionou como esperado"), proposta descartada (nada escrito — "deu boa"), reload da conversa depois de resolver confirmando que os botões não voltam a aparecer (estado vem do banco, não só da sessão — "deu boa").
 - **Marco**: Fase 7 (chat de IA) fecha por completo — 7.1 a 7.10.6, nenhuma pendência de implementação restante. Únicas pendências conhecidas da fase: Claude/OpenAI ainda sem teste contra API real (falta de chave, não é bug conhecido) e a UX geral do chat mencionada como "tem espaço pra melhorar" na Sessão 26, nunca detalhada.
+
+### 2026-07-28 — Sessão 29
+
+- **Objetivo**: o dono do projeto trouxe um rascunho num arquivo `.md` à parte (`Especificacao_Practice_Valuation.md`, escrito fora do fluxo normal de sessão) com uma ideia grande de remodelagem — Workspaces colaborativos multi-tenant, RBAC, consolidação de carteiras com mais classes de ativo, teses/anexos, watchlists — e pediu pra essas ideias serem incorporadas ao `PROJECT_STATE.md` e o arquivo solto removido.
+- **Registrado como Fase 10** ("Fases Detalhadas"), no mesmo padrão usado quando a Fase 8 nasceu como brainstorm na Sessão 11: nenhuma decisão tomada, nenhum código tocado — só a ideia bruta preservada, incluindo o rascunho de modelagem de banco (Postgres) e o checklist original.
+- **Achado ao registrar, não resolvido nesta sessão**: o rascunho original menciona "App Django" e PostgreSQL, o que conflita com as decisões de arquitetura já fechadas na Sessão 1 (Tauri + Rust + React/TS, SQLite local, sem servidor próprio — projeto inteiro é single-user/local hoje). Sinalizado como nota explícita no topo da Fase 10: antes de qualquer implementação, precisa decidir com o dono do projeto se é um pivô real pra cliente-servidor, ou se os conceitos devem ser adaptados pro modelo local atual (com colaboração via o sync descentralizado da Fase 8, TruthID+IPFS, em vez de backend central).
+- Também referenciado em "Status Geral" e "Roadmap de Evoluções Planejadas". `Especificacao_Practice_Valuation.md` removido do repo depois do conteúdo transcrito.
 
 ---
 
