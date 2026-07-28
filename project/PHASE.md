@@ -523,6 +523,7 @@ Isso fecha, do lado do TruthID (Sessão 114 de lá), **a pendência "nenhuma tro
 
 **2. Consolidação de Carteiras & Multi-Ativos**
 - Um Workspace pode conter múltiplas carteiras de investimento pra consolidação global.
+- **Confirmado explicitamente pelo dono do projeto (continuação da Sessão 29)**: a carteira (`Portfolio`) pertence ao **Workspace**, não a um membro individual — mesmo modelo já refletido no rascunho de banco abaixo (`Portfolios(id, workspace_id, ...)`, sem `user_id`). Um Workspace com 3 membros compartilha as mesmas carteiras; não existe "minha carteira dentro do workspace" separada da carteira de outro membro — é a carteira do Workspace, e quem pode mexer nela é resolvido pelo RBAC (item 1), não por dono individual da carteira.
 - Classes de ativos propostas: Ações (Brasil, já suportado hoje), Stocks internacionais (moeda base USD, novo), Criptomoedas (paridades principais, fração de ativos), Tesouro Direto detalhado (nome do título, taxa contratada, indexador, data de aplicação/vencimento), Renda Fixa geral (emissor, taxa % CDI/Pré/Pós, vencimento, liquidez).
 
 **3. Pesquisa Centralizada & Tela de Análise**
@@ -555,10 +556,46 @@ Watchlists (id, workspace_id, name)
 WatchlistItems (id, watchlist_id, asset_id, target_price, notes)
 ```
 
+**7. Rentabilidade Histórica (Backfill) da Carteira** (ideia trazida num rascunho à parte na continuação da Sessão 29, `spec_rentabilidade_historica_carteira.md`, conteúdo transcrito aqui e o arquivo removido)
+
+**Problema**: migrar uma carteira que já existe há 2-3 anos pro app sem perder o histórico de rentabilidade — lançar retroativamente as movimentações (compra/venda/provento/aporte/retirada) desde a origem da carteira e calcular a rentabilidade mês a mês, consolidando mês → ano → período total, com granularidade **mensal** (não diária).
+
+**Por que não é `(valor final − valor inicial) / valor inicial`**: essa conta ingênua quebra na presença de aporte/retirada no meio do mês (um aporte de R$5.000 no meio do mês infla o "retorno" sem ser rendimento de verdade). Existem duas famílias de métrica:
+- **Money-Weighted Return (TIR/XIRR)**: mede o retorno em R$ do dinheiro do investidor, mas não encadeia mês a mês de forma simples.
+- **Time-Weighted Return (TWR)**: mede o retorno da carteira em si, neutralizando o efeito de quando o dinheiro entrou/saiu — é o padrão usado por fundos/CVM/B3, e **é geometricamente componível** (jan +1%, fev −2%, ... → total = produto de `(1+r)` − 1). É essa a métrica certa pro que foi pedido (rendimento mês a mês se somando geometricamente até o total).
+
+**Como calcular TWR mensal sem dado diário — Método de Dietz Modificado** (aproxima o TWR "de livro", que exigiria reavaliar a carteira a cada fluxo de caixa, usando só o valor no início/fim do mês + os fluxos do mês):
+```
+R_mes = (EMV - BMV - CF_total) / (BMV + Σ(CF_i × W_i))
+```
+onde `BMV`/`EMV` são o valor da carteira no início/fim do mês, e `W_i = (dias_no_mes - dias_desde_inicio_ate_o_fluxo) / dias_no_mes` é o peso de cada fluxo (um aporte no dia 1 "trabalhou" o mês inteiro, peso ≈ 1; um aporte no dia 28 quase não influenciou o mês, peso ≈ 0). Proventos entram como fluxo de caixa positivo dentro do mês (mesma lógica de aporte) se sacados, ou só aumentam o `EMV` se reinvestidos/mantidos em caixa — decisão de modelagem em aberto, ver abaixo.
+
+**Consolidação mês → ano → total** (TWR é geometricamente componível, sem mistério):
+```
+R_ano   = Π(1 + R_mes_i) - 1   para os N meses do ano
+R_total = Π(1 + R_mes_i) - 1   para todos os meses do período filtrado
+```
+Filtro de período (ex.: "desde que comecei", "últimos 2 anos", "2024") é só decidir o intervalo de meses no produtório — nenhuma mudança de metodologia.
+
+**O que precisa ser modelado**: pra calcular `BMV`/`EMV` de cada mês retroativamente, o sistema precisa, pra cada fim de mês no passado, saber (1) quais ativos estavam na carteira e em que quantidade — derivado do histórico de lançamentos até aquela data, (2) o preço de fechamento de cada ativo naquele fim de mês — precisa de série histórica de preços, não só o preço atual (pra ativos B3 o projeto já tem infra de dado de mercado; pra ativos vendidos antes de hoje, precisa do preço histórico até a data da venda), e (3) todos os fluxos de caixa do mês (aportes/retiradas/proventos em dinheiro) com data e valor. Rascunho de estrutura (ilustrativo, viraria migration SeaORM/SQLite como o resto do projeto):
+```
+Lancamento { data, tipo: compra|venda|aporte|retirada|provento, ativo (null p/ aporte/retirada puro), quantidade, preco_unitario, valor_total }
+SnapshotMensal { ano_mes, valor_carteira_fim_mes (calculado), rentabilidade_mes (calculado via Dietz Modificado) }
+```
+No desenho da Fase 10, `Lancamento` mapeia naturalmente pra `Transactions` (já no rascunho de banco acima, escopada por `portfolio_id` — e por consequência por Workspace, ver item 2); `SnapshotMensal` seria tabela nova, por `portfolio_id` + `ano_mes`.
+
+**Decisões em aberto (o dono do projeto ainda precisa bater o martelo)**:
+- Proventos contam como retorno mesmo sem reinvestir, ou só quando reinvestidos? (Convenção de mercado: contam no mês do pagamento, entram no `EMV` via caixa, mesmo sem reinvestir.)
+- Meses sem lançamento nenhum ainda têm `R_mes` (variação de preço dos ativos parados) — não dá pra simplesmente pular o mês no produtório.
+- Carteira zerada em algum mês (vendeu tudo) quebra o encadeamento de TWR ali — tratar como "novo período" a partir da próxima entrada, ou explicitar na consolidação total.
+
+**Exemplo numérico** (do rascunho original, confirma a fórmula): janeiro começa com R$10.000, aporte de R$2.000 no dia 10 (peso ≈ 21/31 ≈ 0,68), fecha com R$12.500 → `R_jan = (12.500 − 10.000 − 2.000) / (10.000 + 2.000×0,68) = 500/11.360 ≈ 4,4%`. Fevereiro começa com R$12.500, sem fluxo, fecha com R$12.250 → `R_fev = (12.250 − 12.500)/12.500 = −2,0%`. Consolidado jan+fev: `(1,044 × 0,98) − 1 ≈ 2,3%`.
+
 **Checklist original trazido junto pelo dono do projeto** (só registrado, nada planejado em detalhe ainda):
 - [ ] 10.1 — Definir a estrutura de dados (`workspaces`, `portfolios`, `theses`, `assets`) em SQLite/SeaORM, mesmo padrão do resto do projeto — sem backend novo
 - [ ] 10.2 — Modelagem de `Workspace` e `WorkspaceMember`. **Depende da ressalva acima**: se "Workspace" aqui significa só organizar as próprias carteiras (sem convidar ninguém), é tabela simples; se significa multiusuário de verdade, depende de resolver a permissão descentralizada primeiro
 - [ ] 10.3 — Login e integração via TruthID pro fluxo multi-usuário (diferente do uso atual do TruthID no projeto, que é só assinatura delegada pra sync — Fase 8)
 - [ ] 10.4 — Tabela unificada de `Transactions` com suporte a metadados de Renda Fixa/Tesouro
 - [ ] 10.5 — Seletor de Workspaces na tela inicial
+- [ ] 10.6 — Rentabilidade histórica (backfill) por carteira: cálculo mensal via Método de Dietz Modificado (TWR), consolidação mês→ano→total, tabela `SnapshotMensal` por `portfolio_id`+`ano_mes` — depende de série histórica de preço de fechamento por ativo (não só preço atual), inclusive pra ativos já vendidos; decisões de proventos/meses-sem-lançamento/carteira-zerada ainda em aberto (ver seção 7 acima)
 
