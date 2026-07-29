@@ -26,6 +26,10 @@ mod m20260721_120000_create_ai_conversation_and_message;
 mod m20260721_140000_add_token_usage_to_ai_message;
 mod m20260721_150000_create_ai_valuation_proposal;
 mod m20260728_103434_add_inventory_to_stock_dcf_fundamentals;
+mod m20260729_090000_create_workspace_and_portfolio;
+mod m20260729_090100_create_custodia;
+mod m20260729_090200_create_assets;
+mod m20260729_090300_create_transactions;
 
 pub struct Migrator;
 
@@ -59,6 +63,10 @@ impl MigratorTrait for Migrator {
             Box::new(m20260721_140000_add_token_usage_to_ai_message::Migration),
             Box::new(m20260721_150000_create_ai_valuation_proposal::Migration),
             Box::new(m20260728_103434_add_inventory_to_stock_dcf_fundamentals::Migration),
+            Box::new(m20260729_090000_create_workspace_and_portfolio::Migration),
+            Box::new(m20260729_090100_create_custodia::Migration),
+            Box::new(m20260729_090200_create_assets::Migration),
+            Box::new(m20260729_090300_create_transactions::Migration),
         ]
     }
 }

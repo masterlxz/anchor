@@ -11,6 +11,7 @@ import CryptoScorePanel from "./crypto/CryptoScorePanel";
 import SavedValuationsPanel from "./valuations/SavedValuationsPanel";
 import StockLookupPanel from "./stock-lookup/StockLookupPanel";
 import AlertsPanel from "./alerts/AlertsPanel";
+import PortfolioPanel from "./portfolio/PortfolioPanel";
 import TruthIdPanel from "./truthid/TruthIdPanel";
 import ChatPanel from "./chat/ChatPanel";
 import ChatToggleButton from "./chat/ChatToggleButton";
@@ -49,6 +50,7 @@ const SECTIONS = {
   valuation: "Valuation",
   lookup: "Stock Lookup",
   crypto: "Crypto Score",
+  portfolio: "Portfolio",
   alerts: "Alerts",
   truthid: "TruthID Sync",
 } as const;
@@ -178,6 +180,10 @@ function App() {
 
           <TabsContent value="crypto">
             <CryptoScorePanel />
+          </TabsContent>
+
+          <TabsContent value="portfolio">
+            <PortfolioPanel />
           </TabsContent>
 
           <TabsContent value="alerts">

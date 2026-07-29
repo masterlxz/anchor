@@ -70,7 +70,20 @@ pub fn run() {
             commands::truthid::await_cross_device_sign_request_response,
             commands::truthid::update_sync_record,
             commands::truthid::pin_database_snapshot,
-            commands::sync_registry::get_sync_record
+            commands::sync_registry::get_sync_record,
+            commands::workspace::get_workspace,
+            commands::portfolio::list_portfolios,
+            commands::portfolio::create_portfolio,
+            commands::portfolio::rename_portfolio,
+            commands::custodia::list_custodias,
+            commands::custodia::create_custodia,
+            commands::custodia::delete_custodia,
+            commands::asset::list_assets,
+            commands::asset::create_asset,
+            commands::transaction::create_transaction,
+            commands::transaction::delete_transaction,
+            commands::transaction::list_transactions,
+            commands::transaction::get_portfolio_positions
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
