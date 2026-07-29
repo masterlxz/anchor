@@ -69,6 +69,7 @@ pub fn run() {
             commands::truthid::create_cross_device_sign_request,
             commands::truthid::await_cross_device_sign_request_response,
             commands::truthid::update_sync_record,
+            commands::truthid::pin_database_snapshot,
             commands::sync_registry::get_sync_record
         ])
         .run(tauri::generate_context!())

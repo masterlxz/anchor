@@ -35,6 +35,15 @@ type CidRecordResponse = {
   exists: boolean;
 };
 
+type PinResult = {
+  status: string;
+  cid: string | null;
+  content_hash: string | null;
+  providers_ok: string[] | null;
+  providers_failed: string[] | null;
+  error: string | null;
+};
+
 /**
  * Prova de conceito mínima da fatia 3: descobre um TruthID Desktop rodando
  * na mesma máquina, faz handshake, e manda 1 pedido de assinatura de teste
@@ -87,6 +96,19 @@ function TruthIdPanel() {
     mutationFn: ({ cid, contentHash }) =>
       invoke("update_sync_record", { cid, contentHash }),
   });
+
+  // Fase 8.3: pina os bytes reais do arquivo SQLite atual via o proxy de
+  // pinning do TruthID — o resultado (cid/content_hash) alimenta direto a
+  // seção 8.2 acima, sem precisar digitar nada à mão.
+  const pinDatabaseMutation = useMutation<PinResult, AppError, void>({
+    mutationFn: () => invoke("pin_database_snapshot"),
+  });
+
+  function useThisPinResult() {
+    if (!pinDatabaseMutation.data?.cid || !pinDatabaseMutation.data?.content_hash) return;
+    setUpdateCid(pinDatabaseMutation.data.cid);
+    setUpdateContentHash(pinDatabaseMutation.data.content_hash);
+  }
 
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -246,8 +268,53 @@ function TruthIdPanel() {
 
         <div className="flex flex-col gap-2 border-t pt-6">
           <p className="text-sm text-muted-foreground">
-            Fase 8.2 — Update sync record (same-machine only): CID/content hash inserted
-            manually for now, encryption/pinning aren't wired up yet.
+            Fase 8.3 — Pin database snapshot: pins the current SQLite file's real bytes via
+            TruthID's pinning proxy. No real encryption yet (Fase 8.4) — this is the raw file.
+          </p>
+          <Button
+            variant="outline"
+            onClick={() => pinDatabaseMutation.mutate()}
+            disabled={pinDatabaseMutation.isPending}
+          >
+            {pinDatabaseMutation.isPending
+              ? "Waiting for approval in TruthID (up to 5 min)..."
+              : "Pin database snapshot"}
+          </Button>
+          {pinDatabaseMutation.isError && (
+            <p className="text-red-600">{pinDatabaseMutation.error.message}</p>
+          )}
+          {pinDatabaseMutation.isSuccess && (
+            <div>
+              <p>Status: {pinDatabaseMutation.data.status}</p>
+              {pinDatabaseMutation.data.cid && <p className="break-all">CID: {pinDatabaseMutation.data.cid}</p>}
+              {pinDatabaseMutation.data.content_hash && (
+                <p className="break-all">Content hash: {pinDatabaseMutation.data.content_hash}</p>
+              )}
+              {pinDatabaseMutation.data.providers_ok && pinDatabaseMutation.data.providers_ok.length > 0 && (
+                <p className="text-green-700">Pinned via: {pinDatabaseMutation.data.providers_ok.join(", ")}</p>
+              )}
+              {pinDatabaseMutation.data.providers_failed &&
+                pinDatabaseMutation.data.providers_failed.length > 0 && (
+                  <p className="text-red-600">
+                    Failed providers: {pinDatabaseMutation.data.providers_failed.join(", ")}
+                  </p>
+                )}
+              {pinDatabaseMutation.data.error && (
+                <p className="text-red-600">{pinDatabaseMutation.data.error}</p>
+              )}
+              {pinDatabaseMutation.data.cid && pinDatabaseMutation.data.content_hash && (
+                <Button variant="outline" onClick={useThisPinResult}>
+                  Use this result in Update sync record
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-2 border-t pt-6">
+          <p className="text-sm text-muted-foreground">
+            Fase 8.2 — Update sync record (same-machine only): CID/content hash can be pasted from
+            the pin result above, or typed manually. No real encryption yet (Fase 8.4).
           </p>
           <Input placeholder="CID (bafy...)" value={updateCid} onChange={(e) => setUpdateCid(e.target.value)} />
           <Input

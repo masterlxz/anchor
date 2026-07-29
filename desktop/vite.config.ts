@@ -19,16 +19,20 @@ export default defineConfig(async () => ({
   //
   // 1. prevent Vite from obscuring rust errors
   clearScreen: false,
-  // 2. tauri expects a fixed port, fail if that port is not available
+  // 2. tauri expects a fixed port, fail if that port is not available.
+  // 1430 (not the template's default 1420) — evita colidir com o TruthID
+  // Desktop quando os dois rodam ao mesmo tempo com `network_mode: host`
+  // (achado real: com a porta igual, a janela Tauri de quem perde a corrida
+  // de bind carrega o servidor Vite do outro projeto, mostrando a UI errada).
   server: {
-    port: 1420,
+    port: 1430,
     strictPort: true,
     host: host || false,
     hmr: host
       ? {
           protocol: "ws",
           host,
-          port: 1421,
+          port: 1431,
         }
       : undefined,
     watch: {

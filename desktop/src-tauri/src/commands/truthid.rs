@@ -1,8 +1,10 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 
+use crate::db;
 use crate::dead_drop;
 use crate::ecies;
 use crate::error::AppError;
@@ -196,6 +198,86 @@ pub async fn update_sync_record(
             "value": "0",
             "callData": format!("0x{}", hex::encode(&calldata)),
             "functionSignature": UPDATE_RECORD_FUNCTION_SIGNATURE,
+        }))
+        .send()
+        .await?
+        .json()
+        .await?;
+
+    Ok(result.into())
+}
+
+// Formato de fio da resposta de `/truthid/v1/pin` (`PinResponse` em
+// `pin.rs` do TruthID) — mesmo motivo de dois tipos separados que
+// `TruthIdWireResult`/`TruthIdSignResult` já têm (campos ausentes viram
+// `None` silenciosamente, então a convenção de nome de cada lado precisa
+// bater com quem lê/escreve, camelCase vindo de fora vs snake_case indo
+// pro Tauri/JS).
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PinWireResult {
+    status: String,
+    cid: Option<String>,
+    content_hash: Option<String>,
+    providers_ok: Option<Vec<String>>,
+    providers_failed: Option<Vec<String>>,
+    error: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct PinResult {
+    status: String,
+    cid: Option<String>,
+    content_hash: Option<String>,
+    providers_ok: Option<Vec<String>>,
+    providers_failed: Option<Vec<String>>,
+    error: Option<String>,
+}
+
+impl From<PinWireResult> for PinResult {
+    fn from(wire: PinWireResult) -> Self {
+        PinResult {
+            status: wire.status,
+            cid: wire.cid,
+            content_hash: wire.content_hash,
+            providers_ok: wire.providers_ok,
+            providers_failed: wire.providers_failed,
+            error: wire.error,
+        }
+    }
+}
+
+/// Fase 8.3 — pina os bytes reais do arquivo SQLite atual via o proxy de
+/// pinning do TruthID (`/truthid/v1/pin`), que já cuida de aprovação
+/// (park+approve, até 300s) e de subir pros providers configurados em
+/// TruthID → Settings → Pinning. O `contentHash` devolvido já vem no mesmo
+/// formato hex que `sync_registry::parse_content_hash` aceita, então o
+/// resultado encaixa direto nos campos de `update_sync_record` (Fase 8.2)
+/// sem conversão nenhuma.
+///
+/// Ler o arquivo `.db` bruto enquanto o próprio app pode ter uma conexão
+/// aberta nele arrisca um snapshot inconsistente no meio de uma escrita
+/// (torn read) — não há `journal_mode=WAL`/checkpoint configurado. Aceitável
+/// pra uso pessoal single-user nesta fatia; pendência de robustez registrada
+/// pra quando a Fase 8.5 for desenhada de verdade.
+#[tauri::command]
+pub async fn pin_database_snapshot() -> Result<PinResult, AppError> {
+    let bytes = tokio::fs::read(db::DATABASE_FILE_PATH).await?;
+    let content_base64 = STANDARD.encode(&bytes);
+
+    let (port, _) = discover().await?;
+
+    // Mesma margem de 310s que `send_test_sign_request`/`update_sync_record`
+    // já usam sobre o timeout de park+approve do lado do TruthID (300s).
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(310))
+        .build()?;
+    let url = format!("http://127.0.0.1:{port}/truthid/v1/pin");
+    let result: PinWireResult = client
+        .post(&url)
+        .json(&serde_json::json!({
+            "appName": APP_NAME,
+            "contentBase64": content_base64,
         }))
         .send()
         .await?

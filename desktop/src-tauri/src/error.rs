@@ -40,6 +40,8 @@ pub enum AppError {
     InvalidAddress(String),
     #[error("RPC error: {0}")]
     Rpc(String),
+    #[error("I/O error: {0}")]
+    Io(#[from] std::io::Error),
 }
 
 impl AppError {
@@ -64,6 +66,7 @@ impl AppError {
             AppError::TruthId(_) => "TRUTHID_ERROR",
             AppError::InvalidAddress(_) => "INVALID_ADDRESS",
             AppError::Rpc(_) => "RPC_ERROR",
+            AppError::Io(_) => "IO_ERROR",
         }
     }
 }
