@@ -7,6 +7,7 @@ use crate::dead_drop;
 use crate::ecies;
 use crate::error::AppError;
 use crate::lan_sweep;
+use crate::sync_registry;
 
 /// Mesma faixa de portas que o TruthID Desktop tenta em
 /// `desktop/src-tauri/src/local_signer_server.rs` (bloco próprio, longe do
@@ -153,6 +154,48 @@ pub async fn send_test_sign_request() -> Result<TruthIdSignResult, AppError> {
             "value": "0",
             "callData": "0x",
             "functionSignature": TEST_FUNCTION_SIGNATURE,
+        }))
+        .send()
+        .await?
+        .json()
+        .await?;
+
+    Ok(result.into())
+}
+
+/// Assinatura da função pro campo `functionSignature` do `/sign-request` —
+/// precisa bater exatamente com `updateRecord(string calldata cid, bytes32
+/// contentHash)` do contrato, senão o TruthID mostra "não verificado" na tela
+/// de aprovação (mesmo mecanismo de checagem que `TEST_FUNCTION_SIGNATURE` já
+/// exercita de propósito com um mismatch).
+const UPDATE_RECORD_FUNCTION_SIGNATURE: &str = "updateRecord(string,bytes32)";
+
+/// Fase 8.2 — escrita do CID de sync via o canal delegado do TruthID, só o
+/// caso "mesma máquina" (reaproveita `discover()`, igual `send_test_sign_request`).
+/// O CID/hash usados aqui ainda são inseridos manualmente na UI — gerar isso
+/// de verdade (cifrar + subir pro IPFS) é a Fase 8.3/8.4, não esta fatia.
+#[tauri::command]
+pub async fn update_sync_record(
+    cid: String,
+    content_hash: String,
+) -> Result<TruthIdSignResult, AppError> {
+    let parsed_hash = sync_registry::parse_content_hash(&content_hash)?;
+    let calldata = sync_registry::build_update_record_calldata(&cid, parsed_hash);
+
+    let (port, _) = discover().await?;
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(310))
+        .build()?;
+    let url = format!("http://127.0.0.1:{port}/truthid/v1/sign-request");
+    let result: TruthIdWireResult = client
+        .post(&url)
+        .json(&serde_json::json!({
+            "appName": APP_NAME,
+            "dest": sync_registry::SYNC_REGISTRY_ADDRESS,
+            "value": "0",
+            "callData": format!("0x{}", hex::encode(&calldata)),
+            "functionSignature": UPDATE_RECORD_FUNCTION_SIGNATURE,
         }))
         .send()
         .await?

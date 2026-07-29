@@ -68,11 +68,24 @@ function TruthIdPanel() {
       }),
   });
 
-  // Fase 8.1: leitura pública (eth_call) do SyncRegistry — prova de conceito,
-  // sem escrita ainda (Fase 8.2 cuida disso via canal /sign-request acima).
+  // Fase 8.1: leitura pública (eth_call) do SyncRegistry — prova de conceito.
   const [syncAddress, setSyncAddress] = useState("");
   const syncRecordMutation = useMutation<CidRecordResponse | null, AppError, string>({
     mutationFn: (address) => invoke("get_sync_record", { address }),
+  });
+
+  // Fase 8.2: escrita do CID via o canal delegado do TruthID (mesma máquina).
+  // CID/content hash ainda inseridos à mão — cifrar+publicar de verdade é
+  // Fase 8.3/8.4, fora do escopo desta fatia.
+  const [updateCid, setUpdateCid] = useState("");
+  const [updateContentHash, setUpdateContentHash] = useState("");
+  const updateSyncRecordMutation = useMutation<
+    TruthIdSignResult,
+    AppError,
+    { cid: string; contentHash: string }
+  >({
+    mutationFn: ({ cid, contentHash }) =>
+      invoke("update_sync_record", { cid, contentHash }),
   });
 
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -199,8 +212,7 @@ function TruthIdPanel() {
 
         <div className="flex flex-col gap-2 border-t pt-6">
           <p className="text-sm text-muted-foreground">
-            Fase 8.1 — SyncRegistry (Base Sepolia): read-only proof of concept, no contract deployed
-            yet.
+            Fase 8.1 — SyncRegistry (Base Sepolia): read-only proof of concept.
           </p>
           <div className="flex gap-2">
             <Input
@@ -228,6 +240,47 @@ function TruthIdPanel() {
               <p className="break-all">Content hash: {syncRecordMutation.data.content_hash}</p>
               <p>Version: {syncRecordMutation.data.version}</p>
               <p>Updated at: {new Date(syncRecordMutation.data.updated_at * 1000).toLocaleString()}</p>
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-2 border-t pt-6">
+          <p className="text-sm text-muted-foreground">
+            Fase 8.2 — Update sync record (same-machine only): CID/content hash inserted
+            manually for now, encryption/pinning aren't wired up yet.
+          </p>
+          <Input placeholder="CID (bafy...)" value={updateCid} onChange={(e) => setUpdateCid(e.target.value)} />
+          <Input
+            placeholder="Content hash (0x + 64 hex chars)"
+            value={updateContentHash}
+            onChange={(e) => setUpdateContentHash(e.target.value)}
+          />
+          <Button
+            variant="outline"
+            onClick={() =>
+              updateSyncRecordMutation.mutate({ cid: updateCid, contentHash: updateContentHash })
+            }
+            disabled={updateSyncRecordMutation.isPending || !updateCid || !updateContentHash}
+          >
+            {updateSyncRecordMutation.isPending ? "Waiting for approval..." : "Update sync record"}
+          </Button>
+          {updateSyncRecordMutation.isError && (
+            <p className="text-red-600">{updateSyncRecordMutation.error.message}</p>
+          )}
+          {updateSyncRecordMutation.isSuccess && (
+            <div>
+              <p>Status: {updateSyncRecordMutation.data.status}</p>
+              {updateSyncRecordMutation.data.user_op_hash && (
+                <p className="break-all">userOpHash: {updateSyncRecordMutation.data.user_op_hash}</p>
+              )}
+              {updateSyncRecordMutation.data.transaction_hash && (
+                <p className="break-all">
+                  transactionHash: {updateSyncRecordMutation.data.transaction_hash}
+                </p>
+              )}
+              {updateSyncRecordMutation.data.error && (
+                <p className="text-red-600">{updateSyncRecordMutation.data.error}</p>
+              )}
             </div>
           )}
         </div>

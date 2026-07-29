@@ -1,12 +1,13 @@
-use alloy_primitives::Address;
+use alloy_primitives::{Address, FixedBytes};
 use alloy_sol_types::{sol, SolCall, SolError};
 use serde_json::json;
 
 use crate::error::AppError;
 
-// Interface ABI do `contracts/src/SyncRegistry.sol` — só o que este cliente
-// precisa (leitura). `updateRecord` entra aqui quando a Fase 8.2 (escrita via
-// canal delegado do TruthID) for implementada.
+// Interface ABI do `contracts/src/SyncRegistry.sol` — leitura (`getRecord`) e,
+// desde a Fase 8.2, escrita (`updateRecord`, calldata montado aqui e assinado
+// via o canal delegado do TruthID em `commands/truthid.rs`, não por este
+// módulo, que nunca fala com uma chave privada).
 sol! {
     struct CidRecord {
         string cid;
@@ -17,6 +18,7 @@ sol! {
     }
 
     function getRecord(address who) external view returns (CidRecord memory);
+    function updateRecord(string calldata cid, bytes32 contentHash) external;
 
     error RecordNotFound(address who);
 }
@@ -27,11 +29,10 @@ sol! {
 /// provado ponta a ponta no testnet.
 const RPC_URL: &str = "https://sepolia.base.org";
 
-/// Preenchido depois do deploy real do `SyncRegistry` (passo manual, feito com
-/// o dono do projeto presente — ver Fase 8.1 no PROJECT_STATE.md). Enquanto
-/// não houver deploy, qualquer chamada de leitura falha contra este endereço
-/// vazio (não existe contrato lá) — comportamento esperado, não um bug.
-const SYNC_REGISTRY_ADDRESS: &str = "0x0000000000000000000000000000000000000000";
+/// Deployado em Base Sepolia na Sessão 30 (`forge script script/DeploySyncRegistry.s.sol
+/// --broadcast --ledger`, tx `0x52b347795c113a30cfac614497d43c62d1efce6a3c2b3cb7990d2a888aa4bfae`,
+/// ver Fase 8.1 em `project/PHASE.md`).
+pub(crate) const SYNC_REGISTRY_ADDRESS: &str = "0x9e2fd1a4146e3c40ecfef9d35a09e75e00ac30e8";
 
 /// Busca o registro de sync de um endereço via `eth_call` público — não
 /// precisa de assinatura, qualquer RPC serve. Retorna `None` (não `Err`)
@@ -95,6 +96,26 @@ pub fn parse_address(raw: &str) -> Result<Address, AppError> {
         .map_err(|_| AppError::InvalidAddress(raw.to_string()))
 }
 
+/// Parseia um content hash em hex (`0x` + 64 chars, ou só os 64 chars) pro
+/// `bytes32` que o contrato espera. Mesmo espírito de validação de
+/// `parse_address`, mas pra um campo de tamanho fixo em vez de um endereço.
+pub fn parse_content_hash(raw: &str) -> Result<FixedBytes<32>, AppError> {
+    let hex_str = raw.trim().trim_start_matches("0x");
+    let bytes =
+        hex::decode(hex_str).map_err(|_| AppError::InvalidInput(format!("invalid hex: {raw}")))?;
+    let array: [u8; 32] = bytes
+        .try_into()
+        .map_err(|_| AppError::InvalidInput(format!("content hash must be 32 bytes: {raw}")))?;
+    Ok(FixedBytes::from(array))
+}
+
+/// Monta o calldata de `updateRecord(cid, contentHash)` — só codifica, não
+/// fala com rede nem assina nada; quem executa de fato é o TruthID via
+/// `/truthid/v1/sign-request` (`commands/truthid.rs::update_sync_record`).
+pub fn build_update_record_calldata(cid: &str, content_hash: FixedBytes<32>) -> Vec<u8> {
+    updateRecordCall { cid: cid.to_string(), contentHash: content_hash }.abi_encode()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -145,5 +166,33 @@ mod tests {
     fn parse_address_accepts_checksummed_and_lowercase() {
         assert!(parse_address("0x000000000000000000000000000000000000dEaD").is_ok());
         assert!(parse_address("0x000000000000000000000000000000000000dead").is_ok());
+    }
+
+    #[test]
+    fn parse_content_hash_accepts_with_and_without_0x_prefix() {
+        let hex_64_chars = "11".repeat(32);
+        let expected = FixedBytes::from([0x11u8; 32]);
+        assert_eq!(parse_content_hash(&format!("0x{hex_64_chars}")).unwrap(), expected);
+        assert_eq!(parse_content_hash(&hex_64_chars).unwrap(), expected);
+    }
+
+    #[test]
+    fn parse_content_hash_rejects_wrong_length_or_garbage() {
+        assert!(parse_content_hash("0x1234").is_err());
+        assert!(parse_content_hash("not-hex-at-all-not-hex-at-all-not-hex-at-all-not-hex-1").is_err());
+    }
+
+    #[test]
+    fn update_record_calldata_has_selector_and_encodes_both_args() {
+        let content_hash = FixedBytes::from([0x22u8; 32]);
+        let calldata = build_update_record_calldata("bafybeitestcid", content_hash);
+
+        // Seletor de 4 bytes de `updateRecord(string,bytes32)` + o resto é o
+        // ABI encoding padrão (offset da string dinâmica + bytes32 fixo +
+        // length/bytes da string) — round-trip via decode confirma a forma.
+        assert_eq!(&calldata[..4], &updateRecordCall::SELECTOR);
+        let decoded = updateRecordCall::abi_decode(&calldata).unwrap();
+        assert_eq!(decoded.cid, "bafybeitestcid");
+        assert_eq!(decoded.contentHash, content_hash);
     }
 }
