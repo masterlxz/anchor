@@ -13,6 +13,9 @@ pub struct Model {
     pub price: f64,
     pub source: String,
     pub fetched_at: String,
+    pub name: Option<String>,
+    pub exchange: Option<String>,
+    pub currency: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

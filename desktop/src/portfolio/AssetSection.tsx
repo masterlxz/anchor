@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AppError } from "../types";
@@ -9,6 +9,8 @@ import {
   type AssetClass,
   type ExposureType,
 } from "./types";
+import { latestForTicker } from "../collector/latestForTicker";
+import type { StockQuote } from "../collector/types";
 import Field from "../components/Field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -44,6 +46,8 @@ type CreateAssetRequest = {
   exposure_value: string;
 };
 
+type CollectorSummary = { success: boolean; output: string };
+
 function AssetSection() {
   const [ticker, setTicker] = useState("");
   const [name, setName] = useState("");
@@ -53,12 +57,81 @@ function AssetSection() {
   const [exposureType, setExposureType] = useState<ExposureType>("pais");
   const [exposureValue, setExposureValue] = useState("BR");
 
+  const [tickerQuery, setTickerQuery] = useState("");
+  const [activeTicker, setActiveTicker] = useState<string | null>(null);
+  const autoFetchedTickerRef = useRef<string | null>(null);
+  const prefilledTickerRef = useRef<string | null>(null);
+
+  const isAcaoBr = assetClass === "acao_br";
+
   const queryClient = useQueryClient();
 
   const assetsQuery = useQuery<Asset[], AppError>({
     queryKey: ["assets"],
     queryFn: () => invoke("list_assets"),
   });
+
+  // Só busca cotação pra Ação BR — as outras classes ainda não têm coletor
+  // integrado (ver Fase 10, item 8), então continuam com cadastro manual.
+  const lookupQuery = useQuery<StockQuote | null, AppError>({
+    queryKey: ["asset-section-stock-quote", activeTicker],
+    enabled: isAcaoBr && activeTicker !== null,
+    queryFn: async () => {
+      const quotes = await invoke<StockQuote[]>("list_stock_quotes");
+      return latestForTicker(quotes, activeTicker as string);
+    },
+  });
+
+  const collectorMutation = useMutation<CollectorSummary, AppError, string>({
+    mutationFn: (t) => invoke<CollectorSummary>("run_stock_collector", { ticker: t }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["asset-section-stock-quote", activeTicker] });
+    },
+  });
+
+  // Mesmo padrão do Stock Lookup (Fase 9): um ticker sem dado no banco
+  // dispara o coletor no máximo uma vez por busca, guardado pelo ref.
+  useEffect(() => {
+    if (
+      isAcaoBr &&
+      activeTicker &&
+      lookupQuery.isSuccess &&
+      lookupQuery.data === null &&
+      autoFetchedTickerRef.current !== activeTicker
+    ) {
+      autoFetchedTickerRef.current = activeTicker;
+      collectorMutation.mutate(activeTicker);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAcaoBr, activeTicker, lookupQuery.isSuccess, lookupQuery.data]);
+
+  // Pré-preenche o preview editável assim que a cotação chega — só na
+  // primeira vez por ticker, pra não sobrescrever edições manuais do
+  // usuário em buscas repetidas (ex: "Refresh" implícito de reabrir a tela).
+  useEffect(() => {
+    const quote = lookupQuery.data;
+    if (isAcaoBr && activeTicker && quote && prefilledTickerRef.current !== activeTicker) {
+      prefilledTickerRef.current = activeTicker;
+      setTicker(activeTicker);
+      setName(quote.name ?? "");
+      setCurrency(quote.currency ?? "BRL");
+      setExchange(quote.exchange ?? "");
+      setExposureType("pais");
+      setExposureValue("BR");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAcaoBr, activeTicker, lookupQuery.data]);
+
+  // Trocar de classe pra fora de Ação BR limpa a busca em andamento, pra
+  // não deixar um preview de ticker antigo aparecendo se voltar depois.
+  useEffect(() => {
+    if (!isAcaoBr) {
+      setActiveTicker(null);
+      setTickerQuery("");
+      autoFetchedTickerRef.current = null;
+      prefilledTickerRef.current = null;
+    }
+  }, [isAcaoBr]);
 
   const createMutation = useMutation<Asset, AppError, CreateAssetRequest>({
     mutationFn: (request) => invoke("create_asset", { request }),
@@ -67,8 +140,19 @@ function AssetSection() {
       setTicker("");
       setName("");
       setExchange("");
+      setTickerQuery("");
+      setActiveTicker(null);
+      autoFetchedTickerRef.current = null;
+      prefilledTickerRef.current = null;
     },
   });
+
+  function handleTickerSearch(event: FormEvent) {
+    event.preventDefault();
+    const normalized = tickerQuery.trim().toUpperCase();
+    if (!normalized) return;
+    setActiveTicker(normalized);
+  }
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -84,6 +168,7 @@ function AssetSection() {
   }
 
   const assets = assetsQuery.data ?? [];
+  const showCreateForm = !isAcaoBr || (activeTicker !== null && lookupQuery.data != null);
 
   return (
     <Card>
@@ -93,102 +178,140 @@ function AssetSection() {
       <CardContent>
         <p className="mb-4 text-sm text-muted-foreground">
           Catálogo de ativos negociáveis/registráveis — compartilhado entre todos os Portfolios do
-          Workspace. Escopo desta fatia: Ação (B3), Stocks internacionais, Tesouro Direto e Renda
-          Fixa (as classes expandidas na Sessão 30 ficam pra depois).
+          Workspace. Ação (B3) busca os dados automaticamente pelo ticker; as demais classes
+          (Stocks internacionais, Tesouro Direto, Renda Fixa) usam cadastro manual por ora.
         </p>
-        <form onSubmit={handleSubmit} className="mb-8 flex flex-col gap-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <Field label="Ticker / identificador">
-              <Input
-                required
-                placeholder="ex.: PETR4, Tesouro IPCA+ 2035"
-                value={ticker}
-                onChange={(e) => setTicker(e.currentTarget.value)}
-              />
-            </Field>
-            <Field label="Nome" className="sm:col-span-2">
-              <Input
-                required
-                placeholder="ex.: Petrobras PN"
-                value={name}
-                onChange={(e) => setName(e.currentTarget.value)}
-              />
-            </Field>
-          </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <Field label="Classe do ativo">
-              <Select
-                value={assetClass}
-                onValueChange={(value) => setAssetClass(value as AssetClass)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ASSET_CLASSES.map((key) => (
-                    <SelectItem key={key} value={key}>
-                      {ASSET_CLASS_LABELS[key]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Moeda">
+        <div className="mb-4 max-w-xs">
+          <Field label="Classe do ativo">
+            <Select value={assetClass} onValueChange={(value) => setAssetClass(value as AssetClass)}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ASSET_CLASSES.map((key) => (
+                  <SelectItem key={key} value={key}>
+                    {ASSET_CLASS_LABELS[key]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+
+        {isAcaoBr && (
+          <form onSubmit={handleTickerSearch} className="mb-4 flex items-end gap-3">
+            <Field label="Buscar ticker (B3)" className="flex-1">
               <Input
                 required
-                placeholder="BRL, USD..."
-                value={currency}
-                onChange={(e) => setCurrency(e.currentTarget.value)}
+                placeholder="PETR4"
+                value={tickerQuery}
+                onChange={(e) => setTickerQuery(e.currentTarget.value)}
               />
             </Field>
-            <Field label="Bolsa/listagem (opcional)">
-              <Input
-                placeholder="ex.: B3, NASDAQ"
-                value={exchange}
-                onChange={(e) => setExchange(e.currentTarget.value)}
-              />
-            </Field>
-          </div>
+            <Button type="submit">Buscar</Button>
+          </form>
+        )}
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Tipo de exposição">
-              <Select
-                value={exposureType}
-                onValueChange={(value) => setExposureType(value as ExposureType)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pais">País</SelectItem>
-                  <SelectItem value="categoria_especial">Categoria especial</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field
-              label={
-                exposureType === "pais"
-                  ? "País de exposição (ex.: BR, US)"
-                  : "Categoria (ex.: cripto, metal_ouro)"
-              }
-            >
-              <Input
-                required
-                value={exposureValue}
-                onChange={(e) => setExposureValue(e.currentTarget.value)}
-              />
-            </Field>
-          </div>
-
-          {createMutation.isError && (
-            <p className="text-red-600">{createMutation.error.message}</p>
+        {isAcaoBr && lookupQuery.isError && (
+          <p className="mb-3 text-red-600">{lookupQuery.error.message}</p>
+        )}
+        {isAcaoBr && collectorMutation.isError && (
+          <p className="mb-3 text-red-600">{collectorMutation.error.message}</p>
+        )}
+        {isAcaoBr && activeTicker && lookupQuery.isLoading && (
+          <p className="mb-3 text-muted-foreground">Carregando {activeTicker}...</p>
+        )}
+        {isAcaoBr && activeTicker && lookupQuery.data === null && collectorMutation.isPending && (
+          <p className="mb-3 text-muted-foreground">Buscando {activeTicker} pela primeira vez...</p>
+        )}
+        {isAcaoBr &&
+          activeTicker &&
+          lookupQuery.isSuccess &&
+          lookupQuery.data === null &&
+          !collectorMutation.isPending && (
+            <p className="mb-3 text-muted-foreground">Nenhum dado encontrado para {activeTicker}.</p>
           )}
 
-          <Button type="submit" disabled={createMutation.isPending} className="w-fit">
-            {createMutation.isPending ? "Adicionando..." : "Adicionar ativo"}
-          </Button>
-        </form>
+        {showCreateForm && (
+          <form onSubmit={handleSubmit} className="mb-8 flex flex-col gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <Field label="Ticker / identificador">
+                <Input
+                  required
+                  disabled={isAcaoBr}
+                  placeholder="ex.: PETR4, Tesouro IPCA+ 2035"
+                  value={ticker}
+                  onChange={(e) => setTicker(e.currentTarget.value)}
+                />
+              </Field>
+              <Field label="Nome" className="sm:col-span-2">
+                <Input
+                  required
+                  placeholder="ex.: Petrobras PN"
+                  value={name}
+                  onChange={(e) => setName(e.currentTarget.value)}
+                />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Moeda">
+                <Input
+                  required
+                  placeholder="BRL, USD..."
+                  value={currency}
+                  onChange={(e) => setCurrency(e.currentTarget.value)}
+                />
+              </Field>
+              <Field label="Bolsa/listagem (opcional)">
+                <Input
+                  placeholder="ex.: B3, NASDAQ"
+                  value={exchange}
+                  onChange={(e) => setExchange(e.currentTarget.value)}
+                />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Tipo de exposição">
+                <Select
+                  value={exposureType}
+                  onValueChange={(value) => setExposureType(value as ExposureType)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pais">País</SelectItem>
+                    <SelectItem value="categoria_especial">Categoria especial</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field
+                label={
+                  exposureType === "pais"
+                    ? "País de exposição (ex.: BR, US)"
+                    : "Categoria (ex.: cripto, metal_ouro)"
+                }
+              >
+                <Input
+                  required
+                  value={exposureValue}
+                  onChange={(e) => setExposureValue(e.currentTarget.value)}
+                />
+              </Field>
+            </div>
+
+            {createMutation.isError && (
+              <p className="text-red-600">{createMutation.error.message}</p>
+            )}
+
+            <Button type="submit" disabled={createMutation.isPending} className="w-fit">
+              {createMutation.isPending ? "Adicionando..." : "Adicionar ativo"}
+            </Button>
+          </form>
+        )}
 
         {assetsQuery.isError && (
           <p className="mb-3 text-red-600">{assetsQuery.error.message}</p>

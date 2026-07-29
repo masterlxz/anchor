@@ -4,6 +4,9 @@ export type StockQuote = {
   price: number;
   source: string;
   fetched_at: string;
+  name: string | null;
+  exchange: string | null;
+  currency: string | null;
 };
 
 export type StockFundamentals = {

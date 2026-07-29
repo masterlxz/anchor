@@ -43,8 +43,20 @@ def collect_stock_quotes(tickers: list[str]) -> list[dict]:
     conn.execute("PRAGMA journal_mode=WAL")
     now = datetime.now(timezone.utc).isoformat()
     conn.executemany(
-        "INSERT INTO stock_quotes (ticker, price, source, fetched_at) VALUES (?, ?, ?, ?)",
-        [(quote["ticker"], quote["price"], "yahoo_finance", now) for quote in quotes],
+        "INSERT INTO stock_quotes (ticker, price, name, exchange, currency, source, fetched_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [
+            (
+                quote["ticker"],
+                quote["price"],
+                quote["name"],
+                quote["exchange"],
+                quote["currency"],
+                "yahoo_finance",
+                now,
+            )
+            for quote in quotes
+        ],
     )
     conn.commit()
     conn.close()

@@ -56,9 +56,13 @@ CAGR_ANCHOR_TOLERANCE_DAYS = 30
 def fetch_quotes(tickers: list[str]) -> list[dict]:
     """Busca a cotação atual de uma lista de tickers.
 
-    Retorna uma lista de {"ticker": str, "price": float}. Tickers que
-    falharem na API são ignorados — não derrubam o resto, mesmo padrão de
-    `fetch_dividends_avg`.
+    Retorna uma lista de {"ticker": str, "price": float, "name": str | None,
+    "exchange": str | None, "currency": str | None} — os 3 últimos vêm do
+    mesmo bloco `meta` já lido pro preço (sem chamada extra), usados pro
+    pré-preenchimento do cadastro de Ativo (Portfolio, Ação BR). Só o preço
+    é obrigatório — os outros usam `.get()` pra não descartar o ticker se o
+    Yahoo omitir algum deles. Tickers que falharem na API são ignorados —
+    não derrubam o resto, mesmo padrão de `fetch_dividends_avg`.
     """
     results = []
 
@@ -71,11 +75,20 @@ def fetch_quotes(tickers: list[str]) -> list[dict]:
                 timeout=15,
             )
             response.raise_for_status()
-            price = response.json()["chart"]["result"][0]["meta"]["regularMarketPrice"]
+            meta = response.json()["chart"]["result"][0]["meta"]
+            price = meta["regularMarketPrice"]
         except (requests.RequestException, KeyError, TypeError, IndexError):
             continue
 
-        results.append({"ticker": ticker, "price": price})
+        results.append(
+            {
+                "ticker": ticker,
+                "price": price,
+                "name": meta.get("longName") or meta.get("shortName"),
+                "exchange": meta.get("fullExchangeName") or meta.get("exchangeName"),
+                "currency": meta.get("currency"),
+            }
+        )
 
     return results
 
