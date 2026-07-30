@@ -139,3 +139,29 @@ export type PositionView = {
   average_buy_price: number | null;
   by_custodia: CustodiaBreakdown[];
 };
+
+// Fase 10.4 — listas nomeadas de ativos (preço-alvo/notas) e favoritos
+// rápidos (estrela), dois mecanismos separados por pedido explícito do dono
+// do projeto.
+export type Watchlist = {
+  id: number;
+  workspace_id: number;
+  name: string;
+  created_at: string;
+};
+
+export type WatchlistItem = {
+  id: number;
+  watchlist_id: number;
+  asset_id: number;
+  target_price: number | null;
+  notes: string | null;
+  created_at: string;
+};
+
+export type AssetFavorite = {
+  id: number;
+  workspace_id: number;
+  asset_id: number;
+  created_at: string;
+};

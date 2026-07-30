@@ -7,6 +7,7 @@ import {
   ASSET_CLASS_LABELS,
   type Asset,
   type AssetClass,
+  type AssetFavorite,
   type ExposureType,
 } from "./types";
 import { latestForTicker } from "../collector/latestForTicker";
@@ -47,8 +48,9 @@ type CreateAssetRequest = {
 };
 
 type CollectorSummary = { success: boolean; output: string };
+type ToggleFavoriteRequest = { workspace_id: number; asset_id: number };
 
-function AssetSection() {
+function AssetSection({ workspaceId }: { workspaceId: number }) {
   const [ticker, setTicker] = useState("");
   const [name, setName] = useState("");
   const [assetClass, setAssetClass] = useState<AssetClass>("acao_br");
@@ -69,6 +71,25 @@ function AssetSection() {
   const assetsQuery = useQuery<Asset[], AppError>({
     queryKey: ["assets"],
     queryFn: () => invoke("list_assets"),
+  });
+
+  // Fase 10.4 — favorito rápido (estrela), separado das watchlists nomeadas
+  // (aba própria "Watchlists"): mesma query cacheada sob a chave
+  // ["asset-favorites", workspaceId] usada lá, pra ficar em sincronia.
+  const favoritesQuery = useQuery<AssetFavorite[], AppError>({
+    queryKey: ["asset-favorites", workspaceId],
+    queryFn: () => invoke("list_favorite_assets", { workspaceId }),
+  });
+  const favoriteAssetIds = new Set((favoritesQuery.data ?? []).map((f) => f.asset_id));
+
+  const toggleFavoriteMutation = useMutation<boolean, AppError, number>({
+    mutationFn: (assetId) =>
+      invoke("toggle_favorite", {
+        request: { workspace_id: workspaceId, asset_id: assetId } satisfies ToggleFavoriteRequest,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["asset-favorites", workspaceId] });
+    },
   });
 
   // Só busca cotação pra Ação BR — as outras classes ainda não têm coletor
@@ -326,31 +347,47 @@ function AssetSection() {
               <TableHead>Moeda</TableHead>
               <TableHead>Bolsa</TableHead>
               <TableHead>Exposição</TableHead>
+              <TableHead>★</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {assets.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">
+                <TableCell colSpan={7} className="text-center text-muted-foreground">
                   Nenhum ativo cadastrado ainda.
                 </TableCell>
               </TableRow>
             )}
-            {assets.map((asset) => (
-              <TableRow key={asset.id}>
-                <TableCell>{asset.ticker}</TableCell>
-                <TableCell>{asset.name}</TableCell>
-                <TableCell>
-                  {ASSET_CLASS_LABELS[asset.asset_class as AssetClass] ?? asset.asset_class}
-                </TableCell>
-                <TableCell>{asset.currency}</TableCell>
-                <TableCell>{asset.exchange ?? "—"}</TableCell>
-                <TableCell>
-                  {asset.exposure_type === "pais" ? "🌍 " : "🏷️ "}
-                  {asset.exposure_value}
-                </TableCell>
-              </TableRow>
-            ))}
+            {assets.map((asset) => {
+              const isFavorite = favoriteAssetIds.has(asset.id);
+              return (
+                <TableRow key={asset.id}>
+                  <TableCell>{asset.ticker}</TableCell>
+                  <TableCell>{asset.name}</TableCell>
+                  <TableCell>
+                    {ASSET_CLASS_LABELS[asset.asset_class as AssetClass] ?? asset.asset_class}
+                  </TableCell>
+                  <TableCell>{asset.currency}</TableCell>
+                  <TableCell>{asset.exchange ?? "—"}</TableCell>
+                  <TableCell>
+                    {asset.exposure_type === "pais" ? "🌍 " : "🏷️ "}
+                    {asset.exposure_value}
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={toggleFavoriteMutation.isPending}
+                      onClick={() => toggleFavoriteMutation.mutate(asset.id)}
+                      aria-label={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                    >
+                      {isFavorite ? "★" : "☆"}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </CardContent>

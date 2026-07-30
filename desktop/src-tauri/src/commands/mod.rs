@@ -23,4 +23,5 @@ pub mod sync_registry;
 pub mod transaction;
 pub mod truthid;
 pub mod valuation;
+pub mod watchlist;
 pub mod workspace;

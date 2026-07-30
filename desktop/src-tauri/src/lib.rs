@@ -86,7 +86,16 @@ pub fn run() {
             commands::transaction::delete_transaction,
             commands::transaction::list_transactions,
             commands::transaction::get_portfolio_positions,
-            commands::profitability::get_portfolio_profitability
+            commands::profitability::get_portfolio_profitability,
+            commands::watchlist::list_watchlists,
+            commands::watchlist::create_watchlist,
+            commands::watchlist::delete_watchlist,
+            commands::watchlist::list_watchlist_items,
+            commands::watchlist::add_watchlist_item,
+            commands::watchlist::update_watchlist_item,
+            commands::watchlist::remove_watchlist_item,
+            commands::watchlist::list_favorite_assets,
+            commands::watchlist::toggle_favorite
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
