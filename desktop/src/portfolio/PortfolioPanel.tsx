@@ -6,6 +6,7 @@ import type { Portfolio, Workspace } from "./types";
 import CustodiaSection from "./CustodiaSection";
 import AssetSection from "./AssetSection";
 import TransactionSection from "./TransactionSection";
+import ProfitabilitySection from "./ProfitabilitySection";
 import Field from "../components/Field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -18,10 +19,11 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-type PortfolioSection = "transactions" | "assets" | "custodias";
+type PortfolioSection = "transactions" | "profitability" | "assets" | "custodias";
 
 const PORTFOLIO_SECTIONS: Record<PortfolioSection, string> = {
   transactions: "Lançamentos & Posições",
+  profitability: "Rentabilidade",
   assets: "Ativos",
   custodias: "Custódias",
 };
@@ -198,6 +200,9 @@ function PortfolioPanel() {
 
           <TabsContent value="transactions">
             <TransactionSection workspaceId={workspaceId} portfolioId={selectedPortfolioId} />
+          </TabsContent>
+          <TabsContent value="profitability">
+            <ProfitabilitySection portfolioId={selectedPortfolioId} />
           </TabsContent>
           <TabsContent value="assets">
             <AssetSection />

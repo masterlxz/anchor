@@ -1,12 +1,12 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use sea_orm::{DatabaseConnection, EntityTrait, QueryOrder};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
 use serde::Serialize;
 use tokio::process::Command;
 
 use crate::entity::{
     stock_dcf_fundamentals, stock_dividend_payments, stock_dividends_avg, stock_fundamentals,
-    stock_quotes, stock_technicals,
+    stock_price_history, stock_quotes, stock_technicals,
 };
 use crate::error::AppError;
 
@@ -140,4 +140,27 @@ pub async fn list_stock_dividend_payments(
         .await?;
 
     Ok(payments)
+}
+
+#[tauri::command]
+pub async fn run_price_history_backfill(
+    lock: tauri::State<'_, AtomicBool>,
+    tickers: Vec<String>,
+) -> Result<CollectorSummary, AppError> {
+    let joined = tickers.join(",");
+    run_collector(&lock, &["--price-history", &joined]).await
+}
+
+#[tauri::command]
+pub async fn list_stock_price_history(
+    db: tauri::State<'_, DatabaseConnection>,
+    ticker: String,
+) -> Result<Vec<stock_price_history::Model>, AppError> {
+    let history = stock_price_history::Entity::find()
+        .filter(stock_price_history::Column::Ticker.eq(ticker))
+        .order_by_asc(stock_price_history::Column::PriceDate)
+        .all(db.inner())
+        .await?;
+
+    Ok(history)
 }

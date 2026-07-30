@@ -93,6 +93,48 @@ def fetch_quotes(tickers: list[str]) -> list[dict]:
     return results
 
 
+def fetch_price_history(tickers: list[str]) -> list[dict]:
+    """Busca a série diária de fechamento dos últimos 10 anos.
+
+    Mesma chamada (`range=10y&interval=1d`) já usada por `fetch_technicals`,
+    mas aqui persiste cada `(data, fechamento)` em vez de só derivar
+    SMA/CAGR — alimenta a reconstrução mês a mês de valor de carteira da
+    Fase 10.3 (TWR/Dietz Modificado). Ação manual separada ("Atualizar
+    histórico de preços"), chamada de novo em vez de reaproveitar o
+    resultado de `fetch_technicals` — endpoint público sem custo/limite
+    conhecido, então uma segunda chamada não é problema.
+
+    Retorna uma lista de dicts com `ticker`, `price_date` (`YYYY-MM-DD`) e
+    `close_price` — um item por pregão (dias sem pregão, `close=None`, são
+    descartados). Tickers que falharem na API são ignorados, mesmo padrão
+    do resto do módulo.
+    """
+    results = []
+
+    for ticker in tickers:
+        try:
+            response = requests.get(
+                f"{YAHOO_CHART_URL}/{ticker}.SA",
+                params={"range": HISTORY_RANGE, "interval": "1d"},
+                headers={"User-Agent": "Mozilla/5.0"},
+                timeout=15,
+            )
+            response.raise_for_status()
+            chart_result = response.json()["chart"]["result"][0]
+            timestamps = chart_result["timestamp"]
+            closes = chart_result["indicators"]["quote"][0]["close"]
+        except (requests.RequestException, KeyError, TypeError, IndexError):
+            continue
+
+        for ts, close in zip(timestamps, closes):
+            if close is None:
+                continue
+            price_date = datetime.fromtimestamp(ts, tz=timezone.utc).date().isoformat()
+            results.append({"ticker": ticker, "price_date": price_date, "close_price": close})
+
+    return results
+
+
 def fetch_dividends_avg(tickers: list[str]) -> list[dict]:
     """Busca o dividendo médio por ação dos últimos 5 anos completos.
 

@@ -118,6 +118,17 @@ export type CustodiaBreakdown = {
   quantity: number;
 };
 
+// Fase 10.3, fatia Ação BR — aporte/retirada e as demais classes ainda não
+// entram nesse cálculo (ver ProfitabilitySection.tsx).
+export type MonthlyReturn = {
+  year_month: string;
+  bmv: number;
+  emv: number;
+  cf_total: number;
+  r_month_pct: number;
+  r_cumulative_pct: number;
+};
+
 export type PositionView = {
   asset_id: number;
   ticker: string;

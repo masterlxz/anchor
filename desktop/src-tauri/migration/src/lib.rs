@@ -31,6 +31,7 @@ mod m20260729_090100_create_custodia;
 mod m20260729_090200_create_assets;
 mod m20260729_090300_create_transactions;
 mod m20260729_150000_add_details_to_stock_quotes;
+mod m20260729_160000_create_stock_price_history;
 
 pub struct Migrator;
 
@@ -69,6 +70,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260729_090200_create_assets::Migration),
             Box::new(m20260729_090300_create_transactions::Migration),
             Box::new(m20260729_150000_add_details_to_stock_quotes::Migration),
+            Box::new(m20260729_160000_create_stock_price_history::Migration),
         ]
     }
 }

@@ -14,6 +14,7 @@ pub mod document_extraction;
 pub mod gordon;
 pub mod graham;
 pub mod portfolio;
+pub mod profitability;
 pub mod projected_ceiling;
 pub mod rim;
 pub mod rnav;

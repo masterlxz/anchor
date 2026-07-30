@@ -62,6 +62,8 @@ pub fn run() {
             commands::collector::list_stock_dcf_fundamentals,
             commands::collector::list_stock_technicals,
             commands::collector::list_stock_dividend_payments,
+            commands::collector::run_price_history_backfill,
+            commands::collector::list_stock_price_history,
             commands::stock_notes::list_stock_notes,
             commands::stock_notes::save_stock_note,
             commands::truthid::test_truthid_connection,
@@ -83,7 +85,8 @@ pub fn run() {
             commands::transaction::create_transaction,
             commands::transaction::delete_transaction,
             commands::transaction::list_transactions,
-            commands::transaction::get_portfolio_positions
+            commands::transaction::get_portfolio_positions,
+            commands::profitability::get_portfolio_profitability
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

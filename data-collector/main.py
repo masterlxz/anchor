@@ -283,6 +283,46 @@ def collect_stock_dividend_payments(tickers: list[str]) -> list[dict]:
     return payments
 
 
+def collect_price_history(tickers: list[str]) -> list[dict]:
+    """Backfill da série diária de fechamento (Fase 10.3, base do TWR).
+
+    Usa `INSERT OR IGNORE` num índice único `(ticker, price_date)` (ver
+    migration `create_stock_price_history`), mesmo padrão de
+    `collect_stock_dividend_payments` — rodar o backfill de novo não
+    duplica pregão já salvo, só acrescenta dia novo (ex: rodar de novo
+    daqui a um mês só grava as ~20 novas linhas desde a última vez).
+    """
+    if not tickers:
+        return []
+
+    prices = acoes_yahoo.fetch_price_history(tickers)
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA journal_mode=WAL")
+    now = datetime.now(timezone.utc).isoformat()
+    changes_before = conn.total_changes
+    conn.executemany(
+        "INSERT OR IGNORE INTO stock_price_history "
+        "(ticker, price_date, close_price, source, fetched_at) VALUES (?, ?, ?, ?, ?)",
+        [
+            (item["ticker"], item["price_date"], item["close_price"], "yahoo_finance", now)
+            for item in prices
+        ],
+    )
+    new_count = conn.total_changes - changes_before
+    conn.commit()
+    conn.close()
+
+    print(f"Fetched {len(prices)} daily price point(s), {new_count} new (rest already saved)")
+    return prices
+
+
+def main_price_history(tickers: list[str]) -> int:
+    load_dotenv(BASE_DIR / ".env")
+    collect_price_history(tickers)
+    return 0
+
+
 def _classify_signal(raw_value: float, green_boundary: float, red_boundary: float) -> str:
     """Mirrors `src-tauri/src/domain/crypto_score.rs::classify`.
 
@@ -457,4 +497,10 @@ if __name__ == "__main__":
             print("Usage: python main.py --ticker <TICKER>")
             sys.exit(1)
         sys.exit(main(sys.argv[2].strip().upper()))
+    if len(sys.argv) > 1 and sys.argv[1] == "--price-history":
+        if len(sys.argv) < 3 or not sys.argv[2].strip():
+            print("Usage: python main.py --price-history <TICKER1,TICKER2,...>")
+            sys.exit(1)
+        tickers = [t.strip().upper() for t in sys.argv[2].split(",") if t.strip()]
+        sys.exit(main_price_history(tickers))
     sys.exit(main())
