@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AppError } from "../types";
-import type { Portfolio, Workspace } from "./types";
+import type { Portfolio } from "./types";
 import CustodiaSection from "./CustodiaSection";
 import AssetSection from "./AssetSection";
 import TransactionSection from "./TransactionSection";
@@ -53,7 +53,9 @@ type RenamePortfolioRequest = {
 // WorkspaceMember/convite ainda, ver PHASE.md item 10.1) + a primeira
 // fatia de multi-ativos (10.2, escopo Sessão 29: Ação BR/Stocks intl/
 // Tesouro Direto/Renda Fixa) e Gestão de Custódias básica (item 9).
-function PortfolioPanel() {
+// `workspaceId` chega resolvido pela tela de entrada (Fase 10.6,
+// `WorkspaceGate.tsx`) — não é mais buscado aqui.
+function PortfolioPanel({ workspaceId }: { workspaceId: number }) {
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
   const [section, setSection] = useState<PortfolioSection>("transactions");
   const [newPortfolioName, setNewPortfolioName] = useState("");
@@ -63,16 +65,9 @@ function PortfolioPanel() {
 
   const queryClient = useQueryClient();
 
-  const workspaceQuery = useQuery<Workspace, AppError>({
-    queryKey: ["workspace"],
-    queryFn: () => invoke("get_workspace"),
-  });
-  const workspaceId = workspaceQuery.data?.id;
-
   const portfoliosQuery = useQuery<Portfolio[], AppError>({
     queryKey: ["portfolios", workspaceId],
     queryFn: () => invoke("list_portfolios", { workspaceId }),
-    enabled: workspaceId !== undefined,
   });
 
   const portfolios = portfoliosQuery.data ?? [];
@@ -98,7 +93,6 @@ function PortfolioPanel() {
 
   function handleCreatePortfolio(event: FormEvent) {
     event.preventDefault();
-    if (workspaceId === undefined) return;
     createPortfolioMutation.mutate({
       workspace_id: workspaceId,
       name: newPortfolioName,
@@ -120,10 +114,10 @@ function PortfolioPanel() {
     renamePortfolioMutation.mutate({ portfolio_id: selectedPortfolioId, name: renameValue });
   }
 
-  if (workspaceQuery.isError) {
-    return <p className="text-red-600">{workspaceQuery.error.message}</p>;
+  if (portfoliosQuery.isError) {
+    return <p className="text-red-600">{portfoliosQuery.error.message}</p>;
   }
-  if (workspaceId === undefined || portfoliosQuery.isLoading) {
+  if (portfoliosQuery.isLoading) {
     return <p className="text-muted-foreground">Carregando...</p>;
   }
 

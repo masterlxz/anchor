@@ -12,6 +12,7 @@ import SavedValuationsPanel from "./valuations/SavedValuationsPanel";
 import StockLookupPanel from "./stock-lookup/StockLookupPanel";
 import AlertsPanel from "./alerts/AlertsPanel";
 import PortfolioPanel from "./portfolio/PortfolioPanel";
+import WorkspaceGate from "./workspace/WorkspaceGate";
 import TruthIdPanel from "./truthid/TruthIdPanel";
 import ChatPanel from "./chat/ChatPanel";
 import ChatToggleButton from "./chat/ChatToggleButton";
@@ -20,7 +21,7 @@ import SettingsPage from "./settings/SettingsPage";
 import ChatScreen from "./chat-full/ChatScreen";
 import Field from "./components/Field";
 import { Button } from "@/components/ui/button";
-import { MessageSquareIcon, SettingsIcon } from "lucide-react";
+import { MessageSquareIcon, SettingsIcon, LogOutIcon } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -66,6 +67,7 @@ type SectionKey = keyof typeof SECTIONS;
 type AppView = "main" | "settings" | "chat";
 
 function App() {
+  const [workspaceId, setWorkspaceId] = useState<number | null>(null);
   const [view, setView] = useState<AppView>("main");
   const [section, setSection] = useState<SectionKey>("valuation");
   const [valuationView, setValuationView] = useState<ValuationView>("form");
@@ -73,6 +75,14 @@ function App() {
   const SelectedForm = MODELS[selectedModel].component;
   const [chatOpen, setChatOpen] = useState(false);
   const [chatHistory, setChatHistory] = useState<GeminiContent[]>([]);
+
+  if (workspaceId === null) {
+    return (
+      <main className="mx-auto max-w-6xl p-8">
+        <WorkspaceGate onEnter={setWorkspaceId} />
+      </main>
+    );
+  }
 
   if (view === "settings") {
     return (
@@ -123,6 +133,15 @@ function App() {
               >
                 <SettingsIcon />
                 <span className="sr-only">Configurações</span>
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setWorkspaceId(null)}
+              >
+                <LogOutIcon />
+                <span className="sr-only">Trocar Workspace</span>
               </Button>
             </div>
           </div>
@@ -183,7 +202,7 @@ function App() {
           </TabsContent>
 
           <TabsContent value="portfolio">
-            <PortfolioPanel />
+            <PortfolioPanel workspaceId={workspaceId} />
           </TabsContent>
 
           <TabsContent value="alerts">

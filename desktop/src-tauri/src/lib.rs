@@ -74,6 +74,8 @@ pub fn run() {
             commands::truthid::pin_database_snapshot,
             commands::sync_registry::get_sync_record,
             commands::workspace::get_workspace,
+            commands::workspace::list_workspaces,
+            commands::workspace::create_workspace,
             commands::portfolio::list_portfolios,
             commands::portfolio::create_portfolio,
             commands::portfolio::rename_portfolio,
