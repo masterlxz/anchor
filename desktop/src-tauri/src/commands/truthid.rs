@@ -9,6 +9,7 @@ use crate::dead_drop;
 use crate::ecies;
 use crate::error::AppError;
 use crate::lan_sweep;
+use crate::pin_content_cipher;
 use crate::sync_registry;
 
 /// Mesma faixa de portas que o TruthID Desktop tenta em
@@ -419,6 +420,132 @@ pub async fn await_cross_device_sign_request_response(
         if now_ms() >= next_dead_drop_attempt_ms {
             if let Some(blob) = dead_drop::try_fetch_dead_drop(&session_id, &client).await {
                 return decrypt_and_parse_result(&blob, &ephemeral_priv_key_hex);
+            }
+            next_dead_drop_attempt_ms = now_ms() + DEAD_DROP_RETRY_INTERVAL.as_millis() as i64;
+        }
+
+        if now_ms() >= expires_at_ms {
+            return Err(AppError::TruthId(
+                "timed out waiting for the phone to respond".to_string(),
+            ));
+        }
+
+        tokio::time::sleep(SWEEP_RETRY_INTERVAL).await;
+    }
+}
+
+/// Schema v1 do QR de `/pin` cross-device — precisa bater campo a campo com
+/// `_validatePayload` em `mobile/lib/screens/pin_approval_screen.dart`
+/// (TruthID). Diferente do `/sign-request`, não carrega `dest`/`value`/
+/// `callData`/`functionSignature` — não é uma UserOperation.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PinRequestQrPayload {
+    action: &'static str,
+    v: u8,
+    session_id: String,
+    ephemeral_pub_key: String,
+    expires_at: i64,
+    app_name: &'static str,
+}
+
+/// Gera uma nova sessão cross-device de `/pin`: par efêmero (ECIES, usado só
+/// pra decifrar o resultado na fase 2 — a fase 1, empurrar o conteúdo, usa
+/// uma chave simétrica derivada do `sessionId`, ver `pin_content_cipher.rs`),
+/// `sessionId` aleatório e o JSON do QR. Não fala com a rede — quem empurra o
+/// conteúdo é `push_pin_content` e quem espera o resultado é
+/// `await_cross_device_pin_response`, ambos chamados em seguida pelo
+/// frontend assim que o QR aparece na tela.
+#[tauri::command]
+pub fn create_cross_device_pin_request() -> Result<CrossDeviceSession, AppError> {
+    let session_id = random_session_id();
+    let (ephemeral_priv_key_hex, ephemeral_pub_key_hex) = ecies::generate_ephemeral_keypair();
+    let expires_at_ms = now_ms() + CROSS_DEVICE_SESSION_TTL_MS;
+
+    let payload = PinRequestQrPayload {
+        action: "truthid-pin",
+        v: 1,
+        session_id: session_id.clone(),
+        ephemeral_pub_key: ephemeral_pub_key_hex,
+        expires_at: expires_at_ms,
+        app_name: APP_NAME,
+    };
+    let qr_payload_json =
+        serde_json::to_string(&payload).map_err(|e| AppError::TruthId(e.to_string()))?;
+
+    Ok(CrossDeviceSession {
+        session_id,
+        ephemeral_priv_key_hex,
+        expires_at_ms,
+        qr_payload_json,
+    })
+}
+
+/// Fase 1 do `/pin` cross-device: lê o snapshot atual do banco (mesmo passo,
+/// e mesma ressalva de torn-read sem `WAL`/checkpoint, que
+/// `pin_database_snapshot` já tem), cifra com a chave simétrica derivada do
+/// `sessionId` do QR (`pin_content_cipher::encrypt`) e empurra o blob pro
+/// celular varrendo a LAN repetidamente (`lan_sweep::sweep_push_once`,
+/// portas `48050-48054`, mesmo bloco que `RemoteSignerLanServer.receiveOnce`
+/// no Mobile escuta). O celular só sobe esse servidor depois de escanear o
+/// QR, então a 1ª passada quase sempre falha — o loop repete até aceitar ou
+/// expirar, mesmo padrão de `await_cross_device_sign_request_response`.
+/// Sem dead-drop nesta fase: publicar no IPFS já exigiria o próprio acesso
+/// de pin que está sendo concedido, seria circular.
+#[tauri::command]
+pub async fn push_pin_content(session_id: String, expires_at_ms: i64) -> Result<(), AppError> {
+    let bytes = tokio::fs::read(db::DATABASE_FILE_PATH).await?;
+    let key = pin_content_cipher::derive_pin_content_key(&session_id).map_err(AppError::TruthId)?;
+    let encrypted = pin_content_cipher::encrypt(&bytes, &key);
+
+    let client = reqwest::Client::new();
+    loop {
+        if lan_sweep::sweep_push_once(&session_id, &encrypted, &client).await {
+            return Ok(());
+        }
+
+        if now_ms() >= expires_at_ms {
+            return Err(AppError::TruthId(
+                "timed out waiting for the phone to receive the content".to_string(),
+            ));
+        }
+
+        tokio::time::sleep(SWEEP_RETRY_INTERVAL).await;
+    }
+}
+
+fn decrypt_and_parse_pin_result(
+    blob: &[u8],
+    ephemeral_priv_key_hex: &str,
+) -> Result<PinResult, AppError> {
+    let plaintext = ecies::decrypt(blob, ephemeral_priv_key_hex).map_err(AppError::TruthId)?;
+    let wire: PinWireResult =
+        serde_json::from_slice(&plaintext).map_err(|e| AppError::TruthId(e.to_string()))?;
+    Ok(wire.into())
+}
+
+/// Fase 2 do `/pin` cross-device: espera a aprovação/rejeição do celular, com
+/// o mesmo par de transportes (LAN + dead-drop IPFS/IPNS) e a mesma decifra
+/// ECIES que `await_cross_device_sign_request_response` já usa — cópia
+/// estrutural exata, só troca o tipo de resultado (`PinWireResult`/
+/// `PinResult` em vez de `TruthIdWireResult`/`TruthIdSignResult`).
+#[tauri::command]
+pub async fn await_cross_device_pin_response(
+    session_id: String,
+    ephemeral_priv_key_hex: String,
+    expires_at_ms: i64,
+) -> Result<PinResult, AppError> {
+    let client = reqwest::Client::new();
+    let mut next_dead_drop_attempt_ms = now_ms();
+
+    loop {
+        if let Some(blob) = lan_sweep::sweep_once(&session_id, &client).await {
+            return decrypt_and_parse_pin_result(&blob, &ephemeral_priv_key_hex);
+        }
+
+        if now_ms() >= next_dead_drop_attempt_ms {
+            if let Some(blob) = dead_drop::try_fetch_dead_drop(&session_id, &client).await {
+                return decrypt_and_parse_pin_result(&blob, &ephemeral_priv_key_hex);
             }
             next_dead_drop_attempt_ms = now_ms() + DEAD_DROP_RETRY_INTERVAL.as_millis() as i64;
         }

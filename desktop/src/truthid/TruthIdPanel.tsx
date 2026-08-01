@@ -44,6 +44,40 @@ type PinResult = {
   error: string | null;
 };
 
+/** Bloco de exibição de um `PinResult`, reusado pelo pin loopback (Fase 8.3)
+ * e pelo pin cross-device (Fase 8.4) — mesmos campos, mesma origem de tipo. */
+function PinResultDisplay({
+  result,
+  onUseResult,
+}: {
+  result: PinResult;
+  onUseResult: () => void;
+}) {
+  return (
+    <div>
+      <p>Status: {result.status}</p>
+      {result.cid && <p className="break-all">CID: {result.cid}</p>}
+      {result.content_hash && (
+        <p className="break-all">Content hash: {result.content_hash}</p>
+      )}
+      {result.providers_ok && result.providers_ok.length > 0 && (
+        <p className="text-green-700">Pinned via: {result.providers_ok.join(", ")}</p>
+      )}
+      {result.providers_failed && result.providers_failed.length > 0 && (
+        <p className="text-red-600">
+          Failed providers: {result.providers_failed.join(", ")}
+        </p>
+      )}
+      {result.error && <p className="text-red-600">{result.error}</p>}
+      {result.cid && result.content_hash && (
+        <Button variant="outline" onClick={onUseResult}>
+          Use this result in Update sync record
+        </Button>
+      )}
+    </div>
+  );
+}
+
 /**
  * Prova de conceito mínima da fatia 3: descobre um TruthID Desktop rodando
  * na mesma máquina, faz handshake, e manda 1 pedido de assinatura de teste
@@ -104,13 +138,42 @@ function TruthIdPanel() {
     mutationFn: () => invoke("pin_database_snapshot"),
   });
 
-  function useThisPinResult() {
-    if (!pinDatabaseMutation.data?.cid || !pinDatabaseMutation.data?.content_hash) return;
-    setUpdateCid(pinDatabaseMutation.data.cid);
-    setUpdateContentHash(pinDatabaseMutation.data.content_hash);
+  function useThisPinResult(result: PinResult) {
+    if (!result.cid || !result.content_hash) return;
+    setUpdateCid(result.cid);
+    setUpdateContentHash(result.content_hash);
   }
 
+  // Fase 8.4 — cross-device: pede pro celular pinar o snapshot em vez de
+  // falar loopback com um TruthID Desktop na mesma máquina. Diferente do
+  // cross-device sign-request (2 mutations), este tem 3 fases: gerar a
+  // sessão/QR, empurrar o conteúdo cifrado pro celular (o celular só sobe o
+  // servidor de recepção depois de escanear), e só então esperar a
+  // aprovação/resultado — mesmo protocolo que o TruthID Mobile já implementa
+  // desde a sessão pós-127 (`PinApprovalScreen`, LAN nas portas 48050-54).
+  const crossDevicePinSessionMutation = useMutation<CrossDeviceSession, AppError, void>({
+    mutationFn: () => invoke("create_cross_device_pin_request"),
+  });
+
+  const crossDevicePinPushMutation = useMutation<void, AppError, CrossDeviceSession>({
+    mutationFn: (session) =>
+      invoke("push_pin_content", {
+        sessionId: session.session_id,
+        expiresAtMs: session.expires_at_ms,
+      }),
+  });
+
+  const crossDevicePinResultMutation = useMutation<PinResult, AppError, CrossDeviceSession>({
+    mutationFn: (session) =>
+      invoke("await_cross_device_pin_response", {
+        sessionId: session.session_id,
+        ephemeralPrivKeyHex: session.ephemeral_priv_key_hex,
+        expiresAtMs: session.expires_at_ms,
+      }),
+  });
+
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
+  const pinQrCanvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const session = crossDeviceSessionMutation.data;
@@ -127,6 +190,31 @@ function TruthIdPanel() {
   function startCrossDeviceRequest() {
     crossDeviceResultMutation.reset();
     crossDeviceSessionMutation.mutate();
+  }
+
+  useEffect(() => {
+    const session = crossDevicePinSessionMutation.data;
+    if (!session || !pinQrCanvasRef.current) return;
+    void renderQrToCanvas(pinQrCanvasRef.current, session.qr_payload_json);
+    // Sequencial, não em paralelo: o celular só decifra o conteúdo (fase 1)
+    // antes de mostrar a tela de aprovação — só faz sentido esperar o
+    // resultado (fase 2) depois que o push realmente for aceito.
+    void (async () => {
+      try {
+        await crossDevicePinPushMutation.mutateAsync(session);
+        await crossDevicePinResultMutation.mutateAsync(session);
+      } catch {
+        // Erro já fica exposto via *.isError/*.error de cada mutation —
+        // nada a fazer aqui além de não deixar a rejection subir sem tratar.
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crossDevicePinSessionMutation.data]);
+
+  function startCrossDevicePinRequest() {
+    crossDevicePinPushMutation.reset();
+    crossDevicePinResultMutation.reset();
+    crossDevicePinSessionMutation.mutate();
   }
 
   return (
@@ -284,30 +372,56 @@ function TruthIdPanel() {
             <p className="text-red-600">{pinDatabaseMutation.error.message}</p>
           )}
           {pinDatabaseMutation.isSuccess && (
-            <div>
-              <p>Status: {pinDatabaseMutation.data.status}</p>
-              {pinDatabaseMutation.data.cid && <p className="break-all">CID: {pinDatabaseMutation.data.cid}</p>}
-              {pinDatabaseMutation.data.content_hash && (
-                <p className="break-all">Content hash: {pinDatabaseMutation.data.content_hash}</p>
-              )}
-              {pinDatabaseMutation.data.providers_ok && pinDatabaseMutation.data.providers_ok.length > 0 && (
-                <p className="text-green-700">Pinned via: {pinDatabaseMutation.data.providers_ok.join(", ")}</p>
-              )}
-              {pinDatabaseMutation.data.providers_failed &&
-                pinDatabaseMutation.data.providers_failed.length > 0 && (
-                  <p className="text-red-600">
-                    Failed providers: {pinDatabaseMutation.data.providers_failed.join(", ")}
-                  </p>
-                )}
-              {pinDatabaseMutation.data.error && (
-                <p className="text-red-600">{pinDatabaseMutation.data.error}</p>
-              )}
-              {pinDatabaseMutation.data.cid && pinDatabaseMutation.data.content_hash && (
-                <Button variant="outline" onClick={useThisPinResult}>
-                  Use this result in Update sync record
-                </Button>
-              )}
+            <PinResultDisplay
+              result={pinDatabaseMutation.data}
+              onUseResult={() => useThisPinResult(pinDatabaseMutation.data)}
+            />
+          )}
+        </div>
+
+        <div className="flex flex-col gap-2 border-t pt-6">
+          <p className="text-sm text-muted-foreground">
+            Fase 8.4 — Cross-device pin: scan with your paired TruthID phone instead of a TruthID
+            Desktop on this same machine. The phone receives the encrypted snapshot, asks for your
+            approval, and pins it using its own configured IPFS providers.
+          </p>
+          <Button
+            variant="outline"
+            onClick={startCrossDevicePinRequest}
+            disabled={
+              crossDevicePinSessionMutation.isPending ||
+              crossDevicePinPushMutation.isPending ||
+              crossDevicePinResultMutation.isPending
+            }
+          >
+            {crossDevicePinResultMutation.isPending
+              ? "Waiting for approval on your phone..."
+              : crossDevicePinPushMutation.isPending
+                ? "Sending content to your phone..."
+                : "Start cross-device pin"}
+          </Button>
+          {crossDevicePinSessionMutation.isError && (
+            <p className="text-red-600">{crossDevicePinSessionMutation.error.message}</p>
+          )}
+          {crossDevicePinSessionMutation.isSuccess && !crossDevicePinResultMutation.isSuccess && (
+            <div className="flex flex-col items-center gap-2">
+              <canvas ref={pinQrCanvasRef} />
+              <p className="text-sm text-muted-foreground">
+                Scan this QR with your paired TruthID phone.
+              </p>
             </div>
+          )}
+          {crossDevicePinPushMutation.isError && (
+            <p className="text-red-600">{crossDevicePinPushMutation.error.message}</p>
+          )}
+          {crossDevicePinResultMutation.isError && (
+            <p className="text-red-600">{crossDevicePinResultMutation.error.message}</p>
+          )}
+          {crossDevicePinResultMutation.isSuccess && (
+            <PinResultDisplay
+              result={crossDevicePinResultMutation.data}
+              onUseResult={() => useThisPinResult(crossDevicePinResultMutation.data)}
+            />
           )}
         </div>
 

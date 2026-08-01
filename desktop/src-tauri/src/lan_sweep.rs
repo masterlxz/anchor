@@ -67,17 +67,11 @@ async fn fetch_session_blob(
     STANDARD.decode(body.blob).ok()
 }
 
-/// Varre o(s) /24 dos IPs locais × `CANDIDATE_PORTS`, em lotes paralelos, e
-/// retorna o primeiro blob encontrado (ou `None` se nada bateu nesta
-/// passada) — mesmo desenho de `sweepLan` na extensão (`Promise.all`
-/// batelado, sai assim que alguém responde). Quem decide repetir a
-/// varredura (o celular pode ainda não ter respondido) é o chamador.
-pub async fn sweep_once(session_id: &str, client: &reqwest::Client) -> Option<Vec<u8>> {
+/// Todos os alvos (host, porta) do(s) /24 dos IPs locais × `CANDIDATE_PORTS`
+/// — extraído pra função própria porque tanto `sweep_once` (GET) quanto
+/// `sweep_push_once` (PUT) varrem exatamente a mesma lista.
+fn sweep_targets() -> Vec<(String, u16)> {
     let local_ips = get_local_ips();
-    if local_ips.is_empty() {
-        return None;
-    }
-
     let mut seen_hosts = HashSet::new();
     let mut targets: Vec<(String, u16)> = Vec::new();
     for ip in &local_ips {
@@ -89,6 +83,19 @@ pub async fn sweep_once(session_id: &str, client: &reqwest::Client) -> Option<Ve
                 targets.push((host.clone(), port));
             }
         }
+    }
+    targets
+}
+
+/// Varre o(s) /24 dos IPs locais × `CANDIDATE_PORTS`, em lotes paralelos, e
+/// retorna o primeiro blob encontrado (ou `None` se nada bateu nesta
+/// passada) — mesmo desenho de `sweepLan` na extensão (`Promise.all`
+/// batelado, sai assim que alguém responde). Quem decide repetir a
+/// varredura (o celular pode ainda não ter respondido) é o chamador.
+pub async fn sweep_once(session_id: &str, client: &reqwest::Client) -> Option<Vec<u8>> {
+    let targets = sweep_targets();
+    if targets.is_empty() {
+        return None;
     }
 
     for batch in targets.chunks(DEFAULT_CONCURRENCY) {
@@ -102,6 +109,59 @@ pub async fn sweep_once(session_id: &str, client: &reqwest::Client) -> Option<Ve
     }
 
     None
+}
+
+/// Empurra `encrypted_bytes` pro celular via `PUT /session/<sessionId>/content`
+/// — irmã de `fetch_session_blob`, mas na direção contrária: aqui o
+/// requisitante ENVIA o conteúdo a pinar (fase 1 do `/pin` cross-device),
+/// espelhando `RemoteSignerLanServer.receiveOnce` no Mobile
+/// (`mobile/lib/services/remote_signer_lan_server.dart`). Corpo cru, sem
+/// envelope JSON — mesmo formato que o lado que recebe já espera.
+async fn push_session_content(
+    client: &reqwest::Client,
+    host: &str,
+    port: u16,
+    session_id: &str,
+    encrypted_bytes: &[u8],
+) -> bool {
+    let url = format!("http://{host}:{port}/session/{session_id}/content");
+    match client
+        .put(&url)
+        .body(encrypted_bytes.to_vec())
+        .timeout(Duration::from_millis(DEFAULT_TIMEOUT_MS))
+        .send()
+        .await
+    {
+        Ok(resp) => resp.status().is_success(),
+        Err(_) => false,
+    }
+}
+
+/// Varre os mesmos alvos que `sweep_once`, mas empurrando conteúdo em vez de
+/// buscar — retorna `true` assim que algum host aceitar o PUT. Mesmo
+/// espírito de "1ª passada quase sempre vazia, o chamador repete até
+/// expirar" (o celular só sobe o servidor depois de escanear o QR).
+pub async fn sweep_push_once(
+    session_id: &str,
+    encrypted_bytes: &[u8],
+    client: &reqwest::Client,
+) -> bool {
+    let targets = sweep_targets();
+    if targets.is_empty() {
+        return false;
+    }
+
+    for batch in targets.chunks(DEFAULT_CONCURRENCY) {
+        let futures = batch.iter().map(|(host, port)| {
+            push_session_content(client, host, *port, session_id, encrypted_bytes)
+        });
+        let results = futures::future::join_all(futures).await;
+        if results.into_iter().any(|ok| ok) {
+            return true;
+        }
+    }
+
+    false
 }
 
 #[cfg(test)]
@@ -180,5 +240,92 @@ mod tests {
         // "timeout/connection refused vira None, nunca lança" do lado TS.
         let blob = fetch_session_blob(&client, "127.0.0.1", 1, "session-abc").await;
         assert_eq!(blob, None);
+    }
+
+    // Servidor de teste real (não mock) que responde exatamente como
+    // `RemoteSignerLanServer.receiveOnce` no Mobile: 1 PUT em
+    // `/session/<sessionId>/content` -> 200 vazio, capturando o corpo
+    // recebido pra comparação — mesmo espírito "sempre I/O real" de
+    // `spawn_test_server` acima.
+    fn spawn_test_put_server(
+        session_id: &'static str,
+    ) -> (u16, std::sync::mpsc::Receiver<Vec<u8>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+        let port = listener.local_addr().unwrap().port();
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            if let Ok((mut stream, _)) = listener.accept() {
+                let mut header_buf = Vec::new();
+                let mut byte = [0u8; 1];
+                // Lê até o fim dos headers (`\r\n\r\n`) um byte de cada vez —
+                // simples e suficiente pra um teste com corpo pequeno.
+                while !header_buf.ends_with(b"\r\n\r\n") {
+                    if stream.read_exact(&mut byte).is_err() {
+                        return;
+                    }
+                    header_buf.push(byte[0]);
+                }
+                let headers = String::from_utf8_lossy(&header_buf);
+                let expected_path = format!("PUT /session/{session_id}/content ");
+
+                if !headers.starts_with(&expected_path) {
+                    let response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
+                    let _ = stream.write_all(response.as_bytes());
+                    return;
+                }
+
+                let content_length = headers
+                    .lines()
+                    .find_map(|line| {
+                        line.to_lowercase()
+                            .strip_prefix("content-length:")
+                            .map(|v| v.trim().to_string())
+                    })
+                    .and_then(|v| v.parse::<usize>().ok())
+                    .unwrap_or(0);
+
+                let mut body = vec![0u8; content_length];
+                if stream.read_exact(&mut body).is_err() {
+                    return;
+                }
+
+                let response = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
+                let _ = stream.write_all(response.as_bytes());
+                let _ = tx.send(body);
+            }
+        });
+        (port, rx)
+    }
+
+    #[tokio::test]
+    async fn push_session_content_delivers_the_exact_body() {
+        let (port, rx) = spawn_test_put_server("session-abc");
+        let client = reqwest::Client::new();
+        let payload = b"encrypted-pin-content-bytes".to_vec();
+
+        let ok = push_session_content(&client, "127.0.0.1", port, "session-abc", &payload).await;
+
+        assert!(ok);
+        let received = rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("server should have received a body");
+        assert_eq!(received, payload);
+    }
+
+    #[tokio::test]
+    async fn push_session_content_returns_false_on_wrong_session_id() {
+        let (port, _rx) = spawn_test_put_server("session-abc");
+        let client = reqwest::Client::new();
+
+        let ok = push_session_content(&client, "127.0.0.1", port, "session-xyz", b"hello").await;
+
+        assert!(!ok);
+    }
+
+    #[tokio::test]
+    async fn push_session_content_returns_false_when_nothing_listens() {
+        let client = reqwest::Client::new();
+        let ok = push_session_content(&client, "127.0.0.1", 1, "session-abc", b"hello").await;
+        assert!(!ok);
     }
 }
