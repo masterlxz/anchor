@@ -165,3 +165,26 @@ export type AssetFavorite = {
   asset_id: number;
   created_at: string;
 };
+
+// Fase 10.5 — tese de investimento, vinculável a um ativo específico
+// (asset_id preenchido) ou global/macro (asset_id null). Anexos vivem em
+// disco (app_data_dir), só metadados ficam no banco.
+export type Thesis = {
+  id: number;
+  workspace_id: number;
+  asset_id: number | null;
+  title: string;
+  content_markdown: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ThesisAttachment = {
+  id: number;
+  thesis_id: number;
+  original_file_name: string;
+  stored_relative_path: string;
+  file_size_bytes: number;
+  content_type: string | null;
+  created_at: string;
+};

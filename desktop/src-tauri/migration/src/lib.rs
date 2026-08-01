@@ -33,6 +33,7 @@ mod m20260729_090300_create_transactions;
 mod m20260729_150000_add_details_to_stock_quotes;
 mod m20260729_160000_create_stock_price_history;
 mod m20260730_100000_create_watchlists;
+mod m20260731_100000_create_theses;
 
 pub struct Migrator;
 
@@ -73,6 +74,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260729_150000_add_details_to_stock_quotes::Migration),
             Box::new(m20260729_160000_create_stock_price_history::Migration),
             Box::new(m20260730_100000_create_watchlists::Migration),
+            Box::new(m20260731_100000_create_theses::Migration),
         ]
     }
 }

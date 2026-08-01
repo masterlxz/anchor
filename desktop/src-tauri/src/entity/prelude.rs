@@ -28,6 +28,8 @@ pub use super::stock_notes::Entity as StockNotes;
 pub use super::stock_price_history::Entity as StockPriceHistory;
 pub use super::stock_quotes::Entity as StockQuotes;
 pub use super::stock_technicals::Entity as StockTechnicals;
+pub use super::theses::Entity as Theses;
+pub use super::thesis_attachments::Entity as ThesisAttachments;
 pub use super::transactions::Entity as Transactions;
 pub use super::valuation::Entity as Valuation;
 pub use super::watchlist_items::Entity as WatchlistItems;

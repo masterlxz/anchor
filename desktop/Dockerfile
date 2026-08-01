@@ -25,8 +25,11 @@ ENV RUSTUP_HOME=/root/.rustup CARGO_HOME=/root/.cargo HOME=/root
 
 # sea-orm-cli: ferramenta de dev pra gerar migrations/entities do banco (SeaORM).
 # Não é dependência do projeto (isso já está no Cargo.toml) — fica só no ambiente,
-# igual o próprio cargo/rustc.
-RUN cargo install sea-orm-cli
+# igual o próprio cargo/rustc. Versão fixada pra bater com `sea-orm` no
+# Cargo.toml do app — sem isso, um rebuild da imagem puxa a versão mais nova do
+# CLI e `generate entity` passa a gerar colunas incompatíveis (ex.: `id: i64`
+# em vez de `i32`), quebrando toda entity existente silenciosamente.
+RUN cargo install sea-orm-cli --version 1.1.20 --locked
 
 # node:20 já cria um usuário "node" (uid/gid 1000, mesmo do host) — é ele que
 # roda o app em runtime (docker-compose.yml: user: "1000:1000"), necessário pra

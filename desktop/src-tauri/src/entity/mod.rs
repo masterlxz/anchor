@@ -30,6 +30,8 @@ pub mod stock_notes;
 pub mod stock_price_history;
 pub mod stock_quotes;
 pub mod stock_technicals;
+pub mod theses;
+pub mod thesis_attachments;
 pub mod transactions;
 pub mod valuation;
 pub mod watchlist_items;

@@ -20,6 +20,8 @@ pub enum Relation {
     Custodia,
     #[sea_orm(has_many = "super::portfolio::Entity")]
     Portfolio,
+    #[sea_orm(has_many = "super::theses::Entity")]
+    Theses,
     #[sea_orm(has_many = "super::watchlists::Entity")]
     Watchlists,
 }
@@ -39,6 +41,12 @@ impl Related<super::custodia::Entity> for Entity {
 impl Related<super::portfolio::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Portfolio.def()
+    }
+}
+
+impl Related<super::theses::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Theses.def()
     }
 }
 

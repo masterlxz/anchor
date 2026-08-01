@@ -15,6 +15,7 @@ services:
       - cargo-registry:/root/.cargo/registry    # cache de pacotes Rust
       - cargo-git:/root/.cargo/git              # cache de pacotes Rust (git)
       - cargo-target:/app/src-tauri/target      # cache de compilação Rust (o mais pesado)
+      - app-data:/home/node/.local/share        # app_data_dir() do Tauri (Fase 10.5, anexos de tese) — sem isso some a cada down
     environment:
       - HOME=/home/node                         # $HOME do Dockerfile é /root (precisa pro build achar o toolchain Rust), mas /root não é gravável pelo uid 1000 em runtime — webview/gtk precisam criar ~/.config, ~/.local/share etc, e /home/node (uid 1000 já dono, criado pela imagem node:20) resolve sem tocar no build
       - DISPLAY=${DISPLAY}                      # qual tela usar (herdado do host)
@@ -32,3 +33,4 @@ volumes:
   cargo-registry:
   cargo-git:
   cargo-target:
+  app-data:

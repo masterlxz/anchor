@@ -95,7 +95,15 @@ pub fn run() {
             commands::watchlist::update_watchlist_item,
             commands::watchlist::remove_watchlist_item,
             commands::watchlist::list_favorite_assets,
-            commands::watchlist::toggle_favorite
+            commands::watchlist::toggle_favorite,
+            commands::thesis::list_theses,
+            commands::thesis::create_thesis,
+            commands::thesis::update_thesis,
+            commands::thesis::delete_thesis,
+            commands::thesis::list_thesis_attachments,
+            commands::thesis::add_thesis_attachment,
+            commands::thesis::delete_thesis_attachment,
+            commands::thesis::get_thesis_attachment_path
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
