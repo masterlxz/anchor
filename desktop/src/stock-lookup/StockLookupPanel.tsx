@@ -7,6 +7,7 @@ import {
 import Field from "../components/Field";
 import StockAnalysisSection from "./StockAnalysisSection";
 import FiiLookupSection from "./FiiLookupSection";
+import EtfLookupSection from "./EtfLookupSection";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,9 +27,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 /// detectar a classe tentando um fetch atrás do outro — prefere escolher a
 /// classe explicitamente antes de buscar. Este componente é só a moldura
 /// (busca + seletor de classe); todo o conteúdo específico de cada classe
-/// mora em `StockAnalysisSection.tsx`/`FiiLookupSection.tsx`, que só
-/// recebem o ticker já commitado — cada uma cuida do próprio fetch/estado,
-/// sem nada compartilhado entre elas além do visual (`shared.tsx`).
+/// mora em `StockAnalysisSection.tsx`/`FiiLookupSection.tsx`/
+/// `EtfLookupSection.tsx` (este último desde a Sessão 50, sem fundamentos/
+/// DCF/valuation — nenhum desses conceitos existe pra um fundo de índice),
+/// que só recebem o ticker já commitado — cada uma cuida do próprio
+/// fetch/estado, sem nada compartilhado entre elas além do visual
+/// (`shared.tsx`).
 function StockLookupPanel() {
   const [tickerInput, setTickerInput] = useState("");
   const [activeTicker, setActiveTicker] = useState<string | null>(null);
@@ -83,6 +87,8 @@ function StockLookupPanel() {
         {activeTicker &&
           (assetClass === "fii" ? (
             <FiiLookupSection key={activeTicker} ticker={activeTicker} />
+          ) : assetClass === "etf_br" ? (
+            <EtfLookupSection key={activeTicker} ticker={activeTicker} />
           ) : (
             <StockAnalysisSection key={activeTicker} ticker={activeTicker} />
           ))}
