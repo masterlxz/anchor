@@ -28,12 +28,18 @@ export type Custodia = {
 // item 8). `cripto` entrou na Sessão 51, unificando a antiga tela solta
 // "Crypto Score" (indicadores de ciclo, ainda existe — ver
 // CryptoLookupSection.tsx) dentro de Research/Ativos como classe de ativo de
-// verdade, com cotação própria via CoinGecko. Ver commands/asset.rs::ASSET_CLASSES.
+// verdade, com cotação própria via CoinGecko. `bdr` entrou na Sessão 53 —
+// recibo B3 de empresa estrangeira (ex.: AAPL34), mesmo endpoint Yahoo
+// `.SA` de acao_br/fii/etf_br (confirmado ao vivo), zero coletor novo;
+// exposição default "US" (editável), diferente das outras classes B3 que
+// default "BR" — um BDR representa empresa estrangeira, quase nunca
+// Brasil. Ver commands/asset.rs::ASSET_CLASSES.
 export type AssetClass =
   | "acao_br"
   | "fii"
   | "etf_br"
   | "cripto"
+  | "bdr"
   | "acao_internacional"
   | "tesouro_direto"
   | "renda_fixa";
@@ -43,6 +49,7 @@ export const ASSET_CLASSES: AssetClass[] = [
   "fii",
   "etf_br",
   "cripto",
+  "bdr",
   "acao_internacional",
   "tesouro_direto",
   "renda_fixa",
@@ -53,6 +60,7 @@ export const ASSET_CLASS_LABELS: Record<AssetClass, string> = {
   fii: "FII (B3)",
   etf_br: "ETF (B3)",
   cripto: "Crypto",
+  bdr: "BDR (B3)",
   acao_internacional: "International stock",
   tesouro_direto: "Tesouro Direto",
   renda_fixa: "Fixed income",
@@ -63,11 +71,17 @@ export const FIXED_INCOME_CLASSES: AssetClass[] = ["tesouro_direto", "renda_fixa
 
 // Classes com busca automática de cotação por ticker — usada por
 // AssetSection.tsx (form vira busca) e Research (StockLookupPanel.tsx,
-// dispatch por classe). Ação BR/FII/ETF compartilham o mesmo endpoint Yahoo
-// `{ticker}.SA`; cripto usa CoinGecko (fonte diferente, ver
+// dispatch por classe). Ação BR/FII/ETF/BDR compartilham o mesmo endpoint
+// Yahoo `{ticker}.SA`; cripto usa CoinGecko (fonte diferente, ver
 // commands/collector.rs::run_stock_collector) — daqui pra baixo o front não
 // distingue a fonte, só o backend sabe rotear.
-export const ASSET_CLASSES_WITH_AUTO_QUOTE: AssetClass[] = ["acao_br", "fii", "etf_br", "cripto"];
+export const ASSET_CLASSES_WITH_AUTO_QUOTE: AssetClass[] = [
+  "acao_br",
+  "fii",
+  "etf_br",
+  "cripto",
+  "bdr",
+];
 
 export type ExposureType = "pais" | "categoria_especial";
 

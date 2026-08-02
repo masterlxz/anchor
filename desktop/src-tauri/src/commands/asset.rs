@@ -65,12 +65,17 @@ async fn upsert_fii_cnpj_cache(
 // PHASE.md item 8), então sem indicador de fundo específico ainda. `cripto`
 // entrou na Sessão 51 — cotação automática também, mas fonte própria
 // (CoinGecko, não Yahoo `.SA` — cripto não é listada na B3) via
-// `--crypto-ticker` no coletor Python (`commands/collector.rs`).
-const ASSET_CLASSES: [&str; 7] = [
+// `--crypto-ticker` no coletor Python (`commands/collector.rs`). `bdr`
+// entrou na Sessão 53 — recibo negociado na B3 representando empresa
+// estrangeira (ex.: AAPL34), mas bate no mesmo endpoint Yahoo `.SA` que
+// `acao_br`/`fii`/`etf_br` já usam (confirmado ao vivo), zero coletor
+// novo, mesmo caminho de `etf_br`: sem fundamentos (bolsai não tem).
+const ASSET_CLASSES: [&str; 8] = [
     "acao_br",
     "fii",
     "etf_br",
     "cripto",
+    "bdr",
     "acao_internacional",
     "tesouro_direto",
     "renda_fixa",

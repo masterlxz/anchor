@@ -9,6 +9,7 @@ import StockAnalysisSection from "./StockAnalysisSection";
 import FiiLookupSection from "./FiiLookupSection";
 import EtfLookupSection from "./EtfLookupSection";
 import CryptoLookupSection from "./CryptoLookupSection";
+import BdrLookupSection from "./BdrLookupSection";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,8 +33,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 /// `EtfLookupSection.tsx` (este último desde a Sessão 50, sem fundamentos/
 /// DCF/valuation — nenhum desses conceitos existe pra um fundo de índice)/
 /// `CryptoLookupSection.tsx` (Sessão 51 — absorveu a antiga aba solta
-/// "Crypto Score", removida do nav principal), que só recebem o ticker já
-/// commitado — cada uma cuida do próprio fetch/estado, sem nada
+/// "Crypto Score", removida do nav principal)/`BdrLookupSection.tsx`
+/// (Sessão 53 — irmã quase idêntica de `EtfLookupSection.tsx`, mesma
+/// ausência de fundamentos/DCF, bolsai não tem pra BDR), que só recebem o
+/// ticker já commitado — cada uma cuida do próprio fetch/estado, sem nada
 /// compartilhado entre elas além do visual (`shared.tsx`).
 function StockLookupPanel() {
   const [tickerInput, setTickerInput] = useState("");
@@ -85,7 +88,9 @@ function StockLookupPanel() {
                     ? "BOVA11"
                     : assetClass === "cripto"
                       ? "ETH"
-                      : "PETR4"
+                      : assetClass === "bdr"
+                        ? "AAPL34"
+                        : "PETR4"
               }
             />
           </Field>
@@ -99,6 +104,8 @@ function StockLookupPanel() {
             <EtfLookupSection key={activeTicker} ticker={activeTicker} />
           ) : assetClass === "cripto" ? (
             <CryptoLookupSection key={activeTicker} ticker={activeTicker} />
+          ) : assetClass === "bdr" ? (
+            <BdrLookupSection key={activeTicker} ticker={activeTicker} />
           ) : (
             <StockAnalysisSection key={activeTicker} ticker={activeTicker} />
           ))}

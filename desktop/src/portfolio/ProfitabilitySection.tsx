@@ -41,7 +41,7 @@ type CollectorSummary = { success: boolean; output: string };
 // `collect_crypto_ticker` em data-collector/main.py), então não tem o que
 // esse botão faria por ela — sem o filtro aqui, mandar um ticker cripto
 // pro coletor Yahoo tentaria `CRIPTO.SA`, que não existe.
-const YAHOO_BACKFILL_CLASSES = ["acao_br", "fii", "etf_br"];
+const YAHOO_BACKFILL_CLASSES = ["acao_br", "fii", "etf_br", "bdr"];
 
 // Mesma paleta/convenção de DividendHistoryChart.tsx (rampa de verde do
 // tema, nunca dois eixos Y na mesma barra — ver skill dataviz). A polaridade
@@ -137,9 +137,9 @@ function ProfitabilitySection({ portfolioId }: { portfolioId: number }) {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <p className="text-sm text-muted-foreground">
-            Covers Stock (B3), FII, ETF and Crypto in this slice — contributions/withdrawals and
-            the other classes (Tesouro Direto, Fixed income, international stocks) don't factor
-            into this calculation yet, for lack of automated historical prices for them.
+            Covers Stock (B3), FII, ETF, Crypto and BDR in this slice — contributions/withdrawals
+            and the other classes (Tesouro Direto, Fixed income, international stocks) don't
+            factor into this calculation yet, for lack of automated historical prices for them.
           </p>
 
           <div>
