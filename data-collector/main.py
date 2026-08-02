@@ -20,6 +20,7 @@ from sources import (
     acoes_yahoo,
     cripto_coingecko,
     cripto_defillama,
+    cripto_feargreed,
     cripto_ultrasound,
     cvm_dfp,
     cvm_fii,
@@ -534,6 +535,91 @@ def main_crypto() -> int:
     return 0
 
 
+def collect_crypto_ticker(symbol: str) -> dict:
+    """Quote + price history for one crypto ticker (Fase 10, item 8 — Crypto
+    virou classe de ativo no Portfolio, Sessão 51).
+
+    Unrelated to `main_crypto()`/`_record_crypto_indicator` above (those are
+    the Ethereum-only cycle-top score, hardcoded `coin="ETH"`) — this is the
+    generic "any coin" quote/price-history pair that Assets/Research use for
+    portfolio valuation and TWR, same role `collect_stock_quotes`/
+    `collect_price_history` play for B3 tickers, just backed by CoinGecko
+    instead of Yahoo since crypto isn't listed on the B3 `.SA` endpoint.
+    One `market_chart` call gives both the latest price (written to
+    `stock_quotes`) and the full daily series (written to
+    `stock_price_history`, `INSERT OR IGNORE` on the same unique
+    `(ticker, price_date)` index Yahoo-sourced rows use — safe to call this
+    again later, only new days get inserted).
+    """
+    coin = cripto_coingecko.resolve_coin_id(symbol)
+    if coin is None:
+        raise RuntimeError(f"No CoinGecko coin found for symbol '{symbol}'")
+
+    points = cripto_coingecko.fetch_market_chart(coin["id"])
+    if not points:
+        raise RuntimeError(f"CoinGecko returned no price history for '{symbol}' ({coin['id']})")
+
+    latest = points[-1]
+    now = datetime.now(timezone.utc).isoformat()
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute(
+        "INSERT INTO stock_quotes (ticker, price, name, exchange, currency, source, fetched_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (symbol, latest["price"], coin["name"], "CoinGecko", "USD", "coingecko", now),
+    )
+    changes_before = conn.total_changes
+    conn.executemany(
+        "INSERT OR IGNORE INTO stock_price_history "
+        "(ticker, price_date, close_price, source, fetched_at) VALUES (?, ?, ?, ?, ?)",
+        [(symbol, p["price_date"], p["price"], "coingecko", now) for p in points],
+    )
+    new_history_count = conn.total_changes - changes_before
+
+    # Fear & Greed é global de mercado (não por coin) — atualizado junto de
+    # qualquer refresh de ticker cripto, pedido explícito do dono do
+    # projeto pra aparecer em toda tela de cripto. `INSERT OR IGNORE` no
+    # índice único de `reading_date`: só grava a primeira vez no dia, buscar
+    # nesse mesmo dia de novo (outro ticker, outro refresh) é no-op esperado.
+    fear_greed = cripto_feargreed.fetch_latest()
+    conn.execute(
+        "INSERT OR IGNORE INTO crypto_fear_greed "
+        "(value, classification, reading_date, source, fetched_at) VALUES (?, ?, ?, ?, ?)",
+        (fear_greed["value"], fear_greed["classification"], fear_greed["reading_date"], "alternative.me", now),
+    )
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "ticker": symbol,
+        "name": coin["name"],
+        "price": latest["price"],
+        "history_points": len(points),
+        "new_history_points": new_history_count,
+        "fear_greed": fear_greed,
+    }
+
+
+def main_crypto_ticker(symbol: str) -> int:
+    load_dotenv(BASE_DIR / ".env")
+    try:
+        result = collect_crypto_ticker(symbol)
+    except RuntimeError as err:
+        print(str(err))
+        return 1
+
+    print(f"{result['ticker']} ({result['name']}): US$ {result['price']:.2f}")
+    print(
+        f"Updated price history: {result['history_points']} point(s), "
+        f"{result['new_history_points']} new"
+    )
+    fg = result["fear_greed"]
+    print(f"Fear & Greed: {fg['value']} ({fg['classification']}) — {fg['reading_date']}")
+    return 0
+
+
 def main(ticker: str | None = None) -> int:
     load_dotenv(BASE_DIR / ".env")
 
@@ -636,6 +722,11 @@ if __name__ == "__main__":
             print("Usage: python main.py --fii-resolve-cnpj <TICKER>")
             sys.exit(1)
         sys.exit(main_fii_resolve_cnpj(sys.argv[2].strip().upper()))
+    if len(sys.argv) > 1 and sys.argv[1] == "--crypto-ticker":
+        if len(sys.argv) < 3 or not sys.argv[2].strip():
+            print("Usage: python main.py --crypto-ticker <SYMBOL>")
+            sys.exit(1)
+        sys.exit(main_crypto_ticker(sys.argv[2].strip().upper()))
     if len(sys.argv) > 1 and sys.argv[1] == "--fii-cvm-data":
         if len(sys.argv) < 3 or not sys.argv[2].strip():
             print("Usage: python main.py --fii-cvm-data <CNPJ1,CNPJ2,...>")

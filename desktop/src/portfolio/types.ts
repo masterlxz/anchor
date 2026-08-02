@@ -20,16 +20,20 @@ export type Custodia = {
   created_at: string;
 };
 
-// Fase 10.2, escopo Sessão 29 — REIT/cripto/metal/imóvel/empresa não listada
+// Fase 10.2, escopo Sessão 29 — REIT/metal/imóvel/empresa não listada
 // (Sessão 30) ficam pra uma fatia futura. `fii` entrou na Sessão 41, `etf_br`
 // na Sessão 49 — só a fatia de cotação automática por ora, sem indicador de
 // fundo específico (CVM não tem categoria de dados abertos pra fundo de
 // índice, diferente de FII, achado pesquisando de verdade — ver PHASE.md
-// item 8). Ver commands/asset.rs::ASSET_CLASSES.
+// item 8). `cripto` entrou na Sessão 51, unificando a antiga tela solta
+// "Crypto Score" (indicadores de ciclo, ainda existe — ver
+// CryptoLookupSection.tsx) dentro de Research/Ativos como classe de ativo de
+// verdade, com cotação própria via CoinGecko. Ver commands/asset.rs::ASSET_CLASSES.
 export type AssetClass =
   | "acao_br"
   | "fii"
   | "etf_br"
+  | "cripto"
   | "acao_internacional"
   | "tesouro_direto"
   | "renda_fixa";
@@ -38,6 +42,7 @@ export const ASSET_CLASSES: AssetClass[] = [
   "acao_br",
   "fii",
   "etf_br",
+  "cripto",
   "acao_internacional",
   "tesouro_direto",
   "renda_fixa",
@@ -47,6 +52,7 @@ export const ASSET_CLASS_LABELS: Record<AssetClass, string> = {
   acao_br: "Stock (B3)",
   fii: "FII (B3)",
   etf_br: "ETF (B3)",
+  cripto: "Crypto",
   acao_internacional: "International stock",
   tesouro_direto: "Tesouro Direto",
   renda_fixa: "Fixed income",
@@ -55,10 +61,13 @@ export const ASSET_CLASS_LABELS: Record<AssetClass, string> = {
 // Classes que usam os campos fi_* (renda fixa detalhada) na transação de compra.
 export const FIXED_INCOME_CLASSES: AssetClass[] = ["tesouro_direto", "renda_fixa"];
 
-// Classes negociadas na B3 com busca automática de cotação por ticker (mesmo
-// endpoint Yahoo `{ticker}.SA`, sem coletor dedicado por classe) — usada por
-// AssetSection.tsx (form vira busca) e ProfitabilitySection.tsx (TWR).
-export const ASSET_CLASSES_WITH_AUTO_QUOTE: AssetClass[] = ["acao_br", "fii", "etf_br"];
+// Classes com busca automática de cotação por ticker — usada por
+// AssetSection.tsx (form vira busca) e Research (StockLookupPanel.tsx,
+// dispatch por classe). Ação BR/FII/ETF compartilham o mesmo endpoint Yahoo
+// `{ticker}.SA`; cripto usa CoinGecko (fonte diferente, ver
+// commands/collector.rs::run_stock_collector) — daqui pra baixo o front não
+// distingue a fonte, só o backend sabe rotear.
+export const ASSET_CLASSES_WITH_AUTO_QUOTE: AssetClass[] = ["acao_br", "fii", "etf_br", "cripto"];
 
 export type ExposureType = "pais" | "categoria_especial";
 

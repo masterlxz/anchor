@@ -73,6 +73,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
 
   const isAutoQuoteClass = (ASSET_CLASSES_WITH_AUTO_QUOTE as string[]).includes(assetClass);
   const isFii = assetClass === "fii";
+  const isCripto = assetClass === "cripto";
 
   const queryClient = useQueryClient();
 
@@ -113,7 +114,11 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
   });
 
   const collectorMutation = useMutation<CollectorSummary, AppError, string>({
-    mutationFn: (t) => invoke<CollectorSummary>("run_stock_collector", { ticker: t }),
+    mutationFn: (t) =>
+      invoke<CollectorSummary>("run_stock_collector", {
+        ticker: t,
+        asset_class: isCripto ? "cripto" : null,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["asset-section-stock-quote", activeTicker] });
     },
@@ -154,11 +159,16 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
       setName(quote.name ?? "");
       setCurrency(quote.currency ?? "BRL");
       setExchange(quote.exchange ?? "");
-      setExposureType("pais");
-      setExposureValue("BR");
+      if (isCripto) {
+        setExposureType("categoria_especial");
+        setExposureValue("crypto");
+      } else {
+        setExposureType("pais");
+        setExposureValue("BR");
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAutoQuoteClass, activeTicker, lookupQuery.data]);
+  }, [isAutoQuoteClass, isCripto, activeTicker, lookupQuery.data]);
 
   // Sugestão de CNPJ (só FII) — dispara junto com o prefill acima, uma vez
   // por ticker. `cnpj` fica vazio se não achar sugestão confiável (o
@@ -239,9 +249,9 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
       <CardContent>
         <p className="mb-4 text-sm text-muted-foreground">
           Catalog of tradeable/registrable assets — shared across every Portfolio in the
-          Workspace. Stock (B3), FII (B3) and ETF (B3) fetch data automatically by ticker; the
-          other classes (International stocks, Tesouro Direto, Fixed income) still use manual
-          registration for now.
+          Workspace. Stock (B3), FII (B3), ETF (B3) and Crypto fetch data automatically by
+          ticker; the other classes (International stocks, Tesouro Direto, Fixed income) still
+          use manual registration for now.
         </p>
 
         <div className="mb-4 max-w-xs">
@@ -263,11 +273,17 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
 
         {isAutoQuoteClass && (
           <form onSubmit={handleTickerSearch} className="mb-4 flex items-end gap-3">
-            <Field label="Search ticker (B3)" className="flex-1">
+            <Field label={isCripto ? "Search ticker" : "Search ticker (B3)"} className="flex-1">
               <Input
                 required
                 placeholder={
-                  assetClass === "fii" ? "HGLG11" : assetClass === "etf_br" ? "BOVA11" : "PETR4"
+                  assetClass === "fii"
+                    ? "HGLG11"
+                    : assetClass === "etf_br"
+                      ? "BOVA11"
+                      : isCripto
+                        ? "ETH"
+                        : "PETR4"
                 }
                 value={tickerQuery}
                 onChange={(e) => setTickerQuery(e.currentTarget.value)}

@@ -5,8 +5,8 @@ use serde::Serialize;
 use tokio::process::Command;
 
 use crate::entity::{
-    stock_dcf_fundamentals, stock_dividend_payments, stock_dividends_avg, stock_fundamentals,
-    stock_price_history, stock_quotes, stock_technicals,
+    crypto_fear_greed, stock_dcf_fundamentals, stock_dividend_payments, stock_dividends_avg,
+    stock_fundamentals, stock_price_history, stock_quotes, stock_technicals,
 };
 use crate::error::AppError;
 
@@ -58,12 +58,22 @@ pub(crate) async fn run_collector(
     Ok(summary)
 }
 
+// `asset_class` só distingue "cripto" (fonte CoinGecko, `--crypto-ticker`)
+// do resto (Ação BR/FII/ETF, todos o mesmo endpoint Yahoo `.SA`, `--ticker`)
+// — ver PHASE.md item 8, Sessão 51. `None` preserva o comportamento anterior
+// (chamadores que não sabem/não precisam distinguir classe, ex.: os
+// formulários de valuation via `useTickerCollector`).
 #[tauri::command]
 pub async fn run_stock_collector(
     lock: tauri::State<'_, AtomicBool>,
     ticker: String,
+    asset_class: Option<String>,
 ) -> Result<CollectorSummary, AppError> {
-    run_collector(&lock, &["--ticker", &ticker]).await
+    if asset_class.as_deref() == Some("cripto") {
+        run_collector(&lock, &["--crypto-ticker", &ticker]).await
+    } else {
+        run_collector(&lock, &["--ticker", &ticker]).await
+    }
 }
 
 #[tauri::command]
@@ -166,4 +176,21 @@ pub async fn list_stock_price_history(
         .await?;
 
     Ok(history)
+}
+
+// Fase 10, item 8, Sessão 51 — pedido explícito do dono do projeto: Fear &
+// Greed Index em "toda tela que for cripto". Global (não por coin), então
+// só a leitura mais recente interessa — `run_stock_collector` com
+// `asset_class: "cripto"` já mantém `crypto_fear_greed` em dia (ver
+// `collect_crypto_ticker` no coletor Python), esta é só a leitura.
+#[tauri::command]
+pub async fn get_latest_crypto_fear_greed(
+    db: tauri::State<'_, DatabaseConnection>,
+) -> Result<Option<crypto_fear_greed::Model>, AppError> {
+    let latest = crypto_fear_greed::Entity::find()
+        .order_by_desc(crypto_fear_greed::Column::ReadingDate)
+        .one(db.inner())
+        .await?;
+
+    Ok(latest)
 }

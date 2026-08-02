@@ -57,6 +57,15 @@ export type StockDividendPayment = {
   fetched_at: string;
 };
 
+export type StockPriceHistory = {
+  id: number;
+  ticker: string;
+  price_date: string;
+  close_price: number;
+  source: string;
+  fetched_at: string;
+};
+
 export type StockTechnicals = {
   id: number;
   ticker: string;

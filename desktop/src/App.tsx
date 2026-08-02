@@ -7,7 +7,6 @@ import BanksForm from "./models/BanksForm";
 import RimForm from "./models/RimForm";
 import RnavForm from "./models/RnavForm";
 import ProjectedCeilingForm from "./models/ProjectedCeilingForm";
-import CryptoScorePanel from "./crypto/CryptoScorePanel";
 import SavedValuationsPanel from "./valuations/SavedValuationsPanel";
 import StockLookupPanel from "./stock-lookup/StockLookupPanel";
 import AlertsPanel from "./alerts/AlertsPanel";
@@ -47,10 +46,15 @@ const MODELS = {
 
 type ModelKey = keyof typeof MODELS;
 
+// Fase 10, item 8, Sessão 51 — a antiga aba solta "Crypto Score" foi
+// absorvida por Research (agora um seletor de classe ali, junto com Ação/
+// FII/ETF) — pedido explícito do dono do projeto pra unificar as duas
+// telas. `run_crypto_collector`/`crypto_indicators` no backend não mudaram
+// de nome, só o lugar de onde a UI os chama (StockLookupPanel.tsx →
+// CryptoLookupSection.tsx).
 const SECTIONS = {
   valuation: "Valuation",
   lookup: "Research",
-  crypto: "Crypto Score",
   portfolio: "Portfolio",
   alerts: "Alerts",
   truthid: "TruthID Sync",
@@ -195,10 +199,6 @@ function App() {
 
           <TabsContent value="lookup">
             <StockLookupPanel />
-          </TabsContent>
-
-          <TabsContent value="crypto">
-            <CryptoScorePanel />
           </TabsContent>
 
           <TabsContent value="portfolio">

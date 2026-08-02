@@ -8,6 +8,7 @@ import Field from "../components/Field";
 import StockAnalysisSection from "./StockAnalysisSection";
 import FiiLookupSection from "./FiiLookupSection";
 import EtfLookupSection from "./EtfLookupSection";
+import CryptoLookupSection from "./CryptoLookupSection";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,10 +30,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 /// (busca + seletor de classe); todo o conteúdo específico de cada classe
 /// mora em `StockAnalysisSection.tsx`/`FiiLookupSection.tsx`/
 /// `EtfLookupSection.tsx` (este último desde a Sessão 50, sem fundamentos/
-/// DCF/valuation — nenhum desses conceitos existe pra um fundo de índice),
-/// que só recebem o ticker já commitado — cada uma cuida do próprio
-/// fetch/estado, sem nada compartilhado entre elas além do visual
-/// (`shared.tsx`).
+/// DCF/valuation — nenhum desses conceitos existe pra um fundo de índice)/
+/// `CryptoLookupSection.tsx` (Sessão 51 — absorveu a antiga aba solta
+/// "Crypto Score", removida do nav principal), que só recebem o ticker já
+/// commitado — cada uma cuida do próprio fetch/estado, sem nada
+/// compartilhado entre elas além do visual (`shared.tsx`).
 function StockLookupPanel() {
   const [tickerInput, setTickerInput] = useState("");
   const [activeTicker, setActiveTicker] = useState<string | null>(null);
@@ -77,7 +79,13 @@ function StockLookupPanel() {
               value={tickerInput}
               onChange={(e) => setTickerInput(e.currentTarget.value)}
               placeholder={
-                assetClass === "fii" ? "HGLG11" : assetClass === "etf_br" ? "BOVA11" : "PETR4"
+                assetClass === "fii"
+                  ? "HGLG11"
+                  : assetClass === "etf_br"
+                    ? "BOVA11"
+                    : assetClass === "cripto"
+                      ? "ETH"
+                      : "PETR4"
               }
             />
           </Field>
@@ -89,6 +97,8 @@ function StockLookupPanel() {
             <FiiLookupSection key={activeTicker} ticker={activeTicker} />
           ) : assetClass === "etf_br" ? (
             <EtfLookupSection key={activeTicker} ticker={activeTicker} />
+          ) : assetClass === "cripto" ? (
+            <CryptoLookupSection key={activeTicker} ticker={activeTicker} />
           ) : (
             <StockAnalysisSection key={activeTicker} ticker={activeTicker} />
           ))}

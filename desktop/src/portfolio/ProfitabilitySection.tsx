@@ -14,7 +14,7 @@ import {
   YAxis,
 } from "recharts";
 import type { AppError } from "../types";
-import { ASSET_CLASSES_WITH_AUTO_QUOTE, type MonthlyReturn, type PositionView } from "./types";
+import type { MonthlyReturn, PositionView } from "./types";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -32,6 +32,16 @@ import {
 } from "@/components/ui/table";
 
 type CollectorSummary = { success: boolean; output: string };
+
+// Subconjunto de ASSET_CLASSES_WITH_AUTO_QUOTE (portfolio/types.ts) elegível
+// pro botão de backfill manual em lote abaixo — só as classes que
+// compartilham o endpoint Yahoo `.SA` via `run_price_history_backfill`.
+// Cripto fica de fora de propósito: `stock_price_history` dela já é
+// preenchida sozinha (mesma chamada CoinGecko que traz a cotação, ver
+// `collect_crypto_ticker` em data-collector/main.py), então não tem o que
+// esse botão faria por ela — sem o filtro aqui, mandar um ticker cripto
+// pro coletor Yahoo tentaria `CRIPTO.SA`, que não existe.
+const YAHOO_BACKFILL_CLASSES = ["acao_br", "fii", "etf_br"];
 
 // Mesma paleta/convenção de DividendHistoryChart.tsx (rampa de verde do
 // tema, nunca dois eixos Y na mesma barra — ver skill dataviz). A polaridade
@@ -103,9 +113,8 @@ function ProfitabilitySection({ portfolioId }: { portfolioId: number }) {
   // os meses passados em que ainda eram carregados.
   const autoQuoteTickers = useMemo(() => {
     const positions = positionsQuery.data ?? [];
-    const autoQuoteClasses = ASSET_CLASSES_WITH_AUTO_QUOTE as string[];
     const tickers = positions
-      .filter((p) => autoQuoteClasses.includes(p.asset_class))
+      .filter((p) => YAHOO_BACKFILL_CLASSES.includes(p.asset_class))
       .map((p) => p.ticker);
     return [...new Set(tickers)];
   }, [positionsQuery.data]);
@@ -128,9 +137,9 @@ function ProfitabilitySection({ portfolioId }: { portfolioId: number }) {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <p className="text-sm text-muted-foreground">
-            Covers Stock (B3), FII and ETF in this slice — contributions/withdrawals and the other
-            classes (Tesouro Direto, Fixed income, international stocks) don't factor into this
-            calculation yet, for lack of automated historical prices for them.
+            Covers Stock (B3), FII, ETF and Crypto in this slice — contributions/withdrawals and
+            the other classes (Tesouro Direto, Fixed income, international stocks) don't factor
+            into this calculation yet, for lack of automated historical prices for them.
           </p>
 
           <div>
@@ -144,7 +153,8 @@ function ProfitabilitySection({ portfolioId }: { portfolioId: number }) {
             </Button>
             {autoQuoteTickers.length === 0 && (
               <p className="mt-2 text-sm text-muted-foreground">
-                No Stock (B3), FII or ETF assets in the portfolio yet.
+                No Stock (B3), FII or ETF assets in the portfolio yet. (Crypto price history
+                updates automatically when its quote is fetched — no button needed for it.)
               </p>
             )}
           </div>

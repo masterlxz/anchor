@@ -18,12 +18,16 @@ const DIVIDEND: &str = "provento";
 // `retirada` (sem asset_id) ficam fora deste cálculo. `fii` entrou na
 // Sessão 41, `etf_br` na Sessão 49 (2026-08-02) — mesmo endpoint Yahoo
 // `{ticker}.SA` que `acao_br` já usa pra `stock_price_history`, sem
-// coletor novo. Essa sub-carteira é tratada como autocontida: suas
-// próprias compra(+)/venda(−) são os fluxos de caixa externos do Dietz
-// Modificado — o app não modela um sub-ledger de caixa, então uma compra
-// não é "caixa→ativo", é "ativo aparece", e pro efeito desta fatia isso
-// equivale a um aporte na sub-carteira.
-const ASSET_CLASSES_WITH_AUTO_QUOTE: [&str; 3] = ["acao_br", "fii", "etf_br"];
+// coletor novo. `cripto` entrou na Sessão 51 — fonte diferente
+// (CoinGecko), mas grava na mesma tabela genérica `stock_price_history`
+// (`ticker`/`price_date`/`close_price`, sem coluna de fonte usada aqui),
+// então esta consulta não distingue de onde o preço veio. Essa sub-carteira
+// é tratada como autocontida: suas próprias compra(+)/venda(−) são os
+// fluxos de caixa externos do Dietz Modificado — o app não modela um
+// sub-ledger de caixa, então uma compra não é "caixa→ativo", é "ativo
+// aparece", e pro efeito desta fatia isso equivale a um aporte na
+// sub-carteira.
+const ASSET_CLASSES_WITH_AUTO_QUOTE: [&str; 4] = ["acao_br", "fii", "etf_br", "cripto"];
 const PRICE_TOLERANCE_DAYS: i64 = 7;
 
 #[derive(Serialize)]

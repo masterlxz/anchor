@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AppError, ValuationModel } from "../types";
-import { INDICATORS, INDICATOR_KEYS, type IndicatorKey } from "../crypto/indicators";
+import { INDICATORS, INDICATOR_KEYS, type IndicatorKey } from "../stock-lookup/cryptoIndicators";
 import Field from "../components/Field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";

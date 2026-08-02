@@ -12,6 +12,7 @@ pub mod asset_favorites;
 pub mod assets;
 pub mod banks_inputs;
 pub mod bazin_inputs;
+pub mod crypto_fear_greed;
 pub mod crypto_indicators;
 pub mod custodia;
 pub mod dcf_inputs;

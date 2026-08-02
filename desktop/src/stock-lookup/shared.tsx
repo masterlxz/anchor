@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AppError } from "../types";
 import type { Asset, AssetClass } from "../portfolio/types";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 // Fase 10, item 8, Sessão 43 — extraído da antiga `StockLookupPanel.tsx`
 // monolítica (só Ação BR) pra ser reaproveitado também por
@@ -60,6 +61,56 @@ export function StatTile({ label, value }: { label: string; value: string }) {
   );
 }
 
+type CryptoFearGreed = {
+  id: number;
+  value: number;
+  classification: string;
+  reading_date: string;
+  source: string;
+  fetched_at: string;
+};
+
+// alternative.me's 5 classifications, low-to-high — colors ramp the same
+// red→yellow→green direction as SIGNAL_STYLE in CryptoLookupSection.tsx
+// (RED/NEUTRAL/GREEN), just with two extra steps.
+const FEAR_GREED_STYLE: Record<string, string> = {
+  "Extreme Fear": "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300",
+  Fear: "bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300",
+  Neutral: "bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-300",
+  Greed: "bg-lime-100 text-lime-800 dark:bg-lime-950 dark:text-lime-300",
+  "Extreme Greed": "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300",
+};
+
+/// Fase 10, item 8, Sessão 51 — pedido explícito do dono do projeto: Fear &
+/// Greed Index (alternative.me, global de mercado, não por moeda) em "toda
+/// tela que for cripto". Self-contained (faz a própria query, cacheada por
+/// `["crypto-fear-greed"]`) — qualquer tela cripto futura só precisa
+/// renderizar `<CryptoFearGreedGauge />`, sem prop nenhuma pra passar. O
+/// valor é mantido em dia por `run_stock_collector` com `asset_class:
+/// "cripto"` (ver `collect_crypto_ticker` no coletor Python) — este
+/// componente só lê.
+export function CryptoFearGreedGauge() {
+  const query = useQuery<CryptoFearGreed | null, AppError>({
+    queryKey: ["crypto-fear-greed"],
+    queryFn: () => invoke("get_latest_crypto_fear_greed"),
+  });
+
+  if (query.isLoading || query.data == null) return null;
+
+  const { value, classification, reading_date } = query.data;
+  const style = FEAR_GREED_STYLE[classification] ?? "";
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-sm text-muted-foreground">Fear &amp; Greed:</span>
+      <Badge className={style}>
+        {value} — {classification}
+      </Badge>
+      <span className="text-xs text-muted-foreground">({reading_date})</span>
+    </div>
+  );
+}
+
 export type StockNote = {
   id: number;
   ticker: string;
@@ -94,6 +145,8 @@ export function AddToAssetsButton({
   currency,
   exchange,
   cnpj,
+  exposureType = "pais",
+  exposureValue = "BR",
 }: {
   ticker: string;
   assetClass: AssetClass;
@@ -101,6 +154,8 @@ export function AddToAssetsButton({
   currency: string;
   exchange: string | null;
   cnpj: string | null;
+  exposureType?: "pais" | "categoria_especial";
+  exposureValue?: string;
 }) {
   const queryClient = useQueryClient();
 
@@ -119,8 +174,8 @@ export function AddToAssetsButton({
           asset_class: assetClass,
           currency,
           exchange,
-          exposure_type: "pais",
-          exposure_value: "BR",
+          exposure_type: exposureType,
+          exposure_value: exposureValue,
           cnpj,
         } satisfies CreateAssetRequest,
       }),

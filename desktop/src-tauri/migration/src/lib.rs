@@ -36,6 +36,7 @@ mod m20260730_100000_create_watchlists;
 mod m20260731_100000_create_theses;
 mod m20260802_100000_add_cnpj_and_fii_cvm_tables;
 mod m20260802_120000_create_fii_cnpj_cache;
+mod m20260802_140000_create_crypto_fear_greed;
 
 pub struct Migrator;
 
@@ -79,6 +80,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260731_100000_create_theses::Migration),
             Box::new(m20260802_100000_add_cnpj_and_fii_cvm_tables::Migration),
             Box::new(m20260802_120000_create_fii_cnpj_cache::Migration),
+            Box::new(m20260802_140000_create_crypto_fear_greed::Migration),
         ]
     }
 }

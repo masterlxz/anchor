@@ -65,6 +65,7 @@ pub fn run() {
             commands::collector::list_stock_dividend_payments,
             commands::collector::run_price_history_backfill,
             commands::collector::list_stock_price_history,
+            commands::collector::get_latest_crypto_fear_greed,
             commands::stock_notes::list_stock_notes,
             commands::stock_notes::save_stock_note,
             commands::truthid::test_truthid_connection,

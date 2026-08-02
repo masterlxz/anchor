@@ -31,6 +31,7 @@ export function useTickerCollector() {
       const normalized = ticker.trim().toUpperCase();
       await invoke<CollectorSummary>("run_stock_collector", {
         ticker: normalized,
+        asset_class: null,
       });
 
       const [quotes, fundamentals, dividendsAvg, dcfFundamentals] =

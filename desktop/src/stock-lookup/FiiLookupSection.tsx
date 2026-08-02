@@ -58,7 +58,8 @@ function FiiLookupSection({ ticker }: { ticker: string }) {
   });
 
   const collectorMutation = useMutation<CollectorSummary, AppError, string>({
-    mutationFn: (t) => invoke<CollectorSummary>("run_stock_collector", { ticker: t }),
+    mutationFn: (t) =>
+      invoke<CollectorSummary>("run_stock_collector", { ticker: t, asset_class: null }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["fii-lookup-quote", ticker] });
     },
