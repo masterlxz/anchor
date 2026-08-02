@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AppError } from "../types";
+import TruthIdSettingsSection from "../truthid/TruthIdSettingsSection";
 import Field from "../components/Field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -228,10 +229,12 @@ function IaSettingsSection() {
   );
 }
 
-// Só a seção "IA" existe por enquanto — layout de sidebar + conteúdo já
-// pensado pra caber outras seções no futuro sem redesenhar, mas sem nenhuma
-// abstração de registro de seções (seria over-engineering pra 1 item só).
-const SECTIONS = ["IA"] as const;
+// "TruthID" migrou pra cá na Sessão 54 (era aba própria no nav principal,
+// "TruthID Sync") — pedido explícito do dono do projeto. Confirma que o
+// layout de sidebar + conteúdo já pensado pra caber mais de uma seção
+// (comentário original, quando só "IA" existia) funcionou sem redesenho;
+// ainda sem abstração de registro de seções — só 2 itens, não vale a pena.
+const SECTIONS = ["IA", "TruthID"] as const;
 
 function SettingsPage({ onBack }: { onBack: () => void }) {
   const [section, setSection] = useState<(typeof SECTIONS)[number]>("IA");
@@ -263,7 +266,10 @@ function SettingsPage({ onBack }: { onBack: () => void }) {
             </button>
           ))}
         </nav>
-        <div className="flex-1">{section === "IA" && <IaSettingsSection />}</div>
+        <div className="flex-1">
+          {section === "IA" && <IaSettingsSection />}
+          {section === "TruthID" && <TruthIdSettingsSection />}
+        </div>
       </CardContent>
     </Card>
   );

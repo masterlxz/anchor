@@ -486,6 +486,8 @@ Isso fecha, do lado do TruthID (Sessão 114 de lá), **a pendência "nenhuma tro
 
 </details>
 
+**Nota de UI, Sessão 54 (2026-08-02) — sem mudança de funcionalidade**: a aba própria "TruthID Sync" no nav principal foi movida pra dentro de Configurações (pedido explícito do dono do projeto: "poderia migrar a parte de integração com o truthid pras configurações?"). `TruthIdPanel.tsx` foi renomeado/movido pra `desktop/src/truthid/TruthIdSettingsSection.tsx` (sem `Card` própria — a `Card` já vem de `SettingsPage.tsx`, mesmo padrão de `IaSettingsSection`), virando a segunda seção da sidebar de Configurações (a primeira é "IA"). `App.tsx` perdeu a entrada `truthid` do objeto `SECTIONS`/`TabsContent`. Nenhum comando Rust mudou — é reposicionamento de UI puro. As referências a `TruthIdPanel.tsx` no histórico de sessões acima (23-40) descrevem o nome do arquivo **como era na época**, não atualizadas retroativamente.
+
 ---
 
 ### Fase 9 — Tela de Pesquisa de Ação (Stock Lookup, ideia levantada na Sessão 20)

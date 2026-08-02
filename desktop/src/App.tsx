@@ -12,7 +12,6 @@ import StockLookupPanel from "./stock-lookup/StockLookupPanel";
 import AlertsPanel from "./alerts/AlertsPanel";
 import PortfolioPanel from "./portfolio/PortfolioPanel";
 import WorkspaceGate from "./workspace/WorkspaceGate";
-import TruthIdPanel from "./truthid/TruthIdPanel";
 import ChatPanel from "./chat/ChatPanel";
 import ChatToggleButton from "./chat/ChatToggleButton";
 import type { GeminiContent } from "./chat/types";
@@ -51,13 +50,14 @@ type ModelKey = keyof typeof MODELS;
 // FII/ETF) — pedido explícito do dono do projeto pra unificar as duas
 // telas. `run_crypto_collector`/`crypto_indicators` no backend não mudaram
 // de nome, só o lugar de onde a UI os chama (StockLookupPanel.tsx →
-// CryptoLookupSection.tsx).
+// CryptoLookupSection.tsx). Sessão 54: mesma lógica pra "TruthID Sync" —
+// virou uma seção dentro de Configurações (`SettingsPage.tsx` →
+// `TruthIdSettingsSection.tsx`), não mais aba própria aqui.
 const SECTIONS = {
   valuation: "Valuation",
   lookup: "Research",
   portfolio: "Portfolio",
   alerts: "Alerts",
-  truthid: "TruthID Sync",
 } as const;
 
 type ValuationView = "form" | "saved";
@@ -207,10 +207,6 @@ function App() {
 
           <TabsContent value="alerts">
             <AlertsPanel />
-          </TabsContent>
-
-          <TabsContent value="truthid">
-            <TruthIdPanel />
           </TabsContent>
         </Tabs>
       </main>
