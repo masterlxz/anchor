@@ -665,6 +665,15 @@ def main(ticker: str | None = None) -> int:
 
     collect_stock_dividend_payments(tickers)
 
+    # Preço histórico (Fase 10, item 8, Sessão 52) — antes só populado pelo
+    # backfill manual do Portfolio (`--price-history`, botão "Update price
+    # history"). Buscar por ticker na Pesquisa passa a alimentar
+    # `stock_price_history` de graça também, mesmo padrão que cripto já
+    # ganhou na Sessão 51 (`collect_crypto_ticker` faz isso numa chamada só)
+    # — sem isso, o gráfico de preço pedido pro dono do projeto ficaria
+    # vazio pra qualquer ticker nunca "backfillado" manualmente antes.
+    collect_price_history(tickers)
+
     # bolsai (fundamentos de ação + DCF) — só faz sentido pra Ação BR (FII
     # sempre devolve vazio aqui, sem quebrar nada, ver nota acima) e requer
     # chave cadastrada; se faltar, pula só esta parte em vez de falhar tudo.

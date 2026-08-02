@@ -6,6 +6,7 @@ import { latestForTicker } from "../collector/latestForTicker";
 import type { StockPriceHistory, StockQuote } from "../collector/types";
 import { INDICATORS, INDICATOR_KEYS, type IndicatorKey } from "./cryptoIndicators";
 import { AddToAssetsButton, CryptoFearGreedGauge, StatTile, type StockNote } from "./shared";
+import PriceHistoryChart from "./PriceHistoryChart";
 import Field from "../components/Field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -328,6 +329,11 @@ function CryptoLookupSection({ ticker }: { ticker: string }) {
             <StatTile label="SMA 50" value={formatUsd(sma(history, 50))} />
             <StatTile label="SMA 100" value={formatUsd(sma(history, 100))} />
             <StatTile label="SMA 200" value={formatUsd(sma(history, 200))} />
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Price history</h3>
+            <PriceHistoryChart history={history} currencyPrefix="US$" />
           </div>
 
           <div>

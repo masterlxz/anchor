@@ -4,8 +4,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AppError } from "../types";
 import type { FiiCnpjSuggestion, FiiCvmMonthly, FiiCvmProperty } from "../portfolio/types";
 import { latestForTicker } from "../collector/latestForTicker";
-import type { StockDividendPayment, StockDividendsAvg, StockQuote } from "../collector/types";
+import type {
+  StockDividendPayment,
+  StockDividendsAvg,
+  StockPriceHistory,
+  StockQuote,
+} from "../collector/types";
 import DividendHistoryChart from "./DividendHistoryChart";
+import PriceHistoryChart from "./PriceHistoryChart";
 import {
   AddToAssetsButton,
   CompanyLogo,
@@ -62,7 +68,13 @@ function FiiLookupSection({ ticker }: { ticker: string }) {
       invoke<CollectorSummary>("run_stock_collector", { ticker: t, asset_class: null }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["fii-lookup-quote", ticker] });
+      queryClient.invalidateQueries({ queryKey: ["fii-lookup-price-history", ticker] });
     },
+  });
+
+  const priceHistoryQuery = useQuery<StockPriceHistory[], AppError>({
+    queryKey: ["fii-lookup-price-history", ticker],
+    queryFn: () => invoke("list_stock_price_history", { ticker }),
   });
 
   // Mesmo padrão cache-aware do resto do app: cotação ausente dispara o
@@ -237,6 +249,14 @@ function FiiLookupSection({ ticker }: { ticker: string }) {
             <StatTile
               label="Avg dividend/share (5y)"
               value={formatCurrency(dividendsAvgQuery.data?.avg_dividend_5y)}
+            />
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Price history</h3>
+            <PriceHistoryChart
+              history={priceHistoryQuery.data ?? []}
+              currencyPrefix={quoteQuery.data?.currency === "USD" ? "US$" : "R$"}
             />
           </div>
 

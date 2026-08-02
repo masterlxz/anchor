@@ -6,10 +6,12 @@ import { latestForTicker } from "../collector/latestForTicker";
 import type {
   StockDividendPayment,
   StockDividendsAvg,
+  StockPriceHistory,
   StockQuote,
   StockTechnicals,
 } from "../collector/types";
 import DividendHistoryChart from "./DividendHistoryChart";
+import PriceHistoryChart from "./PriceHistoryChart";
 import {
   AddToAssetsButton,
   CompanyLogo,
@@ -56,7 +58,13 @@ function EtfLookupSection({ ticker }: { ticker: string }) {
       queryClient.invalidateQueries({ queryKey: ["etf-lookup-technicals", ticker] });
       queryClient.invalidateQueries({ queryKey: ["etf-lookup-dividends", ticker] });
       queryClient.invalidateQueries({ queryKey: ["etf-lookup-dividends-avg", ticker] });
+      queryClient.invalidateQueries({ queryKey: ["etf-lookup-price-history", ticker] });
     },
+  });
+
+  const priceHistoryQuery = useQuery<StockPriceHistory[], AppError>({
+    queryKey: ["etf-lookup-price-history", ticker],
+    queryFn: () => invoke("list_stock_price_history", { ticker }),
   });
 
   // Mesmo padrão cache-aware do resto do app: cotação ausente dispara o
@@ -171,6 +179,14 @@ function EtfLookupSection({ ticker }: { ticker: string }) {
             <StatTile
               label="Avg dividend/share (5y)"
               value={formatCurrency(dividendsAvgQuery.data?.avg_dividend_5y)}
+            />
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Price history</h3>
+            <PriceHistoryChart
+              history={priceHistoryQuery.data ?? []}
+              currencyPrefix={quoteQuery.data?.currency === "USD" ? "US$" : "R$"}
             />
           </div>
 

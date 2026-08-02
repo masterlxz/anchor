@@ -8,11 +8,13 @@ import type {
   StockDividendPayment,
   StockDividendsAvg,
   StockFundamentals,
+  StockPriceHistory,
   StockQuote,
   StockTechnicals,
 } from "../collector/types";
 import VerdictBadge from "../components/VerdictBadge";
 import DividendHistoryChart from "./DividendHistoryChart";
+import PriceHistoryChart from "./PriceHistoryChart";
 import {
   AddToAssetsButton,
   CompanyLogo,
@@ -94,11 +96,17 @@ function StockAnalysisSection({ ticker }: { ticker: string }) {
     queryFn: () => invoke("list_valuations"),
   });
 
+  const priceHistoryQuery = useQuery<StockPriceHistory[], AppError>({
+    queryKey: ["stock-lookup-price-history", ticker],
+    queryFn: () => invoke("list_stock_price_history", { ticker }),
+  });
+
   const collectorMutation = useMutation<CollectorSummary, AppError, string>({
     mutationFn: (t) =>
       invoke<CollectorSummary>("run_stock_collector", { ticker: t, asset_class: null }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stock-lookup", ticker] });
+      queryClient.invalidateQueries({ queryKey: ["stock-lookup-price-history", ticker] });
     },
   });
 
@@ -233,6 +241,14 @@ function StockAnalysisSection({ ticker }: { ticker: string }) {
             <StatTile label="Net Debt/EBITDA" value={formatRatio(netDebtToEbitda)} />
             <StatTile label="EV/EBIT" value={formatRatio(evToEbit)} />
             <StatTile label="Net Margin" value={formatPercent(netMargin)} />
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Price history</h3>
+            <PriceHistoryChart
+              history={priceHistoryQuery.data ?? []}
+              currencyPrefix={data.quote?.currency === "USD" ? "US$" : "R$"}
+            />
           </div>
 
           <div>
