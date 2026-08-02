@@ -11,6 +11,7 @@ pub mod crypto_indicator;
 pub mod custodia;
 pub mod dcf;
 pub mod document_extraction;
+pub mod fii;
 pub mod gordon;
 pub mod graham;
 pub mod portfolio;

@@ -20,17 +20,19 @@ export type Custodia = {
   created_at: string;
 };
 
-// Fase 10.2, escopo Sessão 29 — só estas 4 classes por ora (ver
-// commands/asset.rs::ASSET_CLASSES); FII/REIT/ETF/cripto/metal/imóvel/
-// empresa não listada (Sessão 30) ficam pra uma fatia futura.
+// Fase 10.2, escopo Sessão 29 — REIT/ETF/cripto/metal/imóvel/empresa não
+// listada (Sessão 30) ficam pra uma fatia futura. `fii` entrou na Sessão 41
+// (ver commands/asset.rs::ASSET_CLASSES).
 export type AssetClass =
   | "acao_br"
+  | "fii"
   | "acao_internacional"
   | "tesouro_direto"
   | "renda_fixa";
 
 export const ASSET_CLASSES: AssetClass[] = [
   "acao_br",
+  "fii",
   "acao_internacional",
   "tesouro_direto",
   "renda_fixa",
@@ -38,6 +40,7 @@ export const ASSET_CLASSES: AssetClass[] = [
 
 export const ASSET_CLASS_LABELS: Record<AssetClass, string> = {
   acao_br: "Ação (B3)",
+  fii: "FII (B3)",
   acao_internacional: "Stock internacional",
   tesouro_direto: "Tesouro Direto",
   renda_fixa: "Renda Fixa",
@@ -45,6 +48,11 @@ export const ASSET_CLASS_LABELS: Record<AssetClass, string> = {
 
 // Classes que usam os campos fi_* (renda fixa detalhada) na transação de compra.
 export const FIXED_INCOME_CLASSES: AssetClass[] = ["tesouro_direto", "renda_fixa"];
+
+// Classes negociadas na B3 com busca automática de cotação por ticker (mesmo
+// endpoint Yahoo `{ticker}.SA`, sem coletor dedicado por classe) — usada por
+// AssetSection.tsx (form vira busca) e ProfitabilitySection.tsx (TWR).
+export const ASSET_CLASSES_WITH_AUTO_QUOTE: AssetClass[] = ["acao_br", "fii"];
 
 export type ExposureType = "pais" | "categoria_especial";
 
@@ -58,6 +66,44 @@ export type Asset = {
   exposure_type: string;
   exposure_value: string;
   created_at: string;
+  cnpj: string | null;
+};
+
+// Fase 10, item 8, Sessão 41 — indicadores de FII direto da CVM (dados
+// abertos), priorizados sobre a bolsai por pedido explícito do dono do
+// projeto. `cnpj` é a chave de junção com `assets.cnpj` (não um ID interno
+// dessas tabelas). Ver commands/fii.rs.
+export type FiiCnpjSuggestion = {
+  cnpj: string;
+  fund_name: string;
+};
+
+export type FiiCvmMonthly = {
+  id: number;
+  cnpj: string;
+  reference_date: string;
+  patrimonio_liquido: number;
+  valor_patrimonial_cota: number;
+  numero_cotistas: number | null;
+  dividend_yield_mes: number | null;
+  rentabilidade_efetiva_mes: number | null;
+  source: string;
+  fetched_at: string;
+};
+
+export type FiiCvmProperty = {
+  id: number;
+  cnpj: string;
+  reference_date: string;
+  nome_imovel: string;
+  endereco: string | null;
+  area_m2: number | null;
+  percentual_vacancia: number | null;
+  percentual_inadimplencia: number | null;
+  percentual_receitas_fii: number | null;
+  percentual_locado: number | null;
+  source: string;
+  fetched_at: string;
 };
 
 export type TransactionType =
@@ -118,8 +164,9 @@ export type CustodiaBreakdown = {
   quantity: number;
 };
 
-// Fase 10.3, fatia Ação BR — aporte/retirada e as demais classes ainda não
-// entram nesse cálculo (ver ProfitabilitySection.tsx).
+// Fase 10.3, fatia das classes com preço histórico automatizado (Ação
+// BR/FII) — aporte/retirada e as demais classes ainda não entram nesse
+// cálculo (ver ProfitabilitySection.tsx).
 export type MonthlyReturn = {
   year_month: string;
   bmv: number;

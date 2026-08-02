@@ -14,7 +14,7 @@ import {
   YAxis,
 } from "recharts";
 import type { AppError } from "../types";
-import type { MonthlyReturn, PositionView } from "./types";
+import { ASSET_CLASSES_WITH_AUTO_QUOTE, type MonthlyReturn, type PositionView } from "./types";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -101,10 +101,11 @@ function ProfitabilitySection({ portfolioId }: { portfolioId: number }) {
   // Ativos zerados (já vendidos por completo) continuam em
   // get_portfolio_positions — precisam do backfill também, pra precificar
   // os meses passados em que ainda eram carregados.
-  const acaoBrTickers = useMemo(() => {
+  const autoQuoteTickers = useMemo(() => {
     const positions = positionsQuery.data ?? [];
+    const autoQuoteClasses = ASSET_CLASSES_WITH_AUTO_QUOTE as string[];
     const tickers = positions
-      .filter((p) => p.asset_class === "acao_br")
+      .filter((p) => autoQuoteClasses.includes(p.asset_class))
       .map((p) => p.ticker);
     return [...new Set(tickers)];
   }, [positionsQuery.data]);
@@ -127,23 +128,23 @@ function ProfitabilitySection({ portfolioId }: { portfolioId: number }) {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <p className="text-sm text-muted-foreground">
-            Cobre só Ação BR nesta fatia (Fase 10.3) — aporte/retirada e as demais classes
-            (Tesouro Direto, Renda Fixa, ações internacionais) ainda não entram nesse cálculo,
-            por falta de preço histórico automatizado pra elas.
+            Cobre Ação BR e FII nesta fatia — aporte/retirada e as demais classes (Tesouro
+            Direto, Renda Fixa, ações internacionais) ainda não entram nesse cálculo, por falta
+            de preço histórico automatizado pra elas.
           </p>
 
           <div>
             <Button
               type="button"
               variant="outline"
-              onClick={() => backfillMutation.mutate(acaoBrTickers)}
-              disabled={backfillMutation.isPending || acaoBrTickers.length === 0}
+              onClick={() => backfillMutation.mutate(autoQuoteTickers)}
+              disabled={backfillMutation.isPending || autoQuoteTickers.length === 0}
             >
               {backfillMutation.isPending ? "Atualizando..." : "Atualizar histórico de preços"}
             </Button>
-            {acaoBrTickers.length === 0 && (
+            {autoQuoteTickers.length === 0 && (
               <p className="mt-2 text-sm text-muted-foreground">
-                Nenhum ativo Ação BR na carteira ainda.
+                Nenhum ativo Ação BR ou FII na carteira ainda.
               </p>
             )}
           </div>
@@ -218,7 +219,7 @@ function ProfitabilitySection({ portfolioId }: { portfolioId: number }) {
 
           {!profitabilityQuery.isError && chartData.length === 0 && (
             <p className="text-muted-foreground">
-              Nenhum lançamento de Ação BR ainda — lance uma compra na aba "Lançamentos &
+              Nenhum lançamento de Ação BR ou FII ainda — lance uma compra na aba "Lançamentos &
               Posições" pra começar a acompanhar a rentabilidade.
             </p>
           )}

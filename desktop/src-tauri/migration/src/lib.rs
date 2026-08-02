@@ -34,6 +34,8 @@ mod m20260729_150000_add_details_to_stock_quotes;
 mod m20260729_160000_create_stock_price_history;
 mod m20260730_100000_create_watchlists;
 mod m20260731_100000_create_theses;
+mod m20260802_100000_add_cnpj_and_fii_cvm_tables;
+mod m20260802_120000_create_fii_cnpj_cache;
 
 pub struct Migrator;
 
@@ -75,6 +77,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20260729_160000_create_stock_price_history::Migration),
             Box::new(m20260730_100000_create_watchlists::Migration),
             Box::new(m20260731_100000_create_theses::Migration),
+            Box::new(m20260802_100000_add_cnpj_and_fii_cvm_tables::Migration),
+            Box::new(m20260802_120000_create_fii_cnpj_cache::Migration),
         ]
     }
 }

@@ -11,17 +11,19 @@ use crate::error::AppError;
 const BUY: &str = "compra";
 const SELL: &str = "venda";
 const DIVIDEND: &str = "provento";
-const ACAO_BR: &str = "acao_br";
 
-// Fase 10.3, fatia escopada só a Ação BR (decisão explícita do dono do
-// projeto — outras classes ainda não têm preço histórico, ver
-// project/PHASE.md). `aporte`/`retirada` (sem asset_id) e as outras 3
-// classes de ativo ficam fora deste cálculo. A carteira Ação BR é tratada
-// como uma sub-carteira autocontida: suas próprias compra(+)/venda(−) são
-// os fluxos de caixa externos do Dietz Modificado — o app não modela um
+// Fase 10.3, fatia escopada às classes com preço histórico automatizado
+// (decisão explícita do dono do projeto — Stocks internacionais/Tesouro
+// Direto/Renda Fixa ainda não têm, ver project/PHASE.md). `aporte`/
+// `retirada` (sem asset_id) ficam fora deste cálculo. `fii` entrou na
+// Sessão 41 (2026-08-02) — mesmo endpoint Yahoo `{ticker}.SA` que
+// `acao_br` já usa pra `stock_price_history`, sem coletor novo. Essa
+// sub-carteira é tratada como autocontida: suas próprias compra(+)/venda(−)
+// são os fluxos de caixa externos do Dietz Modificado — o app não modela um
 // sub-ledger de caixa, então uma compra não é "caixa→ativo", é "ativo
 // aparece", e pro efeito desta fatia isso equivale a um aporte na
-// sub-carteira Ação BR.
+// sub-carteira.
+const ASSET_CLASSES_WITH_AUTO_QUOTE: [&str; 2] = ["acao_br", "fii"];
 const PRICE_TOLERANCE_DAYS: i64 = 7;
 
 #[derive(Serialize)]
@@ -118,9 +120,9 @@ pub async fn get_portfolio_profitability(
             .collect()
     };
 
-    let acao_br_ids: HashSet<i32> = assets_map
+    let auto_quote_ids: HashSet<i32> = assets_map
         .values()
-        .filter(|a| a.asset_class == ACAO_BR)
+        .filter(|a| ASSET_CLASSES_WITH_AUTO_QUOTE.contains(&a.asset_class.as_str()))
         .map(|a| a.id)
         .collect();
 
@@ -128,7 +130,7 @@ pub async fn get_portfolio_profitability(
         .iter()
         .filter(|t| {
             matches!(t.transaction_type.as_str(), BUY | SELL | DIVIDEND)
-                && t.asset_id.is_some_and(|id| acao_br_ids.contains(&id))
+                && t.asset_id.is_some_and(|id| auto_quote_ids.contains(&id))
         })
         .collect();
     relevant.sort_by(|a, b| a.transaction_date.cmp(&b.transaction_date));

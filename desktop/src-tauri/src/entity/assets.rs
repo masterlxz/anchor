@@ -16,6 +16,7 @@ pub struct Model {
     pub exposure_type: String,
     pub exposure_value: String,
     pub created_at: String,
+    pub cnpj: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

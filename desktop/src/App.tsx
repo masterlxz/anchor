@@ -49,7 +49,7 @@ type ModelKey = keyof typeof MODELS;
 
 const SECTIONS = {
   valuation: "Valuation",
-  lookup: "Stock Lookup",
+  lookup: "Pesquisa",
   crypto: "Crypto Score",
   portfolio: "Portfolio",
   alerts: "Alerts",

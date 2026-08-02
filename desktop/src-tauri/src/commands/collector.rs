@@ -22,7 +22,10 @@ pub struct CollectorSummary {
     pub output: String,
 }
 
-async fn run_collector(
+// `pub(crate)` — reaproveitado por `commands::fii` (Sessão 41), que também
+// invoca o mesmo subprocess do coletor pra resolver CNPJ e puxar indicadores
+// da CVM, mesmo lock/binário/script.
+pub(crate) async fn run_collector(
     lock: &AtomicBool,
     extra_args: &[&str],
 ) -> Result<CollectorSummary, AppError> {

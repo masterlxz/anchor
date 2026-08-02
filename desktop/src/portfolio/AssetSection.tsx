@@ -1,17 +1,20 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useRef, useState, type FormEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AppError } from "../types";
 import {
   ASSET_CLASSES,
+  ASSET_CLASSES_WITH_AUTO_QUOTE,
   ASSET_CLASS_LABELS,
   type Asset,
   type AssetClass,
   type AssetFavorite,
   type ExposureType,
+  type FiiCnpjSuggestion,
 } from "./types";
 import { latestForTicker } from "../collector/latestForTicker";
 import type { StockQuote } from "../collector/types";
+import FiiCvmDetails from "./FiiCvmDetails";
 import Field from "../components/Field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -45,6 +48,7 @@ type CreateAssetRequest = {
   exchange: string | null;
   exposure_type: string;
   exposure_value: string;
+  cnpj: string | null;
 };
 
 type CollectorSummary = { success: boolean; output: string };
@@ -58,13 +62,17 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
   const [exchange, setExchange] = useState("");
   const [exposureType, setExposureType] = useState<ExposureType>("pais");
   const [exposureValue, setExposureValue] = useState("BR");
+  const [cnpj, setCnpj] = useState("");
+  const [expandedAssetId, setExpandedAssetId] = useState<number | null>(null);
 
   const [tickerQuery, setTickerQuery] = useState("");
   const [activeTicker, setActiveTicker] = useState<string | null>(null);
   const autoFetchedTickerRef = useRef<string | null>(null);
   const prefilledTickerRef = useRef<string | null>(null);
+  const cnpjResolvedTickerRef = useRef<string | null>(null);
 
-  const isAcaoBr = assetClass === "acao_br";
+  const isAutoQuoteClass = (ASSET_CLASSES_WITH_AUTO_QUOTE as string[]).includes(assetClass);
+  const isFii = assetClass === "fii";
 
   const queryClient = useQueryClient();
 
@@ -92,11 +100,12 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
     },
   });
 
-  // Só busca cotação pra Ação BR — as outras classes ainda não têm coletor
+  // Só busca cotação pras classes de ASSET_CLASSES_WITH_AUTO_QUOTE (Ação
+  // BR/FII, mesmo endpoint Yahoo) — as outras ainda não têm coletor
   // integrado (ver Fase 10, item 8), então continuam com cadastro manual.
   const lookupQuery = useQuery<StockQuote | null, AppError>({
     queryKey: ["asset-section-stock-quote", activeTicker],
-    enabled: isAcaoBr && activeTicker !== null,
+    enabled: isAutoQuoteClass && activeTicker !== null,
     queryFn: async () => {
       const quotes = await invoke<StockQuote[]>("list_stock_quotes");
       return latestForTicker(quotes, activeTicker as string);
@@ -110,11 +119,19 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
     },
   });
 
+  // Fase 10, item 8, Sessão 41 — só pra FII: tenta sugerir o CNPJ do fundo
+  // assim que a cotação chega (mesmo gatilho do prefill abaixo). A bolsai
+  // só é chamada aqui, uma vez por busca — depois de confirmado e salvo,
+  // toda leitura recorrente (FiiCvmDetails) usa só a CVM.
+  const resolveCnpjMutation = useMutation<FiiCnpjSuggestion | null, AppError, string>({
+    mutationFn: (t) => invoke("resolve_fii_cnpj", { ticker: t }),
+  });
+
   // Mesmo padrão do Stock Lookup (Fase 9): um ticker sem dado no banco
   // dispara o coletor no máximo uma vez por busca, guardado pelo ref.
   useEffect(() => {
     if (
-      isAcaoBr &&
+      isAutoQuoteClass &&
       activeTicker &&
       lookupQuery.isSuccess &&
       lookupQuery.data === null &&
@@ -124,14 +141,14 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
       collectorMutation.mutate(activeTicker);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAcaoBr, activeTicker, lookupQuery.isSuccess, lookupQuery.data]);
+  }, [isAutoQuoteClass, activeTicker, lookupQuery.isSuccess, lookupQuery.data]);
 
   // Pré-preenche o preview editável assim que a cotação chega — só na
   // primeira vez por ticker, pra não sobrescrever edições manuais do
   // usuário em buscas repetidas (ex: "Refresh" implícito de reabrir a tela).
   useEffect(() => {
     const quote = lookupQuery.data;
-    if (isAcaoBr && activeTicker && quote && prefilledTickerRef.current !== activeTicker) {
+    if (isAutoQuoteClass && activeTicker && quote && prefilledTickerRef.current !== activeTicker) {
       prefilledTickerRef.current = activeTicker;
       setTicker(activeTicker);
       setName(quote.name ?? "");
@@ -141,18 +158,38 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
       setExposureValue("BR");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAcaoBr, activeTicker, lookupQuery.data]);
+  }, [isAutoQuoteClass, activeTicker, lookupQuery.data]);
 
-  // Trocar de classe pra fora de Ação BR limpa a busca em andamento, pra
-  // não deixar um preview de ticker antigo aparecendo se voltar depois.
+  // Sugestão de CNPJ (só FII) — dispara junto com o prefill acima, uma vez
+  // por ticker. `cnpj` fica vazio se não achar sugestão confiável (o
+  // usuário cola manualmente, ou deixa em branco e resolve depois pelo
+  // painel de detalhes CVM via `update_asset_cnpj`).
   useEffect(() => {
-    if (!isAcaoBr) {
+    const quote = lookupQuery.data;
+    if (isFii && activeTicker && quote && cnpjResolvedTickerRef.current !== activeTicker) {
+      cnpjResolvedTickerRef.current = activeTicker;
+      resolveCnpjMutation.mutate(activeTicker, {
+        onSuccess: (suggestion) => setCnpj(suggestion?.cnpj ?? ""),
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFii, activeTicker, lookupQuery.data]);
+
+  // Trocar de classe pra fora da busca automática limpa a busca em
+  // andamento, pra não deixar um preview de ticker antigo aparecendo se
+  // voltar depois.
+  useEffect(() => {
+    if (!isAutoQuoteClass) {
       setActiveTicker(null);
       setTickerQuery("");
       autoFetchedTickerRef.current = null;
       prefilledTickerRef.current = null;
     }
-  }, [isAcaoBr]);
+    if (!isFii) {
+      setCnpj("");
+      cnpjResolvedTickerRef.current = null;
+    }
+  }, [isAutoQuoteClass, isFii]);
 
   const createMutation = useMutation<Asset, AppError, CreateAssetRequest>({
     mutationFn: (request) => invoke("create_asset", { request }),
@@ -161,10 +198,12 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
       setTicker("");
       setName("");
       setExchange("");
+      setCnpj("");
       setTickerQuery("");
       setActiveTicker(null);
       autoFetchedTickerRef.current = null;
       prefilledTickerRef.current = null;
+      cnpjResolvedTickerRef.current = null;
     },
   });
 
@@ -185,11 +224,12 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
       exchange: exchange.trim() === "" ? null : exchange,
       exposure_type: exposureType,
       exposure_value: exposureValue,
+      cnpj: isFii && cnpj.trim() !== "" ? cnpj.trim() : null,
     });
   }
 
   const assets = assetsQuery.data ?? [];
-  const showCreateForm = !isAcaoBr || (activeTicker !== null && lookupQuery.data != null);
+  const showCreateForm = !isAutoQuoteClass || (activeTicker !== null && lookupQuery.data != null);
 
   return (
     <Card>
@@ -199,8 +239,8 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
       <CardContent>
         <p className="mb-4 text-sm text-muted-foreground">
           Catálogo de ativos negociáveis/registráveis — compartilhado entre todos os Portfolios do
-          Workspace. Ação (B3) busca os dados automaticamente pelo ticker; as demais classes
-          (Stocks internacionais, Tesouro Direto, Renda Fixa) usam cadastro manual por ora.
+          Workspace. Ação (B3) e FII (B3) buscam os dados automaticamente pelo ticker; as demais
+          classes (Stocks internacionais, Tesouro Direto, Renda Fixa) usam cadastro manual por ora.
         </p>
 
         <div className="mb-4 max-w-xs">
@@ -220,12 +260,12 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
           </Field>
         </div>
 
-        {isAcaoBr && (
+        {isAutoQuoteClass && (
           <form onSubmit={handleTickerSearch} className="mb-4 flex items-end gap-3">
             <Field label="Buscar ticker (B3)" className="flex-1">
               <Input
                 required
-                placeholder="PETR4"
+                placeholder={assetClass === "fii" ? "HGLG11" : "PETR4"}
                 value={tickerQuery}
                 onChange={(e) => setTickerQuery(e.currentTarget.value)}
               />
@@ -234,19 +274,19 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
           </form>
         )}
 
-        {isAcaoBr && lookupQuery.isError && (
+        {isAutoQuoteClass && lookupQuery.isError && (
           <p className="mb-3 text-red-600">{lookupQuery.error.message}</p>
         )}
-        {isAcaoBr && collectorMutation.isError && (
+        {isAutoQuoteClass && collectorMutation.isError && (
           <p className="mb-3 text-red-600">{collectorMutation.error.message}</p>
         )}
-        {isAcaoBr && activeTicker && lookupQuery.isLoading && (
+        {isAutoQuoteClass && activeTicker && lookupQuery.isLoading && (
           <p className="mb-3 text-muted-foreground">Carregando {activeTicker}...</p>
         )}
-        {isAcaoBr && activeTicker && lookupQuery.data === null && collectorMutation.isPending && (
+        {isAutoQuoteClass && activeTicker && lookupQuery.data === null && collectorMutation.isPending && (
           <p className="mb-3 text-muted-foreground">Buscando {activeTicker} pela primeira vez...</p>
         )}
-        {isAcaoBr &&
+        {isAutoQuoteClass &&
           activeTicker &&
           lookupQuery.isSuccess &&
           lookupQuery.data === null &&
@@ -260,7 +300,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
               <Field label="Ticker / identificador">
                 <Input
                   required
-                  disabled={isAcaoBr}
+                  disabled={isAutoQuoteClass}
                   placeholder="ex.: PETR4, Tesouro IPCA+ 2035"
                   value={ticker}
                   onChange={(e) => setTicker(e.currentTarget.value)}
@@ -324,6 +364,25 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
               </Field>
             </div>
 
+            {isFii && (
+              <Field label="CNPJ do fundo (pra puxar indicadores da CVM — vacância, inadimplência, patrimônio)">
+                <Input
+                  placeholder="00.000.000/0001-00"
+                  value={cnpj}
+                  onChange={(e) => setCnpj(e.currentTarget.value)}
+                />
+                {resolveCnpjMutation.isPending && (
+                  <p className="mt-1 text-sm text-muted-foreground">Buscando CNPJ...</p>
+                )}
+                {resolveCnpjMutation.isSuccess && resolveCnpjMutation.data === null && (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Não achei o CNPJ automaticamente — cole manualmente (site do fundo ou CVM) ou
+                    deixe em branco e resolva depois pelo painel de detalhes CVM.
+                  </p>
+                )}
+              </Field>
+            )}
+
             {createMutation.isError && (
               <p className="text-red-600">{createMutation.error.message}</p>
             )}
@@ -348,44 +407,67 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
               <TableHead>Bolsa</TableHead>
               <TableHead>Exposição</TableHead>
               <TableHead>★</TableHead>
+              <TableHead></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {assets.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
+                <TableCell colSpan={8} className="text-center text-muted-foreground">
                   Nenhum ativo cadastrado ainda.
                 </TableCell>
               </TableRow>
             )}
             {assets.map((asset) => {
               const isFavorite = favoriteAssetIds.has(asset.id);
+              const isExpanded = expandedAssetId === asset.id;
               return (
-                <TableRow key={asset.id}>
-                  <TableCell>{asset.ticker}</TableCell>
-                  <TableCell>{asset.name}</TableCell>
-                  <TableCell>
-                    {ASSET_CLASS_LABELS[asset.asset_class as AssetClass] ?? asset.asset_class}
-                  </TableCell>
-                  <TableCell>{asset.currency}</TableCell>
-                  <TableCell>{asset.exchange ?? "—"}</TableCell>
-                  <TableCell>
-                    {asset.exposure_type === "pais" ? "🌍 " : "🏷️ "}
-                    {asset.exposure_value}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      disabled={toggleFavoriteMutation.isPending}
-                      onClick={() => toggleFavoriteMutation.mutate(asset.id)}
-                      aria-label={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
-                    >
-                      {isFavorite ? "★" : "☆"}
-                    </Button>
-                  </TableCell>
-                </TableRow>
+                <Fragment key={asset.id}>
+                  <TableRow>
+                    <TableCell>{asset.ticker}</TableCell>
+                    <TableCell>{asset.name}</TableCell>
+                    <TableCell>
+                      {ASSET_CLASS_LABELS[asset.asset_class as AssetClass] ?? asset.asset_class}
+                    </TableCell>
+                    <TableCell>{asset.currency}</TableCell>
+                    <TableCell>{asset.exchange ?? "—"}</TableCell>
+                    <TableCell>
+                      {asset.exposure_type === "pais" ? "🌍 " : "🏷️ "}
+                      {asset.exposure_value}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={toggleFavoriteMutation.isPending}
+                        onClick={() => toggleFavoriteMutation.mutate(asset.id)}
+                        aria-label={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                      >
+                        {isFavorite ? "★" : "☆"}
+                      </Button>
+                    </TableCell>
+                    <TableCell>
+                      {asset.asset_class === "fii" && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setExpandedAssetId(isExpanded ? null : asset.id)}
+                        >
+                          {isExpanded ? "Ocultar CVM" : "Dados CVM"}
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                  {isExpanded && (
+                    <TableRow>
+                      <TableCell colSpan={8} className="bg-muted/30">
+                        <FiiCvmDetails asset={asset} />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </Fragment>
               );
             })}
           </TableBody>

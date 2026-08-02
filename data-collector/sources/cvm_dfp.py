@@ -243,7 +243,17 @@ def fetch_roe(ticker_cvm_codes: dict[str, str]) -> list[dict]:
     (23.0, não 0.23), mesma convenção já usada em `stock_fundamentals.roe`
     (ver nota em `_effective_tax_rate`). Ticker sem as duas contas
     encontráveis é ignorado — pula em vez de arriscar um número errado.
+
+    Achado de performance (Sessão 46, 2026-08-02): `ticker_cvm_codes` vem
+    vazio sempre que a bolsai não achou fundamentos pro ticker (garantido
+    pra qualquer FII, já que ela só tem `/fundamentals` pra ação) — sem o
+    guard abaixo, esta função baixava/abria/processava o zip inteiro da CVM
+    (~870 empresas) só pra devolver `[]` de qualquer jeito, ~15s
+    desperdiçados por busca de FII na tela de Pesquisa.
     """
+    if not ticker_cvm_codes:
+        return []
+
     zip_path = _resolve_zip_path()
 
     with zipfile.ZipFile(zip_path) as zf:
@@ -339,7 +349,14 @@ def fetch_payout(ticker_cvm_codes: dict[str, str]) -> list[dict]:
     de `acoes_yahoo.fetch_dividends_avg`. Ticker sem nenhum ano com dado é
     descartado inteiro. Retorna uma lista de {"ticker": str, "payout":
     float} em percentual (28.5, não 0.285), mesma convenção de `fetch_roe`.
+
+    Mesmo guard de performance de `fetch_roe` (Sessão 46) — aqui o
+    desperdício seria ainda maior sem ele, já que este loop baixa/processa
+    até `PAYOUT_YEARS_AVERAGED` zips (vários anos), não só 1.
     """
+    if not ticker_cvm_codes:
+        return []
+
     totals = {
         ticker: {"net_income": 0.0, "distributions": 0.0, "years_found": 0}
         for ticker in ticker_cvm_codes
@@ -405,7 +422,16 @@ def fetch_dcf_fundamentals(ticker_cvm_codes: dict[str, str]) -> list[dict]:
     vez de só entrar na conta do ΔNWC. Não é uma leitura nova de risco: se
     essa conta não existisse pra um ticker, `_nwc_change` já teria
     derrubado o ticker inteiro antes de chegar aqui.
+
+    Mesmo guard de performance de `fetch_roe`/`fetch_payout` (Sessão 46) —
+    hoje o chamador (`main.py`) só invoca esta função quando `fundamentals`
+    não está vazio, então na prática `ticker_cvm_codes` nunca chega vazio
+    aqui, mas o guard é barato e evita reintroduzir o mesmo desperdício se
+    o chamador mudar no futuro.
     """
+    if not ticker_cvm_codes:
+        return []
+
     zip_path = _resolve_zip_path()
     results = []
 

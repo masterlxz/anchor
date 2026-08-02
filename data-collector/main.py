@@ -6,6 +6,7 @@ SQLite compartilhado com o app Tauri. Chamado pelo comando Rust
 mas também roda direto (`python3 main.py`) pra depurar sem precisar do app.
 """
 
+import json
 import sqlite3
 import sys
 from datetime import datetime, timezone
@@ -21,6 +22,7 @@ from sources import (
     cripto_defillama,
     cripto_ultrasound,
     cvm_dfp,
+    cvm_fii,
 )
 
 BASE_DIR = Path(__file__).parent
@@ -323,6 +325,125 @@ def main_price_history(tickers: list[str]) -> int:
     return 0
 
 
+def collect_fii_cvm_data(cnpjs: list[str]) -> tuple[list[dict], list[dict]]:
+    """Indicadores mensais + imóveis (vacância/inadimplência) direto da CVM,
+    pra uma lista de CNPJs já resolvidos e salvos em `assets.cnpj` (ver
+    `resolve_fii_cnpj` — a bolsai não é chamada aqui, só a CVM). Mesmo
+    padrão `INSERT OR IGNORE` num índice único de `collect_price_history` —
+    rodar de novo não duplica período já salvo, só acrescenta o mês/trimestre
+    novo desde a última coleta.
+    """
+    if not cnpjs:
+        return [], []
+
+    monthly = cvm_fii.fetch_monthly_indicators(cnpjs)
+    properties = cvm_fii.fetch_property_data(cnpjs)
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA journal_mode=WAL")
+    now = datetime.now(timezone.utc).isoformat()
+    changes_before = conn.total_changes
+    conn.executemany(
+        "INSERT OR IGNORE INTO fii_cvm_monthly "
+        "(cnpj, reference_date, patrimonio_liquido, valor_patrimonial_cota, "
+        "numero_cotistas, dividend_yield_mes, rentabilidade_efetiva_mes, source, fetched_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            (
+                item["cnpj"],
+                item["reference_date"],
+                item["patrimonio_liquido"],
+                item["valor_patrimonial_cota"],
+                item["numero_cotistas"],
+                item["dividend_yield_mes"],
+                item["rentabilidade_efetiva_mes"],
+                "cvm_fii",
+                now,
+            )
+            for item in monthly
+        ],
+    )
+    conn.executemany(
+        "INSERT OR IGNORE INTO fii_cvm_properties "
+        "(cnpj, reference_date, nome_imovel, endereco, area_m2, percentual_vacancia, "
+        "percentual_inadimplencia, percentual_receitas_fii, percentual_locado, "
+        "source, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            (
+                item["cnpj"],
+                item["reference_date"],
+                item["nome_imovel"],
+                item["endereco"],
+                item["area_m2"],
+                item["percentual_vacancia"],
+                item["percentual_inadimplencia"],
+                item["percentual_receitas_fii"],
+                item["percentual_locado"],
+                "cvm_fii",
+                now,
+            )
+            for item in properties
+        ],
+    )
+    new_count = conn.total_changes - changes_before
+    conn.commit()
+    conn.close()
+
+    print(
+        f"Fetched {len(monthly)} monthly indicator(s) and {len(properties)} propert(y/ies) "
+        f"from CVM, {new_count} new row(s) (rest already saved)"
+    )
+    return monthly, properties
+
+
+def main_fii_resolve_cnpj(ticker: str) -> int:
+    """Resolve e imprime. `commands/fii.rs::resolve_fii_cnpj` lê a última
+    linha de stdout como o único JSON impresso (nenhum outro print acontece
+    neste modo).
+
+    Consulta `fii_cnpj_cache` (por `ticker`) antes de qualquer coisa —
+    necessário desde que a tela de Pesquisa (Sessão 43) passou a chamar isto
+    pra qualquer busca de FII, não só no cadastro de Ativo: sem cache, cada
+    pesquisa repetida do mesmo ticker chamaria a bolsai de novo, quebrando a
+    promessa feita ao dono do projeto na Sessão 42 ("depois de resolvido, a
+    bolsai nunca mais é chamada"). Só grava no cache quando a resolução
+    realmente encontra um match confiável — um `None` (não achou) não é
+    cacheado, pra não travar permanentemente algo que pode ter sido só uma
+    falha temporária da bolsai.
+    """
+    load_dotenv(BASE_DIR / ".env")
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA journal_mode=WAL")
+    cached = conn.execute(
+        "SELECT cnpj, fund_name FROM fii_cnpj_cache WHERE ticker = ?", (ticker,)
+    ).fetchone()
+    if cached is not None:
+        conn.close()
+        print(json.dumps({"cnpj": cached[0], "fund_name": cached[1]}))
+        return 0
+
+    result = cvm_fii.resolve_cnpj(ticker)
+    if result is not None:
+        now = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            "INSERT OR IGNORE INTO fii_cnpj_cache (ticker, cnpj, fund_name, resolved_at) "
+            "VALUES (?, ?, ?, ?)",
+            (ticker, result["cnpj"], result["fund_name"], now),
+        )
+        conn.commit()
+    conn.close()
+
+    print(json.dumps(result))
+    return 0
+
+
+def main_fii_cvm_data(cnpjs: list[str]) -> int:
+    load_dotenv(BASE_DIR / ".env")
+    collect_fii_cvm_data(cnpjs)
+    return 0
+
+
 def _classify_signal(raw_value: float, green_boundary: float, red_boundary: float) -> str:
     """Mirrors `src-tauri/src/domain/crypto_score.rs::classify`.
 
@@ -430,9 +551,37 @@ def main(ticker: str | None = None) -> int:
         print(f"{quote['ticker']}: R$ {quote['price']}")
     print(f"Updated {len(quotes)} quote(s)")
 
-    # bolsai requires a signed-up API key — if it's missing, skip everything
-    # that depends on it (dividends, DCF via cvm_code) instead of failing the
-    # whole run and losing the quotes collected above.
+    # Coletores só-Yahoo, genéricos por ticker (Ação BR ou FII — mesmo
+    # endpoint `.SA`) — rodam sempre, **antes** do bloco da bolsai abaixo.
+    # Corrigido na Sessão 44: antes ficavam depois do `if not fundamentals:
+    # return 0`, então um FII (que nunca tem fundamento de ação na bolsai —
+    # 404 sempre, ela só cobre `/fiis/{ticker}` à parte, usado por
+    # `cvm_fii.py`) nunca coletava proventos/técnicos — achado testando a
+    # busca de FII na tela de Pesquisa no app real, "histórico de proventos"
+    # sempre vazio. Yahoo Finance's chart API already skips failing/
+    # dividend-less tickers internally (see acoes_yahoo.py) — no try/except
+    # needed here, unlike the bolsai calls below.
+    dividends = collect_stock_dividends_avg(tickers)
+    for item in dividends:
+        print(f"{item['ticker']}: avg dividend/share (5y) R$ {item['avg_dividend_5y']:.4f}")
+    print(f"Updated {len(dividends)} dividend average record(s)")
+
+    technicals = collect_stock_technicals(tickers)
+    for item in technicals:
+        sma_200 = item["sma_200"]
+        cagr_10y = item["cagr_10y"]
+        print(
+            f"{item['ticker']}: SMA200 "
+            f"{'n/a' if sma_200 is None else f'R$ {sma_200:.2f}'} / "
+            f"CAGR 10y {'n/a' if cagr_10y is None else f'{cagr_10y:.1f}%'}"
+        )
+    print(f"Updated {len(technicals)} technicals record(s)")
+
+    collect_stock_dividend_payments(tickers)
+
+    # bolsai (fundamentos de ação + DCF) — só faz sentido pra Ação BR (FII
+    # sempre devolve vazio aqui, sem quebrar nada, ver nota acima) e requer
+    # chave cadastrada; se faltar, pula só esta parte em vez de falhar tudo.
     try:
         fundamentals = collect_stock_fundamentals(tickers)
         for item in fundamentals:
@@ -449,14 +598,6 @@ def main(ticker: str | None = None) -> int:
     if not fundamentals:
         return 0
 
-    # Yahoo Finance's chart API already skips failing/dividend-less tickers
-    # internally (see acoes_yahoo.py) — no try/except needed here, unlike
-    # the bolsai calls above.
-    dividends = collect_stock_dividends_avg(tickers)
-    for item in dividends:
-        print(f"{item['ticker']}: avg dividend/share (5y) R$ {item['avg_dividend_5y']:.4f}")
-    print(f"Updated {len(dividends)} dividend average record(s)")
-
     dcf_fundamentals = collect_stock_dcf_fundamentals(fundamentals)
     for item in dcf_fundamentals:
         da = item["depreciation_amortization"]
@@ -472,19 +613,6 @@ def main(ticker: str | None = None) -> int:
             f"Inventory {item['inventory']:.1f} (R$ millions)"
         )
     print(f"Updated {len(dcf_fundamentals)} DCF fundamentals record(s)")
-
-    technicals = collect_stock_technicals(tickers)
-    for item in technicals:
-        sma_200 = item["sma_200"]
-        cagr_10y = item["cagr_10y"]
-        print(
-            f"{item['ticker']}: SMA200 "
-            f"{'n/a' if sma_200 is None else f'R$ {sma_200:.2f}'} / "
-            f"CAGR 10y {'n/a' if cagr_10y is None else f'{cagr_10y:.1f}%'}"
-        )
-    print(f"Updated {len(technicals)} technicals record(s)")
-
-    collect_stock_dividend_payments(tickers)
 
     return 0
 
@@ -503,4 +631,15 @@ if __name__ == "__main__":
             sys.exit(1)
         tickers = [t.strip().upper() for t in sys.argv[2].split(",") if t.strip()]
         sys.exit(main_price_history(tickers))
+    if len(sys.argv) > 1 and sys.argv[1] == "--fii-resolve-cnpj":
+        if len(sys.argv) < 3 or not sys.argv[2].strip():
+            print("Usage: python main.py --fii-resolve-cnpj <TICKER>")
+            sys.exit(1)
+        sys.exit(main_fii_resolve_cnpj(sys.argv[2].strip().upper()))
+    if len(sys.argv) > 1 and sys.argv[1] == "--fii-cvm-data":
+        if len(sys.argv) < 3 or not sys.argv[2].strip():
+            print("Usage: python main.py --fii-cvm-data <CNPJ1,CNPJ2,...>")
+            sys.exit(1)
+        cnpjs = [c.strip() for c in sys.argv[2].split(",") if c.strip()]
+        sys.exit(main_fii_cvm_data(cnpjs))
     sys.exit(main())
