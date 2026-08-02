@@ -213,12 +213,12 @@ function WatchlistSection({ workspaceId }: { workspaceId: number }) {
     <div className="flex flex-col gap-6">
       <Card>
         <CardHeader>
-          <CardTitle>★ Favoritos</CardTitle>
+          <CardTitle>★ Favorites</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="mb-4 text-sm text-muted-foreground">
-            Marcação rápida de ativos, separada das watchlists nomeadas abaixo — favorite/
-            desfavorite pela estrela na aba "Ativos".
+            Quick asset marking, separate from the named watchlists below — favorite/unfavorite
+            via the star on the "Assets" tab.
           </p>
           {favoritesQuery.isError && (
             <p className="mb-3 text-red-600">{favoritesQuery.error.message}</p>
@@ -227,16 +227,16 @@ function WatchlistSection({ workspaceId }: { workspaceId: number }) {
             <TableHeader>
               <TableRow>
                 <TableHead>Ticker</TableHead>
-                <TableHead>Nome</TableHead>
-                <TableHead>Preço atual</TableHead>
-                <TableHead>Ações</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Current price</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {favorites.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center text-muted-foreground">
-                    Nenhum ativo favoritado ainda.
+                    No favorited assets yet.
                   </TableCell>
                 </TableRow>
               )}
@@ -255,7 +255,7 @@ function WatchlistSection({ workspaceId }: { workspaceId: number }) {
                         disabled={toggleFavoriteMutation.isPending}
                         onClick={() => toggleFavoriteMutation.mutate(favorite.asset_id)}
                       >
-                        ★ Remover
+                        ★ Remove
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -272,8 +272,8 @@ function WatchlistSection({ workspaceId }: { workspaceId: number }) {
         </CardHeader>
         <CardContent>
           <p className="mb-4 text-sm text-muted-foreground">
-            Listas nomeadas de ativos com preço-alvo e anotações (ex.: "Ações de Dividendos",
-            "Turnarounds pra Acompanhar").
+            Named lists of assets with target price and notes (e.g.: "Dividend Stocks",
+            "Turnarounds to Watch").
           </p>
 
           <div className="mb-4 flex items-end gap-4">
@@ -286,7 +286,7 @@ function WatchlistSection({ workspaceId }: { workspaceId: number }) {
                 }}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecione uma watchlist" />
+                  <SelectValue placeholder="Select a watchlist" />
                 </SelectTrigger>
                 <SelectContent>
                   {watchlists.map((watchlist) => (
@@ -308,16 +308,16 @@ function WatchlistSection({ workspaceId }: { workspaceId: number }) {
           </div>
 
           <form onSubmit={handleCreateWatchlist} className="mb-8 flex items-end gap-4">
-            <Field label="Nova watchlist" className="flex-1">
+            <Field label="New watchlist" className="flex-1">
               <Input
                 required
-                placeholder="ex.: Ações de Dividendos"
+                placeholder="e.g.: Dividend Stocks"
                 value={newWatchlistName}
                 onChange={(e) => setNewWatchlistName(e.currentTarget.value)}
               />
             </Field>
             <Button type="submit" disabled={createWatchlistMutation.isPending}>
-              {createWatchlistMutation.isPending ? "Criando..." : "Criar watchlist"}
+              {createWatchlistMutation.isPending ? "Creating..." : "Create watchlist"}
             </Button>
           </form>
 
@@ -331,10 +331,10 @@ function WatchlistSection({ workspaceId }: { workspaceId: number }) {
                 onSubmit={handleAddItem}
                 className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4"
               >
-                <Field label="Ativo" className="sm:col-span-2">
+                <Field label="Asset" className="sm:col-span-2">
                   <Select value={newItemAssetId} onValueChange={setNewItemAssetId}>
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecione um ativo" />
+                      <SelectValue placeholder="Select an asset" />
                     </SelectTrigger>
                     <SelectContent>
                       {assets.map((asset) => (
@@ -345,7 +345,7 @@ function WatchlistSection({ workspaceId }: { workspaceId: number }) {
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field label="Preço-alvo (opcional)">
+                <Field label="Target price (optional)">
                   <Input
                     type="number"
                     step="any"
@@ -353,12 +353,12 @@ function WatchlistSection({ workspaceId }: { workspaceId: number }) {
                     onChange={(e) => setNewItemTargetPrice(e.currentTarget.value)}
                   />
                 </Field>
-                <Field label="Notas (opcional)">
+                <Field label="Notes (optional)">
                   <Input value={newItemNotes} onChange={(e) => setNewItemNotes(e.currentTarget.value)} />
                 </Field>
                 <div className="sm:col-span-4">
                   <Button type="submit" disabled={addItemMutation.isPending || !newItemAssetId}>
-                    {addItemMutation.isPending ? "Adicionando..." : "Adicionar item"}
+                    {addItemMutation.isPending ? "Adding..." : "Add item"}
                   </Button>
                 </div>
               </form>
@@ -371,18 +371,18 @@ function WatchlistSection({ workspaceId }: { workspaceId: number }) {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Ativo</TableHead>
-                    <TableHead>Preço-alvo</TableHead>
-                    <TableHead>Preço atual</TableHead>
-                    <TableHead>Notas</TableHead>
-                    <TableHead>Ações</TableHead>
+                    <TableHead>Asset</TableHead>
+                    <TableHead>Target price</TableHead>
+                    <TableHead>Current price</TableHead>
+                    <TableHead>Notes</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {items.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center text-muted-foreground">
-                        Nenhum item nesta watchlist ainda.
+                        No items in this watchlist yet.
                       </TableCell>
                     </TableRow>
                   )}
@@ -413,10 +413,10 @@ function WatchlistSection({ workspaceId }: { workspaceId: number }) {
                                 onClick={handleSaveEdit}
                                 disabled={updateItemMutation.isPending}
                               >
-                                Salvar
+                                Save
                               </Button>
                               <Button size="sm" variant="outline" onClick={() => setEditingItemId(null)}>
-                                Cancelar
+                                Cancel
                               </Button>
                             </TableCell>
                           </>
@@ -429,7 +429,7 @@ function WatchlistSection({ workspaceId }: { workspaceId: number }) {
                             <TableCell>{item.notes ?? "—"}</TableCell>
                             <TableCell className="flex gap-2">
                               <Button size="sm" variant="outline" onClick={() => startEditing(item)}>
-                                Editar
+                                Edit
                               </Button>
                               <Button
                                 size="sm"

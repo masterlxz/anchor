@@ -75,7 +75,7 @@ function FiiCvmDetails({ asset }: { asset: Asset }) {
   if (asset.cnpj === null) {
     return (
       <div className="flex items-end gap-3 py-2">
-        <Field label="CNPJ do fundo (não resolvido automaticamente no cadastro)" className="flex-1 max-w-sm">
+        <Field label="Fund CNPJ (not resolved automatically at registration)" className="flex-1 max-w-sm">
           <Input
             placeholder="00.000.000/0001-00"
             value={cnpjInput}
@@ -87,7 +87,7 @@ function FiiCvmDetails({ asset }: { asset: Asset }) {
           disabled={cnpjInput.trim() === "" || saveCnpjMutation.isPending}
           onClick={() => saveCnpjMutation.mutate(cnpjInput.trim())}
         >
-          Salvar CNPJ
+          Save CNPJ
         </Button>
         {saveCnpjMutation.isError && (
           <p className="text-red-600">{saveCnpjMutation.error.message}</p>
@@ -104,7 +104,7 @@ function FiiCvmDetails({ asset }: { asset: Asset }) {
   return (
     <div className="flex flex-col gap-4 py-2">
       <div className="flex items-center gap-3">
-        <p className="text-sm text-muted-foreground">CNPJ: {asset.cnpj} — fonte: CVM</p>
+        <p className="text-sm text-muted-foreground">CNPJ: {asset.cnpj} — source: CVM</p>
         <Button
           type="button"
           variant="outline"
@@ -112,7 +112,7 @@ function FiiCvmDetails({ asset }: { asset: Asset }) {
           disabled={collectorMutation.isPending}
           onClick={() => collectorMutation.mutate(asset.cnpj as string)}
         >
-          {collectorMutation.isPending ? "Atualizando..." : "Atualizar dados CVM"}
+          {collectorMutation.isPending ? "Updating..." : "Update CVM data"}
         </Button>
       </div>
 
@@ -127,34 +127,34 @@ function FiiCvmDetails({ asset }: { asset: Asset }) {
 
       {!hasAnyData && !monthlyQuery.isLoading && !propertiesQuery.isLoading && (
         <p className="text-muted-foreground">
-          Nenhum dado da CVM ainda — clique em "Atualizar dados CVM" acima.
+          No CVM data yet — click "Update CVM data" above.
         </p>
       )}
 
       {latestMonthly && (
         <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
           <p>
-            <span className="text-muted-foreground">Referência: </span>
+            <span className="text-muted-foreground">Reference: </span>
             {latestMonthly.reference_date}
           </p>
           <p>
-            <span className="text-muted-foreground">Patrimônio líquido: </span>
+            <span className="text-muted-foreground">Net assets: </span>
             {formatCurrency(latestMonthly.patrimonio_liquido)}
           </p>
           <p>
-            <span className="text-muted-foreground">Valor patrimonial/cota: </span>
+            <span className="text-muted-foreground">Book value/share: </span>
             {formatCurrency(latestMonthly.valor_patrimonial_cota)}
           </p>
           <p>
-            <span className="text-muted-foreground">Cotistas: </span>
+            <span className="text-muted-foreground">Shareholders: </span>
             {latestMonthly.numero_cotistas ?? "—"}
           </p>
           <p>
-            <span className="text-muted-foreground">Dividend yield (mês): </span>
+            <span className="text-muted-foreground">Dividend yield (month): </span>
             {formatPct(latestMonthly.dividend_yield_mes)}
           </p>
           <p>
-            <span className="text-muted-foreground">Rentabilidade efetiva (mês): </span>
+            <span className="text-muted-foreground">Effective return (month): </span>
             {formatPct(latestMonthly.rentabilidade_efetiva_mes)}
           </p>
         </div>
@@ -163,18 +163,18 @@ function FiiCvmDetails({ asset }: { asset: Asset }) {
       {properties.length > 0 && (
         <div>
           <p className="mb-1 text-sm text-muted-foreground">
-            Imóveis (referência: {properties[0].reference_date})
+            Properties (reference: {properties[0].reference_date})
           </p>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Imóvel</TableHead>
-                <TableHead>Endereço</TableHead>
-                <TableHead>Área</TableHead>
-                <TableHead>Vacância</TableHead>
-                <TableHead>Inadimplência</TableHead>
-                <TableHead>% Receita</TableHead>
-                <TableHead>% Locado</TableHead>
+                <TableHead>Property</TableHead>
+                <TableHead>Address</TableHead>
+                <TableHead>Area</TableHead>
+                <TableHead>Vacancy</TableHead>
+                <TableHead>Delinquency</TableHead>
+                <TableHead>% Revenue</TableHead>
+                <TableHead>% Leased</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

@@ -112,14 +112,14 @@ function IaSettingsSection() {
     <div className="flex flex-col gap-6">
       <div>
         <h3 className="mb-3 text-sm font-semibold text-muted-foreground">
-          Chaves de API
+          API Keys
         </h3>
         {keysQuery.isError && (
           <p className="text-red-600">{keysQuery.error.message}</p>
         )}
         {keys.length === 0 && !keysQuery.isLoading && (
           <p className="text-muted-foreground">
-            Nenhuma chave configurada ainda.
+            No keys configured yet.
           </p>
         )}
         <div className="flex flex-col gap-4">
@@ -180,7 +180,7 @@ function IaSettingsSection() {
 
       <form onSubmit={handleCreate} className="flex flex-col gap-4">
         <h3 className="text-sm font-semibold text-muted-foreground">
-          Nova chave
+          New key
         </h3>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Field label="Provider">
@@ -197,14 +197,14 @@ function IaSettingsSection() {
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Nome">
+          <Field label="Name">
             <Input
               value={name}
               onChange={(e) => setName(e.currentTarget.value)}
-              placeholder="ex: pessoal"
+              placeholder="e.g.: personal"
             />
           </Field>
-          <Field label="Chave">
+          <Field label="Key">
             <Input
               type="password"
               value={key}
@@ -221,7 +221,7 @@ function IaSettingsSection() {
           className="w-fit"
           disabled={!name.trim() || !key.trim() || createMutation.isPending}
         >
-          {createMutation.isPending ? "Salvando..." : "Adicionar chave"}
+          {createMutation.isPending ? "Saving..." : "Add key"}
         </Button>
       </form>
     </div>
@@ -243,7 +243,7 @@ function SettingsPage({ onBack }: { onBack: () => void }) {
           <Button variant="outline" size="sm" onClick={onBack}>
             ← Back
           </Button>
-          <CardTitle>Configurações</CardTitle>
+          <CardTitle>Settings</CardTitle>
         </div>
       </CardHeader>
       <CardContent className="flex gap-6">

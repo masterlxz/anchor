@@ -50,7 +50,7 @@ type AddThesisAttachmentRequest = { thesis_id: number; source_path: string };
 const ATTACHMENT_EXTENSIONS = ["pdf", "png", "jpg", "jpeg", "gif", "webp", "xlsx", "xls", "csv"];
 
 function assetLabel(assets: Asset[], assetId: number | null): string {
-  if (assetId === null) return "Global (sem ativo)";
+  if (assetId === null) return "Global (no asset)";
   const asset = assets.find((a) => a.id === assetId);
   return asset ? `${asset.ticker} — ${asset.name}` : `#${assetId}`;
 }
@@ -224,7 +224,7 @@ function ThesisSection({ workspaceId }: { workspaceId: number }) {
     if (typeof openThesisId !== "number") return;
     const picked = await open({
       multiple: true,
-      filters: [{ name: "Anexos", extensions: ATTACHMENT_EXTENSIONS }],
+      filters: [{ name: "Attachments", extensions: ATTACHMENT_EXTENSIONS }],
     });
     if (!picked) return;
     setUploadError(null);
@@ -235,7 +235,7 @@ function ThesisSection({ workspaceId }: { workspaceId: number }) {
           source_path: sourcePath,
         });
       } catch (err) {
-        setUploadError(err instanceof Error ? err.message : `Erro ao anexar ${sourcePath}.`);
+        setUploadError(err instanceof Error ? err.message : `Error attaching ${sourcePath}.`);
       }
     }
   }
@@ -267,7 +267,7 @@ function ThesisSection({ workspaceId }: { workspaceId: number }) {
         setPreviewUrl(url);
       }
     } catch (err) {
-      setPreviewError(err instanceof Error ? err.message : "Erro ao carregar preview.");
+      setPreviewError(err instanceof Error ? err.message : "Error loading preview.");
     }
   }
 
@@ -275,12 +275,12 @@ function ThesisSection({ workspaceId }: { workspaceId: number }) {
     <div className="flex flex-col gap-6">
       <Card>
         <CardHeader>
-          <CardTitle>Teses de Investimento</CardTitle>
+          <CardTitle>Investment Theses</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="mb-4 flex justify-end">
             <Button type="button" onClick={openForCreating}>
-              Nova tese
+              New thesis
             </Button>
           </div>
 
@@ -289,17 +289,17 @@ function ThesisSection({ workspaceId }: { workspaceId: number }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Título</TableHead>
-                <TableHead>Vinculada a</TableHead>
-                <TableHead>Atualizada em</TableHead>
-                <TableHead>Ações</TableHead>
+                <TableHead>Title</TableHead>
+                <TableHead>Linked to</TableHead>
+                <TableHead>Updated at</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {theses.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center text-muted-foreground">
-                    Nenhuma tese cadastrada ainda.
+                    No theses registered yet.
                   </TableCell>
                 </TableRow>
               )}
@@ -312,7 +312,7 @@ function ThesisSection({ workspaceId }: { workspaceId: number }) {
                     <TableCell>{new Date(thesis.updated_at).toLocaleString()}</TableCell>
                     <TableCell className="flex gap-2">
                       <Button size="sm" variant="outline" onClick={() => openForEditing(thesis)}>
-                        Ver/Editar
+                        View/Edit
                       </Button>
                       <Button
                         size="sm"
@@ -333,25 +333,25 @@ function ThesisSection({ workspaceId }: { workspaceId: number }) {
       {openThesisId !== null && (
         <Card>
           <CardHeader>
-            <CardTitle>{openThesisId === "new" ? "Nova tese" : "Editar tese"}</CardTitle>
+            <CardTitle>{openThesisId === "new" ? "New thesis" : "Edit thesis"}</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmitForm} className="mb-6 flex flex-col gap-4">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field label="Título">
+                <Field label="Title">
                   <Input
                     required
                     value={formTitle}
                     onChange={(e) => setFormTitle(e.currentTarget.value)}
                   />
                 </Field>
-                <Field label="Ativo vinculado">
+                <Field label="Linked asset">
                   <Select value={formAssetId} onValueChange={setFormAssetId}>
                     <SelectTrigger className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Global (sem ativo)</SelectItem>
+                      <SelectItem value="none">Global (no asset)</SelectItem>
                       {assets.map((asset) => (
                         <SelectItem key={asset.id} value={String(asset.id)}>
                           {asset.ticker} — {asset.name}
@@ -362,7 +362,7 @@ function ThesisSection({ workspaceId }: { workspaceId: number }) {
                 </Field>
               </div>
 
-              <Field label="Conteúdo (Markdown)">
+              <Field label="Content (Markdown)">
                 <div className="mb-2 flex gap-2">
                   <Button
                     type="button"
@@ -370,7 +370,7 @@ function ThesisSection({ workspaceId }: { workspaceId: number }) {
                     variant={formMode === "edit" ? "default" : "outline"}
                     onClick={() => setFormMode("edit")}
                   >
-                    Editar
+                    Edit
                   </Button>
                   <Button
                     type="button"
@@ -390,7 +390,7 @@ function ThesisSection({ workspaceId }: { workspaceId: number }) {
                 ) : (
                   <div className="min-h-48 rounded-lg border border-input px-3 py-2">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {formContent || "*Nada pra mostrar ainda.*"}
+                      {formContent || "*Nothing to show yet.*"}
                     </ReactMarkdown>
                   </div>
                 )}
@@ -407,7 +407,7 @@ function ThesisSection({ workspaceId }: { workspaceId: number }) {
                   type="submit"
                   disabled={createMutation.isPending || updateMutation.isPending}
                 >
-                  {createMutation.isPending || updateMutation.isPending ? "Salvando..." : "Salvar"}
+                  {createMutation.isPending || updateMutation.isPending ? "Saving..." : "Save"}
                 </Button>
               </div>
             </form>
@@ -415,9 +415,9 @@ function ThesisSection({ workspaceId }: { workspaceId: number }) {
             {typeof openThesisId === "number" && (
               <div className="border-t pt-6">
                 <div className="mb-4 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold">Anexos</h3>
+                  <h3 className="text-sm font-semibold">Attachments</h3>
                   <Button type="button" variant="outline" size="sm" onClick={handleUploadAttachments}>
-                    Adicionar anexo
+                    Add attachment
                   </Button>
                 </div>
 
@@ -429,16 +429,16 @@ function ThesisSection({ workspaceId }: { workspaceId: number }) {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Nome</TableHead>
-                      <TableHead>Tamanho</TableHead>
-                      <TableHead>Ações</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Size</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {attachments.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={3} className="text-center text-muted-foreground">
-                          Nenhum anexo ainda.
+                          No attachments yet.
                         </TableCell>
                       </TableRow>
                     )}
@@ -454,7 +454,7 @@ function ThesisSection({ workspaceId }: { workspaceId: number }) {
                               variant="outline"
                               onClick={() => handleViewAttachment(attachment)}
                             >
-                              Ver
+                              View
                             </Button>
                             <Button
                               size="sm"
@@ -474,7 +474,7 @@ function ThesisSection({ workspaceId }: { workspaceId: number }) {
                   <div className="mt-4">
                     <div className="mb-2 flex justify-end">
                       <Button size="sm" variant="outline" onClick={closePreview}>
-                        Fechar preview
+                        Close preview
                       </Button>
                     </div>
                     {previewError && <p className="text-red-600">{previewError}</p>}
@@ -503,7 +503,7 @@ function ThesisSection({ workspaceId }: { workspaceId: number }) {
                           return (
                             <img
                               src={previewUrl}
-                              alt={attachment?.original_file_name ?? "anexo"}
+                              alt={attachment?.original_file_name ?? "attachment"}
                               className="max-h-[500px] w-full object-contain"
                             />
                           );
@@ -512,14 +512,14 @@ function ThesisSection({ workspaceId }: { workspaceId: number }) {
                           return (
                             <iframe
                               src={previewUrl}
-                              title={attachment?.original_file_name ?? "anexo"}
+                              title={attachment?.original_file_name ?? "attachment"}
                               className="h-[500px] w-full rounded border"
                             />
                           );
                         }
                         return (
                           <p className="text-muted-foreground">
-                            Sem preview disponível para este tipo de arquivo.
+                            No preview available for this file type.
                           </p>
                         );
                       })()

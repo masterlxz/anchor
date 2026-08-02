@@ -226,15 +226,15 @@ function FiiLookupSection({ ticker }: { ticker: string }) {
             <StatTile label="Price" value={formatCurrency(price)} />
             <StatTile label="P/VP" value={formatRatio(pvp)} />
             <StatTile
-              label="Dividend yield (mês)"
+              label="Dividend yield (month)"
               value={formatFractionAsPercent(latestMonthly?.dividend_yield_mes ?? null)}
             />
             <StatTile
-              label="Rentabilidade efetiva (mês)"
+              label="Effective return (month)"
               value={formatFractionAsPercent(latestMonthly?.rentabilidade_efetiva_mes ?? null)}
             />
             <StatTile
-              label="Provento médio/cota (5y)"
+              label="Avg dividend/share (5y)"
               value={formatCurrency(dividendsAvgQuery.data?.avg_dividend_5y)}
             />
           </div>
@@ -242,7 +242,7 @@ function FiiLookupSection({ ticker }: { ticker: string }) {
           <div>
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-muted-foreground">
-                Indicadores CVM {latestMonthly && `(referência: ${latestMonthly.reference_date})`}
+                CVM indicators {latestMonthly && `(reference: ${latestMonthly.reference_date})`}
               </h3>
               {cnpj && (
                 <Button
@@ -252,45 +252,45 @@ function FiiLookupSection({ ticker }: { ticker: string }) {
                   disabled={cvmCollectorMutation.isPending}
                   onClick={() => cvmCollectorMutation.mutate(cnpj)}
                 >
-                  {cvmCollectorMutation.isPending ? "Atualizando..." : "Atualizar dados CVM"}
+                  {cvmCollectorMutation.isPending ? "Updating..." : "Update CVM data"}
                 </Button>
               )}
             </div>
 
-            {cnpjQuery.isLoading && <p className="text-muted-foreground">Resolvendo CNPJ...</p>}
+            {cnpjQuery.isLoading && <p className="text-muted-foreground">Resolving CNPJ...</p>}
             {cnpjQuery.isSuccess && cnpj === null && (
               <p className="text-muted-foreground">
-                Não achei o CNPJ deste fundo automaticamente — sem CNPJ não dá pra puxar os
-                indicadores da CVM. Cadastre o ativo na aba Portfolio e cole o CNPJ manualmente lá
-                pra destravar esta seção.
+                Couldn't find this fund's CNPJ automatically — without a CNPJ there's no way to
+                pull CVM indicators. Register the asset in the Portfolio tab and paste the CNPJ
+                manually there to unlock this section.
               </p>
             )}
             {cvmCollectorMutation.isError && (
               <p className="text-red-600">{cvmCollectorMutation.error.message}</p>
             )}
             {cnpj && !latestMonthly && cvmCollectorMutation.isPending && (
-              <p className="text-muted-foreground">Buscando dados da CVM pela primeira vez...</p>
+              <p className="text-muted-foreground">Fetching CVM data for the first time...</p>
             )}
             {cnpj &&
               !latestMonthly &&
               !monthlyQuery.isLoading &&
               !cvmCollectorMutation.isPending && (
                 <p className="text-muted-foreground">
-                  Nenhum dado da CVM ainda — clique em "Atualizar dados CVM" acima.
+                  No CVM data yet — click "Update CVM data" above.
                 </p>
               )}
 
             {latestMonthly && (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <StatTile
-                  label="Patrimônio líquido"
+                  label="Net assets"
                   value={formatCurrency(latestMonthly.patrimonio_liquido)}
                 />
                 <StatTile
-                  label="Valor patrimonial/cota"
+                  label="Book value/share"
                   value={formatCurrency(latestMonthly.valor_patrimonial_cota)}
                 />
-                <StatTile label="Cotistas" value={String(latestMonthly.numero_cotistas ?? "—")} />
+                <StatTile label="Shareholders" value={String(latestMonthly.numero_cotistas ?? "—")} />
               </div>
             )}
           </div>
@@ -298,18 +298,18 @@ function FiiLookupSection({ ticker }: { ticker: string }) {
           {properties.length > 0 && (
             <div>
               <h3 className="mb-3 text-sm font-semibold text-muted-foreground">
-                Imóveis (referência: {properties[0].reference_date})
+                Properties (reference: {properties[0].reference_date})
               </h3>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Imóvel</TableHead>
-                    <TableHead>Endereço</TableHead>
-                    <TableHead>Área</TableHead>
-                    <TableHead>Vacância</TableHead>
-                    <TableHead>Inadimplência</TableHead>
-                    <TableHead>% Receita</TableHead>
-                    <TableHead>% Locado</TableHead>
+                    <TableHead>Property</TableHead>
+                    <TableHead>Address</TableHead>
+                    <TableHead>Area</TableHead>
+                    <TableHead>Vacancy</TableHead>
+                    <TableHead>Delinquency</TableHead>
+                    <TableHead>% Revenue</TableHead>
+                    <TableHead>% Leased</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -335,7 +335,7 @@ function FiiLookupSection({ ticker }: { ticker: string }) {
 
           <div>
             <h3 className="mb-3 text-sm font-semibold text-muted-foreground">
-              Histórico de proventos
+              Dividend history
             </h3>
             <DividendHistoryChart payments={dividendsQuery.data ?? []} />
           </div>

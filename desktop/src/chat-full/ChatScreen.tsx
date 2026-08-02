@@ -61,7 +61,7 @@ function ChatScreen({ onBack }: { onBack: () => void }) {
             <Button variant="outline" size="sm" onClick={onBack}>
               ← Back
             </Button>
-            <CardTitle>Chat de IA</CardTitle>
+            <CardTitle>AI Chat</CardTitle>
           </div>
           {hasKey && (
             <div className="flex items-center gap-2">
@@ -88,7 +88,7 @@ function ChatScreen({ onBack }: { onBack: () => void }) {
               <Input
                 value={model}
                 onChange={(e) => setModel(e.currentTarget.value)}
-                placeholder="modelo"
+                placeholder="model"
                 className="w-36 text-xs"
               />
             </div>
@@ -105,7 +105,7 @@ function ChatScreen({ onBack }: { onBack: () => void }) {
             <ApiKeyGate />
           ) : selectedConversationId === null ? (
             <p className="text-muted-foreground">
-              Crie ou selecione uma conversa pra começar.
+              Create or select a conversation to get started.
             </p>
           ) : (
             <>

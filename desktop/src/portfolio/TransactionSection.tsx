@@ -208,12 +208,12 @@ function TransactionSection({
     <div className="flex flex-col gap-6">
       <Card>
         <CardHeader>
-          <CardTitle>Novo lançamento</CardTitle>
+          <CardTitle>New transaction</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <Field label="Tipo">
+              <Field label="Type">
                 <Select
                   value={transactionType}
                   onValueChange={(value) => setTransactionType(value as TransactionType)}
@@ -231,7 +231,7 @@ function TransactionSection({
                 </Select>
               </Field>
 
-              <Field label="Data">
+              <Field label="Date">
                 <Input
                   required
                   type="date"
@@ -241,10 +241,10 @@ function TransactionSection({
               </Field>
 
               {needsAsset(transactionType) && (
-                <Field label="Ativo">
+                <Field label="Asset">
                   <Select value={assetId} onValueChange={setAssetId}>
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecione um ativo" />
+                      <SelectValue placeholder="Select an asset" />
                     </SelectTrigger>
                     <SelectContent>
                       {assets.map((asset) => (
@@ -260,7 +260,7 @@ function TransactionSection({
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
               {needsQuantity(transactionType) && (
-                <Field label="Quantidade">
+                <Field label="Quantity">
                   <Input
                     required
                     type="number"
@@ -271,7 +271,7 @@ function TransactionSection({
                 </Field>
               )}
               {needsUnitPrice(transactionType) && (
-                <Field label="Preço unitário">
+                <Field label="Unit price">
                   <Input
                     required
                     type="number"
@@ -281,7 +281,7 @@ function TransactionSection({
                   />
                 </Field>
               )}
-              <Field label="Valor total">
+              <Field label="Total value">
                 <Input
                   required
                   type="number"
@@ -290,7 +290,7 @@ function TransactionSection({
                   onChange={(e) => setTotalValue(e.currentTarget.value)}
                 />
               </Field>
-              <Field label="Taxa (opcional)">
+              <Field label="Fee (optional)">
                 <Input
                   type="number"
                   step="any"
@@ -301,10 +301,10 @@ function TransactionSection({
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label={needsTransferDestination(transactionType) ? "Custódia (origem)" : "Custódia (opcional)"}>
+              <Field label={needsTransferDestination(transactionType) ? "Custody (source)" : "Custody (optional)"}>
                 <Select value={custodiaId} onValueChange={setCustodiaId}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Sem custódia definida" />
+                    <SelectValue placeholder="No custody set" />
                   </SelectTrigger>
                   <SelectContent>
                     {custodias.map((custodia) => (
@@ -317,10 +317,10 @@ function TransactionSection({
               </Field>
 
               {needsTransferDestination(transactionType) && (
-                <Field label="Custódia (destino)">
+                <Field label="Custody (destination)">
                   <Select value={transferToCustodiaId} onValueChange={setTransferToCustodiaId}>
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecione o destino" />
+                      <SelectValue placeholder="Select the destination" />
                     </SelectTrigger>
                     <SelectContent>
                       {custodias.map((custodia) => (
@@ -336,10 +336,10 @@ function TransactionSection({
 
             {showFixedIncomeFields && (
               <div className="grid grid-cols-1 gap-4 rounded-md border p-4 sm:grid-cols-3">
-                <Field label="Emissor (opcional)">
+                <Field label="Issuer (optional)">
                   <Input value={fiEmissor} onChange={(e) => setFiEmissor(e.currentTarget.value)} />
                 </Field>
-                <Field label="Indexador">
+                <Field label="Index">
                   <Select value={fiIndexador} onValueChange={setFiIndexador}>
                     <SelectTrigger className="w-full">
                       <SelectValue />
@@ -353,7 +353,7 @@ function TransactionSection({
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field label="Taxa contratada (%)">
+                <Field label="Contracted rate (%)">
                   <Input
                     type="number"
                     step="any"
@@ -361,14 +361,14 @@ function TransactionSection({
                     onChange={(e) => setFiTaxaPercentual(e.currentTarget.value)}
                   />
                 </Field>
-                <Field label="Data de vencimento">
+                <Field label="Maturity date">
                   <Input
                     type="date"
                     value={fiDataVencimento}
                     onChange={(e) => setFiDataVencimento(e.currentTarget.value)}
                   />
                 </Field>
-                <Field label="Liquidez">
+                <Field label="Liquidity">
                   <Select value={fiLiquidez} onValueChange={setFiLiquidez}>
                     <SelectTrigger className="w-full">
                       <SelectValue />
@@ -385,7 +385,7 @@ function TransactionSection({
               </div>
             )}
 
-            <Field label="Notas (opcional)">
+            <Field label="Notes (optional)">
               <Input value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
             </Field>
 
@@ -394,7 +394,7 @@ function TransactionSection({
             )}
 
             <Button type="submit" disabled={!canSubmit || createMutation.isPending} className="w-fit">
-              {createMutation.isPending ? "Lançando..." : "Lançar"}
+              {createMutation.isPending ? "Logging..." : "Log transaction"}
             </Button>
           </form>
         </CardContent>
@@ -402,12 +402,12 @@ function TransactionSection({
 
       <Card>
         <CardHeader>
-          <CardTitle>Posições consolidadas</CardTitle>
+          <CardTitle>Consolidated positions</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="mb-4 text-sm text-muted-foreground">
-            Quantidade líquida e preço médio de compra (média simples das compras, sem redução por
-            venda — custo médio/FIFO de verdade fica pra Fase 10.3).
+            Net quantity and average buy price (simple average of purchases, not reduced by
+            sells — real average-cost/FIFO is left for Fase 10.3).
           </p>
           {positionsQuery.isError && (
             <p className="mb-3 text-red-600">{positionsQuery.error.message}</p>
@@ -416,17 +416,17 @@ function TransactionSection({
             <TableHeader>
               <TableRow>
                 <TableHead>Ticker</TableHead>
-                <TableHead>Nome</TableHead>
-                <TableHead>Quantidade</TableHead>
-                <TableHead>Preço médio (compra)</TableHead>
-                <TableHead>Por custódia</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Quantity</TableHead>
+                <TableHead>Avg. price (buy)</TableHead>
+                <TableHead>By custody</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {positions.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center text-muted-foreground">
-                    Nenhuma posição ainda — lance uma compra acima.
+                    No positions yet — log a purchase above.
                   </TableCell>
                 </TableRow>
               )}
@@ -442,7 +442,7 @@ function TransactionSection({
                   </TableCell>
                   <TableCell>
                     {position.by_custodia
-                      .map((c) => `${c.custodia_label ?? "sem custódia"}: ${c.quantity}`)
+                      .map((c) => `${c.custodia_label ?? "no custody"}: ${c.quantity}`)
                       .join(" · ")}
                   </TableCell>
                 </TableRow>
@@ -454,7 +454,7 @@ function TransactionSection({
 
       <Card>
         <CardHeader>
-          <CardTitle>Histórico de lançamentos</CardTitle>
+          <CardTitle>Transaction history</CardTitle>
         </CardHeader>
         <CardContent>
           {transactionsQuery.isError && (
@@ -463,13 +463,13 @@ function TransactionSection({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Data</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Ativo</TableHead>
-                <TableHead>Quantidade</TableHead>
-                <TableHead>Preço unit.</TableHead>
-                <TableHead>Valor total</TableHead>
-                <TableHead>Custódia</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Asset</TableHead>
+                <TableHead>Quantity</TableHead>
+                <TableHead>Unit price</TableHead>
+                <TableHead>Total value</TableHead>
+                <TableHead>Custody</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -477,7 +477,7 @@ function TransactionSection({
               {transactions.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center text-muted-foreground">
-                    Nenhum lançamento ainda.
+                    No transactions yet.
                   </TableCell>
                 </TableRow>
               )}

@@ -138,10 +138,10 @@ function DocumentExtractDialog<T>({
           <div className="flex flex-col gap-3">
             <Button type="button" variant="outline" onClick={handleChooseFile}>
               <FileText />
-              {filePath ? filePath.split("/").pop() : "Escolher PDF..."}
+              {filePath ? filePath.split("/").pop() : "Choose PDF..."}
             </Button>
 
-            <Field label="Chave de API">
+            <Field label="API key">
               <div className="flex gap-2">
                 <Select
                   value={selectedKeyId !== null ? String(selectedKeyId) : undefined}
@@ -161,7 +161,7 @@ function DocumentExtractDialog<T>({
                 <Input
                   value={model}
                   onChange={(e) => setModel(e.currentTarget.value)}
-                  placeholder="modelo"
+                  placeholder="model"
                   className="text-xs"
                 />
               </div>
@@ -185,15 +185,15 @@ function DocumentExtractDialog<T>({
                 onClick={() => extractMutation.mutate()}
                 disabled={!filePath || selectedKeyId === null || extractMutation.isPending}
               >
-                {extractMutation.isPending ? "Extraindo..." : "Extrair"}
+                {extractMutation.isPending ? "Extracting..." : "Extract"}
               </Button>
             ) : (
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setResult(null)}>
-                  Descartar
+                  Discard
                 </Button>
                 <Button type="button" onClick={handleAccept}>
-                  Usar este valor
+                  Use this value
                 </Button>
               </DialogFooter>
             )}

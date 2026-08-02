@@ -42,14 +42,14 @@ function WorkspaceGate({ onEnter }: { onEnter: (workspaceId: number) => void }) 
     <div className="flex min-h-[60vh] items-center justify-center">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Escolha um Workspace</CardTitle>
+          <CardTitle>Choose a Workspace</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-6">
           {workspacesQuery.isError && (
             <p className="text-red-600">{workspacesQuery.error.message}</p>
           )}
           {workspacesQuery.isLoading && (
-            <p className="text-muted-foreground">Carregando...</p>
+            <p className="text-muted-foreground">Loading...</p>
           )}
 
           <div className="flex flex-col gap-2">
@@ -67,10 +67,10 @@ function WorkspaceGate({ onEnter }: { onEnter: (workspaceId: number) => void }) 
           </div>
 
           <form onSubmit={handleCreate} className="flex flex-col gap-3 border-t pt-4">
-            <Field label="Novo Workspace">
+            <Field label="New Workspace">
               <Input
                 required
-                placeholder="ex.: Família"
+                placeholder="e.g.: Family"
                 value={newWorkspaceName}
                 onChange={(e) => setNewWorkspaceName(e.currentTarget.value)}
               />
@@ -79,7 +79,7 @@ function WorkspaceGate({ onEnter }: { onEnter: (workspaceId: number) => void }) 
               <p className="text-red-600">{createWorkspaceMutation.error.message}</p>
             )}
             <Button type="submit" disabled={createWorkspaceMutation.isPending}>
-              {createWorkspaceMutation.isPending ? "Criando..." : "Criar e entrar"}
+              {createWorkspaceMutation.isPending ? "Creating..." : "Create and enter"}
             </Button>
           </form>
         </CardContent>

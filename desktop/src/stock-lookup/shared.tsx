@@ -132,7 +132,7 @@ export function AddToAssetsButton({
   if (assetsQuery.isLoading) return null;
 
   if (alreadyRegistered) {
-    return <p className="text-sm text-muted-foreground">✓ Já cadastrado em Ativos</p>;
+    return <p className="text-sm text-muted-foreground">✓ Already registered in Assets</p>;
   }
 
   return (
@@ -144,7 +144,7 @@ export function AddToAssetsButton({
         disabled={createMutation.isPending}
         onClick={() => createMutation.mutate()}
       >
-        {createMutation.isPending ? "Adicionando..." : "Adicionar aos Ativos"}
+        {createMutation.isPending ? "Adding..." : "Add to Assets"}
       </Button>
       {createMutation.isError && (
         <p className="text-sm text-red-600">{createMutation.error.message}</p>

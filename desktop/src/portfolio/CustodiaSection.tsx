@@ -74,33 +74,33 @@ function CustodiaSection({ workspaceId }: { workspaceId: number }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Custódias</CardTitle>
+        <CardTitle>Custodies</CardTitle>
       </CardHeader>
       <CardContent>
         <p className="mb-4 text-sm text-muted-foreground">
-          Onde cada investimento está guardado (corretora, exchange, wallet, banco) — ortogonal à
-          classe do ativo. Cadastro livre, sem lista pré-pronta.
+          Where each investment is held (broker, exchange, wallet, bank) — orthogonal to asset
+          class. Free-form registration, no preset list.
         </p>
         <form onSubmit={handleSubmit} className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Field label="Instituição" className="sm:col-span-1">
+          <Field label="Institution" className="sm:col-span-1">
             <Input
               required
-              placeholder="ex.: Rico, Ledger"
+              placeholder="e.g.: Rico, Ledger"
               value={instituicao}
               onChange={(e) => setInstituicao(e.currentTarget.value)}
             />
           </Field>
-          <Field label="Titular" className="sm:col-span-1">
+          <Field label="Holder" className="sm:col-span-1">
             <Input
               required
-              placeholder="ex.: CPF/CNPJ"
+              placeholder="e.g.: CPF/CNPJ"
               value={titular}
               onChange={(e) => setTitular(e.currentTarget.value)}
             />
           </Field>
           <div className="flex items-end">
             <Button type="submit" disabled={createMutation.isPending} className="w-fit">
-              {createMutation.isPending ? "Adicionando..." : "Adicionar custódia"}
+              {createMutation.isPending ? "Adding..." : "Add custody"}
             </Button>
           </div>
         </form>
@@ -115,8 +115,8 @@ function CustodiaSection({ workspaceId }: { workspaceId: number }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Instituição</TableHead>
-              <TableHead>Titular</TableHead>
+              <TableHead>Institution</TableHead>
+              <TableHead>Holder</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -124,7 +124,7 @@ function CustodiaSection({ workspaceId }: { workspaceId: number }) {
             {custodias.length === 0 && (
               <TableRow>
                 <TableCell colSpan={3} className="text-center text-muted-foreground">
-                  Nenhuma custódia cadastrada ainda.
+                  No custody registered yet.
                 </TableCell>
               </TableRow>
             )}

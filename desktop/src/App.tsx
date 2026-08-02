@@ -49,7 +49,7 @@ type ModelKey = keyof typeof MODELS;
 
 const SECTIONS = {
   valuation: "Valuation",
-  lookup: "Pesquisa",
+  lookup: "Research",
   crypto: "Crypto Score",
   portfolio: "Portfolio",
   alerts: "Alerts",
@@ -123,7 +123,7 @@ function App() {
                 onClick={() => setView("chat")}
               >
                 <MessageSquareIcon />
-                <span className="sr-only">Chat em tela cheia</span>
+                <span className="sr-only">Full-screen chat</span>
               </Button>
               <Button
                 type="button"
@@ -132,7 +132,7 @@ function App() {
                 onClick={() => setView("settings")}
               >
                 <SettingsIcon />
-                <span className="sr-only">Configurações</span>
+                <span className="sr-only">Settings</span>
               </Button>
               <Button
                 type="button"
@@ -141,7 +141,7 @@ function App() {
                 onClick={() => setWorkspaceId(null)}
               >
                 <LogOutIcon />
-                <span className="sr-only">Trocar Workspace</span>
+                <span className="sr-only">Switch Workspace</span>
               </Button>
             </div>
           </div>

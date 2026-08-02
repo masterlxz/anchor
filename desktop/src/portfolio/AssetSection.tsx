@@ -234,17 +234,18 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Ativos</CardTitle>
+        <CardTitle>Assets</CardTitle>
       </CardHeader>
       <CardContent>
         <p className="mb-4 text-sm text-muted-foreground">
-          Catálogo de ativos negociáveis/registráveis — compartilhado entre todos os Portfolios do
-          Workspace. Ação (B3) e FII (B3) buscam os dados automaticamente pelo ticker; as demais
-          classes (Stocks internacionais, Tesouro Direto, Renda Fixa) usam cadastro manual por ora.
+          Catalog of tradeable/registrable assets — shared across every Portfolio in the
+          Workspace. Stock (B3) and FII (B3) fetch data automatically by ticker; the other classes
+          (International stocks, Tesouro Direto, Fixed income) still use manual registration for
+          now.
         </p>
 
         <div className="mb-4 max-w-xs">
-          <Field label="Classe do ativo">
+          <Field label="Asset class">
             <Select value={assetClass} onValueChange={(value) => setAssetClass(value as AssetClass)}>
               <SelectTrigger className="w-full">
                 <SelectValue />
@@ -262,7 +263,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
 
         {isAutoQuoteClass && (
           <form onSubmit={handleTickerSearch} className="mb-4 flex items-end gap-3">
-            <Field label="Buscar ticker (B3)" className="flex-1">
+            <Field label="Search ticker (B3)" className="flex-1">
               <Input
                 required
                 placeholder={assetClass === "fii" ? "HGLG11" : "PETR4"}
@@ -270,7 +271,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
                 onChange={(e) => setTickerQuery(e.currentTarget.value)}
               />
             </Field>
-            <Button type="submit">Buscar</Button>
+            <Button type="submit">Search</Button>
           </form>
         )}
 
@@ -281,35 +282,35 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
           <p className="mb-3 text-red-600">{collectorMutation.error.message}</p>
         )}
         {isAutoQuoteClass && activeTicker && lookupQuery.isLoading && (
-          <p className="mb-3 text-muted-foreground">Carregando {activeTicker}...</p>
+          <p className="mb-3 text-muted-foreground">Loading {activeTicker}...</p>
         )}
         {isAutoQuoteClass && activeTicker && lookupQuery.data === null && collectorMutation.isPending && (
-          <p className="mb-3 text-muted-foreground">Buscando {activeTicker} pela primeira vez...</p>
+          <p className="mb-3 text-muted-foreground">Fetching {activeTicker} for the first time...</p>
         )}
         {isAutoQuoteClass &&
           activeTicker &&
           lookupQuery.isSuccess &&
           lookupQuery.data === null &&
           !collectorMutation.isPending && (
-            <p className="mb-3 text-muted-foreground">Nenhum dado encontrado para {activeTicker}.</p>
+            <p className="mb-3 text-muted-foreground">No data found for {activeTicker}.</p>
           )}
 
         {showCreateForm && (
           <form onSubmit={handleSubmit} className="mb-8 flex flex-col gap-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <Field label="Ticker / identificador">
+              <Field label="Ticker / identifier">
                 <Input
                   required
                   disabled={isAutoQuoteClass}
-                  placeholder="ex.: PETR4, Tesouro IPCA+ 2035"
+                  placeholder="e.g.: PETR4, Tesouro IPCA+ 2035"
                   value={ticker}
                   onChange={(e) => setTicker(e.currentTarget.value)}
                 />
               </Field>
-              <Field label="Nome" className="sm:col-span-2">
+              <Field label="Name" className="sm:col-span-2">
                 <Input
                   required
-                  placeholder="ex.: Petrobras PN"
+                  placeholder="e.g.: Petrobras PN"
                   value={name}
                   onChange={(e) => setName(e.currentTarget.value)}
                 />
@@ -317,7 +318,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Moeda">
+              <Field label="Currency">
                 <Input
                   required
                   placeholder="BRL, USD..."
@@ -325,9 +326,9 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
                   onChange={(e) => setCurrency(e.currentTarget.value)}
                 />
               </Field>
-              <Field label="Bolsa/listagem (opcional)">
+              <Field label="Exchange/listing (optional)">
                 <Input
-                  placeholder="ex.: B3, NASDAQ"
+                  placeholder="e.g.: B3, NASDAQ"
                   value={exchange}
                   onChange={(e) => setExchange(e.currentTarget.value)}
                 />
@@ -335,7 +336,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Tipo de exposição">
+              <Field label="Exposure type">
                 <Select
                   value={exposureType}
                   onValueChange={(value) => setExposureType(value as ExposureType)}
@@ -344,16 +345,16 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="pais">País</SelectItem>
-                    <SelectItem value="categoria_especial">Categoria especial</SelectItem>
+                    <SelectItem value="pais">Country</SelectItem>
+                    <SelectItem value="categoria_especial">Special category</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
               <Field
                 label={
                   exposureType === "pais"
-                    ? "País de exposição (ex.: BR, US)"
-                    : "Categoria (ex.: cripto, metal_ouro)"
+                    ? "Exposure country (e.g.: BR, US)"
+                    : "Category (e.g.: crypto, gold_metal)"
                 }
               >
                 <Input
@@ -365,19 +366,19 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
             </div>
 
             {isFii && (
-              <Field label="CNPJ do fundo (pra puxar indicadores da CVM — vacância, inadimplência, patrimônio)">
+              <Field label="Fund CNPJ (to pull indicators from CVM — vacancy, delinquency, net assets)">
                 <Input
                   placeholder="00.000.000/0001-00"
                   value={cnpj}
                   onChange={(e) => setCnpj(e.currentTarget.value)}
                 />
                 {resolveCnpjMutation.isPending && (
-                  <p className="mt-1 text-sm text-muted-foreground">Buscando CNPJ...</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Looking up CNPJ...</p>
                 )}
                 {resolveCnpjMutation.isSuccess && resolveCnpjMutation.data === null && (
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Não achei o CNPJ automaticamente — cole manualmente (site do fundo ou CVM) ou
-                    deixe em branco e resolva depois pelo painel de detalhes CVM.
+                    Couldn't find the CNPJ automatically — paste it manually (fund's website or
+                    CVM) or leave it blank and resolve it later from the CVM details panel.
                   </p>
                 )}
               </Field>
@@ -388,7 +389,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
             )}
 
             <Button type="submit" disabled={createMutation.isPending} className="w-fit">
-              {createMutation.isPending ? "Adicionando..." : "Adicionar ativo"}
+              {createMutation.isPending ? "Adding..." : "Add asset"}
             </Button>
           </form>
         )}
@@ -401,11 +402,11 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
           <TableHeader>
             <TableRow>
               <TableHead>Ticker</TableHead>
-              <TableHead>Nome</TableHead>
-              <TableHead>Classe</TableHead>
-              <TableHead>Moeda</TableHead>
-              <TableHead>Bolsa</TableHead>
-              <TableHead>Exposição</TableHead>
+              <TableHead>Name</TableHead>
+              <TableHead>Class</TableHead>
+              <TableHead>Currency</TableHead>
+              <TableHead>Exchange</TableHead>
+              <TableHead>Exposure</TableHead>
               <TableHead>★</TableHead>
               <TableHead></TableHead>
             </TableRow>
@@ -414,7 +415,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
             {assets.length === 0 && (
               <TableRow>
                 <TableCell colSpan={8} className="text-center text-muted-foreground">
-                  Nenhum ativo cadastrado ainda.
+                  No assets registered yet.
                 </TableCell>
               </TableRow>
             )}
@@ -442,7 +443,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
                         size="sm"
                         disabled={toggleFavoriteMutation.isPending}
                         onClick={() => toggleFavoriteMutation.mutate(asset.id)}
-                        aria-label={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                        aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
                       >
                         {isFavorite ? "★" : "☆"}
                       </Button>
@@ -455,7 +456,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
                           size="sm"
                           onClick={() => setExpandedAssetId(isExpanded ? null : asset.id)}
                         >
-                          {isExpanded ? "Ocultar CVM" : "Dados CVM"}
+                          {isExpanded ? "Hide CVM" : "CVM data"}
                         </Button>
                       )}
                     </TableCell>

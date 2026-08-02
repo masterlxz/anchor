@@ -44,12 +44,12 @@ function StockLookupPanel() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Pesquisa</CardTitle>
+        <CardTitle>Research</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
         <form onSubmit={handleSearch} className="flex items-end gap-3">
           <div className="w-40">
-            <Field label="Classe">
+            <Field label="Class">
               <Select
                 value={assetClass}
                 onValueChange={(value) => setAssetClass(value as AssetClass)}

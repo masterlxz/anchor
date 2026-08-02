@@ -39,11 +39,11 @@ export const ASSET_CLASSES: AssetClass[] = [
 ];
 
 export const ASSET_CLASS_LABELS: Record<AssetClass, string> = {
-  acao_br: "Ação (B3)",
+  acao_br: "Stock (B3)",
   fii: "FII (B3)",
-  acao_internacional: "Stock internacional",
+  acao_internacional: "International stock",
   tesouro_direto: "Tesouro Direto",
-  renda_fixa: "Renda Fixa",
+  renda_fixa: "Fixed income",
 };
 
 // Classes que usam os campos fi_* (renda fixa detalhada) na transação de compra.
@@ -124,12 +124,12 @@ export const TRANSACTION_TYPES: TransactionType[] = [
 ];
 
 export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
-  compra: "Compra",
-  venda: "Venda",
-  aporte: "Aporte",
-  retirada: "Retirada",
-  provento: "Provento",
-  transferencia: "Transferência entre custódias",
+  compra: "Buy",
+  venda: "Sell",
+  aporte: "Contribution",
+  retirada: "Withdrawal",
+  provento: "Dividend",
+  transferencia: "Transfer between custodies",
 };
 
 export const FI_INDEXADORES = ["CDI", "IPCA", "SELIC", "PREFIXADO", "OUTRO"] as const;

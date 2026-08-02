@@ -46,9 +46,9 @@ function ApiKeyGate() {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-4">
       <p className="text-sm text-muted-foreground">
-        Cole uma chave de API pra habilitar o chat. Ela fica guardada só no
-        keyring do seu sistema, nunca no banco ou no git — dá pra adicionar
-        mais chaves e nomeá-las depois em Configurações.
+        Paste an API key to enable the chat. It's stored only in your
+        system's keyring, never in the database or in git — you can add
+        more keys and name them later in Settings.
       </p>
 
       <Field label="Provider">
@@ -66,7 +66,7 @@ function ApiKeyGate() {
         </Select>
       </Field>
 
-      <Field label={`Chave de API do ${PROVIDER_LABELS[provider] ?? provider}`}>
+      <Field label={`${PROVIDER_LABELS[provider] ?? provider} API key`}>
         <Input
           type="password"
           value={key}
@@ -84,7 +84,7 @@ function ApiKeyGate() {
         disabled={!key.trim() || createMutation.isPending}
         className="w-fit"
       >
-        {createMutation.isPending ? "Salvando..." : "Salvar chave"}
+        {createMutation.isPending ? "Saving..." : "Save key"}
       </Button>
     </form>
   );

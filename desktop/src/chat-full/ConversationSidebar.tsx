@@ -87,7 +87,7 @@ function ConversationSidebar({
         <p className="text-red-600">{conversationsQuery.error.message}</p>
       )}
       {conversations.length === 0 && !conversationsQuery.isPending && (
-        <p className="text-sm text-muted-foreground">Nenhuma conversa ainda.</p>
+        <p className="text-sm text-muted-foreground">No conversations yet.</p>
       )}
 
       <div className="flex flex-col gap-1 overflow-y-auto">

@@ -31,8 +31,8 @@ const AXIS_COLOR = "#9fb1c2"; // --muted-foreground
 const TOOLTIP_BG = "#111820"; // --card
 
 const MONTH_LABELS = [
-  "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
-  "Jul", "Ago", "Set", "Out", "Nov", "Dez",
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
 function bucketKey(paymentDate: string, granularity: Granularity): string {
@@ -84,7 +84,7 @@ function AmountTooltip({ active, payload }: { active?: boolean; payload?: { payl
       style={{ background: TOOLTIP_BG }}
     >
       <p className="font-medium">{bucket.label}</p>
-      <p className="text-muted-foreground">R$ {bucket.amount.toFixed(2)}/ação</p>
+      <p className="text-muted-foreground">R$ {bucket.amount.toFixed(2)}/share</p>
     </div>
   );
 }
@@ -99,7 +99,7 @@ function YieldTooltip({ active, payload }: { active?: boolean; payload?: { paylo
       style={{ background: TOOLTIP_BG }}
     >
       <p className="font-medium">{bucket.label}</p>
-      <p className="text-muted-foreground">{bucket.avgYield.toFixed(2)}% na cotação do pagamento</p>
+      <p className="text-muted-foreground">{bucket.avgYield.toFixed(2)}% at the payment-date price</p>
     </div>
   );
 }
@@ -109,7 +109,7 @@ function DividendHistoryChart({ payments }: { payments: StockDividendPayment[] }
   const data = useMemo(() => groupPayments(payments, granularity), [payments, granularity]);
 
   if (payments.length === 0) {
-    return <p className="text-muted-foreground">Nenhum dividendo pago encontrado.</p>;
+    return <p className="text-muted-foreground">No dividend payments found.</p>;
   }
 
   return (
@@ -121,7 +121,7 @@ function DividendHistoryChart({ payments }: { payments: StockDividendPayment[] }
           variant={granularity === "monthly" ? "default" : "outline"}
           onClick={() => setGranularity("monthly")}
         >
-          Mensal
+          Monthly
         </Button>
         <Button
           type="button"
@@ -129,12 +129,12 @@ function DividendHistoryChart({ payments }: { payments: StockDividendPayment[] }
           variant={granularity === "yearly" ? "default" : "outline"}
           onClick={() => setGranularity("yearly")}
         >
-          Anual
+          Yearly
         </Button>
       </div>
 
       <div>
-        <p className="mb-1 text-sm text-muted-foreground">Valor pago (R$/ação)</p>
+        <p className="mb-1 text-sm text-muted-foreground">Amount paid (R$/share)</p>
         <ResponsiveContainer width="100%" height={180}>
           <BarChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid stroke={GRID_COLOR} vertical={false} />
@@ -148,7 +148,7 @@ function DividendHistoryChart({ payments }: { payments: StockDividendPayment[] }
 
       <div>
         <p className="mb-1 text-sm text-muted-foreground">
-          Yield no pagamento (% da cotação daquele momento)
+          Yield at payment (% of the price at that time)
         </p>
         <ResponsiveContainer width="100%" height={180}>
           <BarChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>

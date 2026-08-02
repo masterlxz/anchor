@@ -154,8 +154,8 @@ function GordonForm() {
               onChange={(e) => setCurrentDividend(e.currentTarget.value)}
             />
             <p className="text-xs text-muted-foreground">
-              Pré-preenchido com a média de dividendos dos últimos 5 anos —
-              ajuste se tiver o valor exato do último dividendo pago.
+              Pre-filled with the average dividend of the last 5 years —
+              adjust if you have the exact value of the last dividend paid.
             </p>
           </Field>
 

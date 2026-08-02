@@ -30,12 +30,12 @@ type PortfolioSection =
   | "theses";
 
 const PORTFOLIO_SECTIONS: Record<PortfolioSection, string> = {
-  transactions: "Lançamentos & Posições",
-  profitability: "Rentabilidade",
-  assets: "Ativos",
-  custodias: "Custódias",
+  transactions: "Transactions & Positions",
+  profitability: "Profitability",
+  assets: "Assets",
+  custodias: "Custodies",
   watchlists: "Watchlists",
-  theses: "Teses",
+  theses: "Theses",
 };
 
 type CreatePortfolioRequest = {
@@ -118,13 +118,13 @@ function PortfolioPanel({ workspaceId }: { workspaceId: number }) {
     return <p className="text-red-600">{portfoliosQuery.error.message}</p>;
   }
   if (portfoliosQuery.isLoading) {
-    return <p className="text-muted-foreground">Carregando...</p>;
+    return <p className="text-muted-foreground">Loading...</p>;
   }
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-end gap-4">
-        <Field label="Carteira" className="flex-1">
+        <Field label="Portfolio" className="flex-1">
           <Select
             value={selectedPortfolioId !== null ? String(selectedPortfolioId) : ""}
             onValueChange={(value) => setSelectedPortfolioId(Number(value))}
@@ -151,20 +151,20 @@ function PortfolioPanel({ workspaceId }: { workspaceId: number }) {
           }}
           disabled={selectedPortfolioId === null}
         >
-          Renomear
+          Rename
         </Button>
         <Button
           type="button"
           variant="outline"
           onClick={() => setShowNewPortfolioForm((v) => !v)}
         >
-          Nova carteira
+          New portfolio
         </Button>
       </div>
 
       {renamingPortfolio && (
         <form onSubmit={handleRenameSubmit} className="flex items-end gap-4">
-          <Field label="Novo nome da carteira" className="flex-1">
+          <Field label="New portfolio name" className="flex-1">
             <Input
               required
               value={renameValue}
@@ -172,14 +172,14 @@ function PortfolioPanel({ workspaceId }: { workspaceId: number }) {
             />
           </Field>
           <Button type="submit" disabled={renamePortfolioMutation.isPending}>
-            {renamePortfolioMutation.isPending ? "Salvando..." : "Salvar"}
+            {renamePortfolioMutation.isPending ? "Saving..." : "Save"}
           </Button>
         </form>
       )}
 
       {showNewPortfolioForm && (
         <form onSubmit={handleCreatePortfolio} className="flex items-end gap-4">
-          <Field label="Nome da nova carteira" className="flex-1">
+          <Field label="New portfolio's name" className="flex-1">
             <Input
               required
               value={newPortfolioName}
@@ -187,7 +187,7 @@ function PortfolioPanel({ workspaceId }: { workspaceId: number }) {
             />
           </Field>
           <Button type="submit" disabled={createPortfolioMutation.isPending}>
-            {createPortfolioMutation.isPending ? "Criando..." : "Criar"}
+            {createPortfolioMutation.isPending ? "Creating..." : "Create"}
           </Button>
         </form>
       )}

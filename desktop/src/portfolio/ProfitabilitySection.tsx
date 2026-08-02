@@ -46,8 +46,8 @@ const TOOLTIP_BG = "#111820"; // --card
 const REFERENCE_COLOR = "#3a4553";
 
 const MONTH_LABELS = [
-  "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
-  "Jul", "Ago", "Set", "Out", "Nov", "Dez",
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
 function monthLabel(yearMonth: string): string {
@@ -124,13 +124,13 @@ function ProfitabilitySection({ portfolioId }: { portfolioId: number }) {
     <div className="flex flex-col gap-6">
       <Card>
         <CardHeader>
-          <CardTitle>Rentabilidade (TWR / Dietz Modificado)</CardTitle>
+          <CardTitle>Profitability (TWR / Modified Dietz)</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <p className="text-sm text-muted-foreground">
-            Cobre Ação BR e FII nesta fatia — aporte/retirada e as demais classes (Tesouro
-            Direto, Renda Fixa, ações internacionais) ainda não entram nesse cálculo, por falta
-            de preço histórico automatizado pra elas.
+            Covers Stock (B3) and FII in this slice — contributions/withdrawals and the other
+            classes (Tesouro Direto, Fixed income, international stocks) don't factor into this
+            calculation yet, for lack of automated historical prices for them.
           </p>
 
           <div>
@@ -140,11 +140,11 @@ function ProfitabilitySection({ portfolioId }: { portfolioId: number }) {
               onClick={() => backfillMutation.mutate(autoQuoteTickers)}
               disabled={backfillMutation.isPending || autoQuoteTickers.length === 0}
             >
-              {backfillMutation.isPending ? "Atualizando..." : "Atualizar histórico de preços"}
+              {backfillMutation.isPending ? "Updating..." : "Update price history"}
             </Button>
             {autoQuoteTickers.length === 0 && (
               <p className="mt-2 text-sm text-muted-foreground">
-                Nenhum ativo Ação BR ou FII na carteira ainda.
+                No Stock (B3) or FII assets in the portfolio yet.
               </p>
             )}
           </div>
@@ -154,15 +154,15 @@ function ProfitabilitySection({ portfolioId }: { portfolioId: number }) {
           )}
           {profitabilityQuery.isError && (
             <p className="text-red-600">
-              {profitabilityQuery.error.message} — se for preço faltando, rode "Atualizar
-              histórico de preços" acima.
+              {profitabilityQuery.error.message} — if it's a missing price, run "Update price
+              history" above.
             </p>
           )}
 
           {chartData.length > 0 && (
             <>
               <div>
-                <p className="mb-1 text-sm text-muted-foreground">Rentabilidade mensal</p>
+                <p className="mb-1 text-sm text-muted-foreground">Monthly return</p>
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                     <CartesianGrid stroke={GRID_COLOR} vertical={false} />
@@ -186,7 +186,7 @@ function ProfitabilitySection({ portfolioId }: { portfolioId: number }) {
               </div>
 
               <div>
-                <p className="mb-1 text-sm text-muted-foreground">Rentabilidade acumulada</p>
+                <p className="mb-1 text-sm text-muted-foreground">Cumulative return</p>
                 <ResponsiveContainer width="100%" height={200}>
                   <LineChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                     <CartesianGrid stroke={GRID_COLOR} vertical={false} />
@@ -219,8 +219,8 @@ function ProfitabilitySection({ portfolioId }: { portfolioId: number }) {
 
           {!profitabilityQuery.isError && chartData.length === 0 && (
             <p className="text-muted-foreground">
-              Nenhum lançamento de Ação BR ou FII ainda — lance uma compra na aba "Lançamentos &
-              Posições" pra começar a acompanhar a rentabilidade.
+              No Stock (B3) or FII transactions yet — log a purchase in the "Transactions &
+              Positions" tab to start tracking profitability.
             </p>
           )}
 
@@ -228,12 +228,12 @@ function ProfitabilitySection({ portfolioId }: { portfolioId: number }) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Mês</TableHead>
+                  <TableHead>Month</TableHead>
                   <TableHead>BMV</TableHead>
-                  <TableHead>Fluxo de caixa</TableHead>
+                  <TableHead>Cash flow</TableHead>
                   <TableHead>EMV</TableHead>
-                  <TableHead>R mês</TableHead>
-                  <TableHead>R acumulado</TableHead>
+                  <TableHead>R month</TableHead>
+                  <TableHead>R cumulative</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
