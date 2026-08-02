@@ -20,12 +20,16 @@ export type Custodia = {
   created_at: string;
 };
 
-// Fase 10.2, escopo Sessão 29 — REIT/ETF/cripto/metal/imóvel/empresa não
-// listada (Sessão 30) ficam pra uma fatia futura. `fii` entrou na Sessão 41
-// (ver commands/asset.rs::ASSET_CLASSES).
+// Fase 10.2, escopo Sessão 29 — REIT/cripto/metal/imóvel/empresa não listada
+// (Sessão 30) ficam pra uma fatia futura. `fii` entrou na Sessão 41, `etf_br`
+// na Sessão 49 — só a fatia de cotação automática por ora, sem indicador de
+// fundo específico (CVM não tem categoria de dados abertos pra fundo de
+// índice, diferente de FII, achado pesquisando de verdade — ver PHASE.md
+// item 8). Ver commands/asset.rs::ASSET_CLASSES.
 export type AssetClass =
   | "acao_br"
   | "fii"
+  | "etf_br"
   | "acao_internacional"
   | "tesouro_direto"
   | "renda_fixa";
@@ -33,6 +37,7 @@ export type AssetClass =
 export const ASSET_CLASSES: AssetClass[] = [
   "acao_br",
   "fii",
+  "etf_br",
   "acao_internacional",
   "tesouro_direto",
   "renda_fixa",
@@ -41,6 +46,7 @@ export const ASSET_CLASSES: AssetClass[] = [
 export const ASSET_CLASS_LABELS: Record<AssetClass, string> = {
   acao_br: "Stock (B3)",
   fii: "FII (B3)",
+  etf_br: "ETF (B3)",
   acao_internacional: "International stock",
   tesouro_direto: "Tesouro Direto",
   renda_fixa: "Fixed income",
@@ -52,7 +58,7 @@ export const FIXED_INCOME_CLASSES: AssetClass[] = ["tesouro_direto", "renda_fixa
 // Classes negociadas na B3 com busca automática de cotação por ticker (mesmo
 // endpoint Yahoo `{ticker}.SA`, sem coletor dedicado por classe) — usada por
 // AssetSection.tsx (form vira busca) e ProfitabilitySection.tsx (TWR).
-export const ASSET_CLASSES_WITH_AUTO_QUOTE: AssetClass[] = ["acao_br", "fii"];
+export const ASSET_CLASSES_WITH_AUTO_QUOTE: AssetClass[] = ["acao_br", "fii", "etf_br"];
 
 export type ExposureType = "pais" | "categoria_especial";
 

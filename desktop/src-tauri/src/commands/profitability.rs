@@ -16,14 +16,14 @@ const DIVIDEND: &str = "provento";
 // (decisão explícita do dono do projeto — Stocks internacionais/Tesouro
 // Direto/Renda Fixa ainda não têm, ver project/PHASE.md). `aporte`/
 // `retirada` (sem asset_id) ficam fora deste cálculo. `fii` entrou na
-// Sessão 41 (2026-08-02) — mesmo endpoint Yahoo `{ticker}.SA` que
-// `acao_br` já usa pra `stock_price_history`, sem coletor novo. Essa
-// sub-carteira é tratada como autocontida: suas próprias compra(+)/venda(−)
-// são os fluxos de caixa externos do Dietz Modificado — o app não modela um
-// sub-ledger de caixa, então uma compra não é "caixa→ativo", é "ativo
-// aparece", e pro efeito desta fatia isso equivale a um aporte na
-// sub-carteira.
-const ASSET_CLASSES_WITH_AUTO_QUOTE: [&str; 2] = ["acao_br", "fii"];
+// Sessão 41, `etf_br` na Sessão 49 (2026-08-02) — mesmo endpoint Yahoo
+// `{ticker}.SA` que `acao_br` já usa pra `stock_price_history`, sem
+// coletor novo. Essa sub-carteira é tratada como autocontida: suas
+// próprias compra(+)/venda(−) são os fluxos de caixa externos do Dietz
+// Modificado — o app não modela um sub-ledger de caixa, então uma compra
+// não é "caixa→ativo", é "ativo aparece", e pro efeito desta fatia isso
+// equivale a um aporte na sub-carteira.
+const ASSET_CLASSES_WITH_AUTO_QUOTE: [&str; 3] = ["acao_br", "fii", "etf_br"];
 const PRICE_TOLERANCE_DAYS: i64 = 7;
 
 #[derive(Serialize)]

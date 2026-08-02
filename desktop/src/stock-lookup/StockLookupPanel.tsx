@@ -72,7 +72,9 @@ function StockLookupPanel() {
               required
               value={tickerInput}
               onChange={(e) => setTickerInput(e.currentTarget.value)}
-              placeholder={assetClass === "fii" ? "HGLG11" : "PETR4"}
+              placeholder={
+                assetClass === "fii" ? "HGLG11" : assetClass === "etf_br" ? "BOVA11" : "PETR4"
+              }
             />
           </Field>
           <Button type="submit">Search</Button>

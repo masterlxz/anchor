@@ -54,14 +54,19 @@ async fn upsert_fii_cnpj_cache(
 }
 
 // Fase 10.2, escopo Sessão 29 — as demais classes expandidas na Sessão 30
-// (REIT, ETF, cripto, metal, imóvel, empresa não listada, ver PHASE.md item
-// 8) ficam pra uma fatia futura, junto com as decisões em aberto delas.
-// `fii` entrou na Sessão 41 (2026-08-02): mesmo mecanismo de listagem B3 e
-// mesmo endpoint Yahoo (`{ticker}.SA`) que `acao_br` já usa, sem coletor
-// novo — ver `ASSET_CLASSES_WITH_AUTO_QUOTE` em `profitability.rs`.
-const ASSET_CLASSES: [&str; 5] = [
+// (REIT, cripto, metal, imóvel, empresa não listada, ver PHASE.md item 8)
+// ficam pra uma fatia futura, junto com as decisões em aberto delas.
+// `fii` entrou na Sessão 41, `etf_br` na Sessão 49 (2026-08-02) — mesmo
+// mecanismo de listagem B3 e mesmo endpoint Yahoo (`{ticker}.SA`) que
+// `acao_br` já usa, sem coletor novo — ver `ASSET_CLASSES_WITH_AUTO_QUOTE`
+// em `profitability.rs`. `etf_br` fica só na fatia de cotação por ora — a
+// CVM não tem uma categoria de dados abertos própria pra fundo de índice
+// (achado pesquisando de verdade, diferente de FII/FIDC/FIP, que têm; ver
+// PHASE.md item 8), então sem indicador de fundo específico ainda.
+const ASSET_CLASSES: [&str; 6] = [
     "acao_br",
     "fii",
+    "etf_br",
     "acao_internacional",
     "tesouro_direto",
     "renda_fixa",

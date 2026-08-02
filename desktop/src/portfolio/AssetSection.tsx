@@ -239,9 +239,9 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
       <CardContent>
         <p className="mb-4 text-sm text-muted-foreground">
           Catalog of tradeable/registrable assets — shared across every Portfolio in the
-          Workspace. Stock (B3) and FII (B3) fetch data automatically by ticker; the other classes
-          (International stocks, Tesouro Direto, Fixed income) still use manual registration for
-          now.
+          Workspace. Stock (B3), FII (B3) and ETF (B3) fetch data automatically by ticker; the
+          other classes (International stocks, Tesouro Direto, Fixed income) still use manual
+          registration for now.
         </p>
 
         <div className="mb-4 max-w-xs">
@@ -266,7 +266,9 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
             <Field label="Search ticker (B3)" className="flex-1">
               <Input
                 required
-                placeholder={assetClass === "fii" ? "HGLG11" : "PETR4"}
+                placeholder={
+                  assetClass === "fii" ? "HGLG11" : assetClass === "etf_br" ? "BOVA11" : "PETR4"
+                }
                 value={tickerQuery}
                 onChange={(e) => setTickerQuery(e.currentTarget.value)}
               />

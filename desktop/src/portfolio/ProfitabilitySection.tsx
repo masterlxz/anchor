@@ -128,7 +128,7 @@ function ProfitabilitySection({ portfolioId }: { portfolioId: number }) {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <p className="text-sm text-muted-foreground">
-            Covers Stock (B3) and FII in this slice — contributions/withdrawals and the other
+            Covers Stock (B3), FII and ETF in this slice — contributions/withdrawals and the other
             classes (Tesouro Direto, Fixed income, international stocks) don't factor into this
             calculation yet, for lack of automated historical prices for them.
           </p>
@@ -144,7 +144,7 @@ function ProfitabilitySection({ portfolioId }: { portfolioId: number }) {
             </Button>
             {autoQuoteTickers.length === 0 && (
               <p className="mt-2 text-sm text-muted-foreground">
-                No Stock (B3) or FII assets in the portfolio yet.
+                No Stock (B3), FII or ETF assets in the portfolio yet.
               </p>
             )}
           </div>
@@ -219,7 +219,7 @@ function ProfitabilitySection({ portfolioId }: { portfolioId: number }) {
 
           {!profitabilityQuery.isError && chartData.length === 0 && (
             <p className="text-muted-foreground">
-              No Stock (B3) or FII transactions yet — log a purchase in the "Transactions &
+              No Stock (B3), FII or ETF transactions yet — log a purchase in the "Transactions &
               Positions" tab to start tracking profitability.
             </p>
           )}
