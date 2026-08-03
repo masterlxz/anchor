@@ -118,7 +118,7 @@ export type StockNote = {
   updated_at: string;
 };
 
-type CreateAssetRequest = {
+export type CreateAssetRequest = {
   ticker: string;
   name: string;
   asset_class: string;

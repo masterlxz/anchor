@@ -117,7 +117,7 @@ function App() {
           </div>
 
           <TabsContent value="lookup">
-            <StockLookupPanel />
+            <StockLookupPanel workspaceId={workspaceId} />
           </TabsContent>
 
           <TabsContent value="portfolio">

@@ -44,7 +44,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 /// `.SA`, sem fundamentos/DCF nesta fatia — SEC EDGAR fica pra depois), que
 /// só recebem o ticker já commitado — cada uma cuida do próprio fetch/estado,
 /// sem nada compartilhado entre elas além do visual (`shared.tsx`).
-function StockLookupPanel() {
+function StockLookupPanel({ workspaceId }: { workspaceId: number }) {
   const [tickerInput, setTickerInput] = useState("");
   const [activeTicker, setActiveTicker] = useState<string | null>(null);
   const [assetClass, setAssetClass] = useState<AssetClass>("acao_br");
@@ -119,9 +119,17 @@ function StockLookupPanel() {
           ) : assetClass === "metal" ? (
             <MetalLookupSection key={activeTicker} ticker={activeTicker} />
           ) : assetClass === "acao_internacional" ? (
-            <UsStockLookupSection key={activeTicker} ticker={activeTicker} />
+            <UsStockLookupSection
+              key={activeTicker}
+              ticker={activeTicker}
+              workspaceId={workspaceId}
+            />
           ) : (
-            <StockAnalysisSection key={activeTicker} ticker={activeTicker} />
+            <StockAnalysisSection
+              key={activeTicker}
+              ticker={activeTicker}
+              workspaceId={workspaceId}
+            />
           ))}
       </CardContent>
     </Card>

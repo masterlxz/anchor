@@ -18,6 +18,7 @@ import PriceHistoryChart from "./PriceHistoryChart";
 import NewValuationDialog from "../models/NewValuationDialog";
 import SavedValuationsPanel from "../valuations/SavedValuationsPanel";
 import AboutCompanySection from "./AboutCompanySection";
+import AssetThesesSidebar from "./AssetThesesSidebar";
 import {
   AddToAssetsButton,
   CompanyLogo,
@@ -70,7 +71,13 @@ const MODEL_LABELS: Record<string, string> = {
 /// de um `Dialog`) — pedido explícito do dono do projeto: os modelos
 /// servem pra "empresas", não só Ação BR, então a tela migra pra dentro da
 /// análise em vez de ficar solta no nav principal.
-function StockAnalysisSection({ ticker }: { ticker: string }) {
+function StockAnalysisSection({
+  ticker,
+  workspaceId,
+}: {
+  ticker: string;
+  workspaceId: number;
+}) {
   const [noteDraft, setNoteDraft] = useState("");
   const autoFetchedTickerRef = useRef<string | null>(null);
   const [newValuationOpen, setNewValuationOpen] = useState(false);
@@ -242,8 +249,6 @@ function StockAnalysisSection({ ticker }: { ticker: string }) {
             </div>
           </div>
 
-          <AboutCompanySection ticker={ticker} assetClass="acao_br" />
-
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <StatTile label="Price" value={formatCurrency(price)} />
             <StatTile label="SMA 50" value={formatCurrency(data.technicals?.sma_50)} />
@@ -331,6 +336,18 @@ function StockAnalysisSection({ ticker }: { ticker: string }) {
               <p className="text-muted-foreground">No saved valuation for {ticker} yet.</p>
             )}
           </div>
+
+          <AboutCompanySection ticker={ticker} assetClass="acao_br" />
+
+          <AssetThesesSidebar
+            workspaceId={workspaceId}
+            ticker={ticker}
+            assetClass="acao_br"
+            name={data.quote?.name ?? ticker}
+            currency={data.quote?.currency ?? "BRL"}
+            exchange={data.quote?.exchange ?? null}
+            cnpj={null}
+          />
 
           <NewValuationDialog
             open={newValuationOpen}

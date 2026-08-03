@@ -18,6 +18,7 @@ import PriceHistoryChart from "./PriceHistoryChart";
 import NewValuationDialog from "../models/NewValuationDialog";
 import SavedValuationsPanel from "../valuations/SavedValuationsPanel";
 import AboutCompanySection from "./AboutCompanySection";
+import AssetThesesSidebar from "./AssetThesesSidebar";
 import {
   AddToAssetsButton,
   CompanyLogo,
@@ -67,7 +68,13 @@ function formatUsd(value: number | null | undefined): string {
 /// componente compartilhado (precedente do projeto: não abstrair UI entre
 /// seções de classe até uma 3ª instância idêntica aparecer). Exposição
 /// padrão no cadastro é "US", mesmo padrão do BDR.
-function UsStockLookupSection({ ticker }: { ticker: string }) {
+function UsStockLookupSection({
+  ticker,
+  workspaceId,
+}: {
+  ticker: string;
+  workspaceId: number;
+}) {
   const [noteDraft, setNoteDraft] = useState("");
   const autoFetchedTickerRef = useRef<string | null>(null);
   const [newValuationOpen, setNewValuationOpen] = useState(false);
@@ -267,8 +274,6 @@ function UsStockLookupSection({ ticker }: { ticker: string }) {
             </div>
           </div>
 
-          <AboutCompanySection ticker={ticker} assetClass="acao_internacional" />
-
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <StatTile label="Price" value={formatUsd(price)} />
             <StatTile label="SMA 50" value={formatUsd(technicalsQuery.data?.sma_50)} />
@@ -365,6 +370,20 @@ function UsStockLookupSection({ ticker }: { ticker: string }) {
               <p className="text-muted-foreground">No saved valuation for {ticker} yet.</p>
             )}
           </div>
+
+          <AboutCompanySection ticker={ticker} assetClass="acao_internacional" />
+
+          <AssetThesesSidebar
+            workspaceId={workspaceId}
+            ticker={ticker}
+            assetClass="acao_internacional"
+            name={quoteQuery.data?.name ?? ticker}
+            currency={quoteQuery.data?.currency ?? "USD"}
+            exchange={quoteQuery.data?.exchange ?? null}
+            cnpj={null}
+            exposureType="pais"
+            exposureValue="US"
+          />
 
           <NewValuationDialog
             open={newValuationOpen}
