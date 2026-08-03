@@ -667,7 +667,7 @@ def main_metal_ticker(ticker: str) -> int:
         print(str(err))
         return 1
 
-    print(f"{result['ticker']} ({result['name']}): US$ {result['price']:.2f}/g")
+    print(f"{result['ticker']} ({result['name']}): US$ {result['price']:.2f}/oz")
     print(
         f"Updated price history: {result['history_points']} point(s), "
         f"{result['new_history_points']} new"

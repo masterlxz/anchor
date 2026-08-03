@@ -11,6 +11,25 @@ import { Textarea } from "@/components/ui/textarea";
 
 type CollectorSummary = { success: boolean; output: string };
 
+// Onça troy → grama, só pra exibição (tile "US$/g" abaixo) — nunca usado
+// pra gravar/ler `stock_quotes`/`stock_price_history`, que ficam 100% em
+// onça desde a Sessão 57 (decisão explícita do dono do projeto).
+const TROY_OUNCE_GRAMS = 31.1034768;
+
+// Exposição especial por metal (`AddToAssetsButton` abaixo) — cada ticker
+// tem a própria categoria, não só "gold_metal" (bug da Sessão 55, quando só
+// ouro existia; corrigido na Sessão 57 junto com prata/platina/paládio).
+const EXPOSURE_VALUE_BY_TICKER: Record<string, string> = {
+  XAU: "gold_metal",
+  XAG: "silver_metal",
+  XPT: "platinum_metal",
+  XPD: "palladium_metal",
+};
+
+function formatUsdPerOz(value: number | null | undefined): string {
+  return value == null ? "—" : `US$ ${value.toFixed(2)}/oz`;
+}
+
 function formatUsdPerGram(value: number | null | undefined): string {
   return value == null ? "—" : `US$ ${value.toFixed(2)}/g`;
 }
@@ -51,12 +70,14 @@ function sma(history: StockPriceHistory[], window: number): number | null {
 
 /// Fase 10, item 8, Sessão 55 — análise de Metal, irmã de
 /// `CryptoLookupSection.tsx`/`BdrLookupSection.tsx` na tela de Research.
-/// Só ouro (`XAU`) por ora, decisão explícita do dono do projeto. Fonte é o
-/// contrato futuro do COMEX via Yahoo (sem `.SA` — metal não é listado na
-/// B3), preço já convertido de onça troy pra grama na fonte
-/// (`sources/metais_yahoo.py`), então tudo aqui (StatTile, gráfico) já lê
-/// preço/grama direto, sem conversão nenhuma no frontend. Sem
-/// fundamentos/DCF/dividendos (metal não paga provento) nem o painel de
+/// Ouro (`XAU`), Prata (`XAG`), Platina (`XPT`) e Paládio (`XPD`) desde a
+/// Sessão 57 — mesmo contrato futuro COMEX/NYMEX via Yahoo (sem `.SA`,
+/// metal não é listado na B3). Preço/histórico gravados **sempre em USD
+/// por onça troy** (unidade real do contrato, sem conversão nenhuma na
+/// fonte — pedido explícito do dono do projeto, revertendo a conversão pra
+/// grama que a Sessão 55 fazia) — o tile "US$/g" abaixo é só um indicador
+/// simples de referência, calculado aqui na exibição, nunca persistido.
+/// Sem fundamentos/DCF/dividendos (metal não paga provento) nem o painel de
 /// indicadores de ciclo que Cripto tem (não se aplica) — só cotação,
 /// variação percentual (mesmo padrão 7/30/90/365d de Cripto), médias
 /// móveis (computadas client-side em cima do próprio histórico, mesmo
@@ -155,7 +176,7 @@ function MetalLookupSection({ ticker }: { ticker: string }) {
                 exchange={quoteQuery.data?.exchange ?? null}
                 cnpj={null}
                 exposureType="categoria_especial"
-                exposureValue="gold_metal"
+                exposureValue={EXPOSURE_VALUE_BY_TICKER[ticker] ?? "metal"}
               />
               <Button
                 type="button"
@@ -168,8 +189,12 @@ function MetalLookupSection({ ticker }: { ticker: string }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-            <StatTile label="Price" value={formatUsdPerGram(price)} />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
+            <StatTile label="Price (oz)" value={formatUsdPerOz(price)} />
+            <StatTile
+              label="Price (g)"
+              value={formatUsdPerGram(price == null ? null : price / TROY_OUNCE_GRAMS)}
+            />
             <StatTile label="7d" value={formatPercentChange(changeOverDays(history, 7))} />
             <StatTile label="30d" value={formatPercentChange(changeOverDays(history, 30))} />
             <StatTile label="90d" value={formatPercentChange(changeOverDays(history, 90))} />
@@ -177,9 +202,9 @@ function MetalLookupSection({ ticker }: { ticker: string }) {
           </div>
 
           <div className="grid grid-cols-3 gap-3">
-            <StatTile label="SMA 50" value={formatUsdPerGram(sma(history, 50))} />
-            <StatTile label="SMA 100" value={formatUsdPerGram(sma(history, 100))} />
-            <StatTile label="SMA 200" value={formatUsdPerGram(sma(history, 200))} />
+            <StatTile label="SMA 50 (oz)" value={formatUsdPerOz(sma(history, 50))} />
+            <StatTile label="SMA 100 (oz)" value={formatUsdPerOz(sma(history, 100))} />
+            <StatTile label="SMA 200 (oz)" value={formatUsdPerOz(sma(history, 200))} />
           </div>
 
           <div>
