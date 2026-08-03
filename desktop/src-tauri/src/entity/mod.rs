@@ -25,6 +25,8 @@ pub mod graham_inputs;
 pub mod indicator_thresholds;
 pub mod portfolio;
 pub mod projected_ceiling_inputs;
+pub mod reit_fundamentals;
+pub mod reit_manual_indicators;
 pub mod rim_inputs;
 pub mod rnav_inputs;
 pub mod stock_dcf_fundamentals;

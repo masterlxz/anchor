@@ -16,10 +16,12 @@ fn framing_for_asset_class(asset_class: &str) -> &'static str {
             empresa faz, seu modelo de negócio/receita, o setor em que atua, um resumo da história/fundação, \
             e pontos relevantes de contexto competitivo."
         }
-        "fii" | "etf_br" => {
-            "O ativo é um fundo negociado em bolsa (fundo imobiliário ou fundo de índice). Fale sobre a \
-            estratégia do fundo, o tipo (ex.: tijolo, papel, fundo de fundos, índice/setor específico), o que \
-            ele busca entregar ao cotista, e o gestor/administrador quando relevante."
+        "fii" | "etf_br" | "reit" => {
+            "O ativo é um fundo negociado em bolsa (fundo imobiliário ou fundo de índice — REIT é o \
+            equivalente americano do fundo imobiliário brasileiro). Fale sobre a estratégia do fundo, o tipo \
+            (ex.: tijolo/imóveis físicos vs. papel/hipotecas, setor de atuação como shoppings/galpões \
+            logísticos/data centers, fundo de fundos, índice/setor específico), o que ele busca entregar ao \
+            cotista/acionista, e o gestor/administrador quando relevante."
         }
         "cripto" => {
             "O ativo é uma criptomoeda/protocolo. Fale sobre o que a rede/protocolo faz, seu caso de uso \

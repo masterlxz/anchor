@@ -922,6 +922,102 @@ def collect_us_stock_dcf_fundamentals(fundamentals: list[dict]) -> list[dict]:
     return records
 
 
+def collect_reit_fundamentals(tickers: list[str]) -> list[dict]:
+    """Fase 10, item 8 — indicadores imobiliários de REIT via SEC EDGAR
+    (`sec_edgar.fetch_reit_fundamentals`). Grava em `reit_fundamentals`,
+    tabela própria (não `stock_fundamentals`/`stock_dcf_fundamentals` — REIT
+    não usa os 8 modelos de valuation, ver Sessão de implementação). Mesmo
+    padrão time-series de `collect_us_stock_fundamentals`: `INSERT` simples,
+    nunca sobrescreve, leitura sempre pega a linha mais recente."""
+    if not tickers:
+        return []
+
+    ciks = sec_edgar.resolve_ciks(tickers)
+    fundamentals = sec_edgar.fetch_reit_fundamentals(ciks)
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA journal_mode=WAL")
+    now = datetime.now(timezone.utc).isoformat()
+    conn.executemany(
+        "INSERT INTO reit_fundamentals (ticker, reference_year, revenue, "
+        "real_estate_property_net, real_estate_property_at_cost, "
+        "stockholders_equity, net_income, eps_diluted, source, fetched_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            (
+                item["ticker"],
+                item["reference_year"],
+                item["revenue"],
+                item["real_estate_property_net"],
+                item["real_estate_property_at_cost"],
+                item["stockholders_equity"],
+                item["net_income"],
+                item["eps_diluted"],
+                "sec_edgar",
+                now,
+            )
+            for item in fundamentals
+        ],
+    )
+    conn.commit()
+    conn.close()
+
+    return fundamentals
+
+
+def main_reit(ticker: str) -> int:
+    """REIT (Fase 10, item 8) — cotação/técnicos/dividendos/histórico de
+    preço via Yahoo sem sufixo (idêntico a `main_us_stock`, REIT é só mais
+    um ticker NYSE/NASDAQ) + indicadores imobiliários via SEC EDGAR. Sem os
+    8 modelos de valuation (não encaixam bem em imobiliário) — por isso não
+    chama `collect_us_stock_fundamentals`/`collect_us_stock_dcf_fundamentals`,
+    só a função dedicada acima."""
+    load_dotenv(BASE_DIR / ".env")
+    tickers = [ticker]
+
+    quotes = collect_us_stock_quotes(tickers)
+    for quote in quotes:
+        print(f"{quote['ticker']}: US$ {quote['price']}")
+    print(f"Updated {len(quotes)} quote(s)")
+
+    dividends = collect_us_stock_dividends_avg(tickers)
+    for item in dividends:
+        print(f"{item['ticker']}: avg dividend/share (5y) US$ {item['avg_dividend_5y']:.4f}")
+    print(f"Updated {len(dividends)} dividend average record(s)")
+
+    technicals = collect_us_stock_technicals(tickers)
+    for item in technicals:
+        sma_200 = item["sma_200"]
+        cagr_10y = item["cagr_10y"]
+        print(
+            f"{item['ticker']}: SMA200 "
+            f"{'n/a' if sma_200 is None else f'US$ {sma_200:.2f}'} / "
+            f"CAGR 10y {'n/a' if cagr_10y is None else f'{cagr_10y:.1f}%'}"
+        )
+    print(f"Updated {len(technicals)} technicals record(s)")
+
+    collect_us_stock_dividend_payments(tickers)
+    collect_us_price_history(tickers)
+
+    # Mesmo contrato "pula barato, não derruba o resto" de `main_us_stock` —
+    # o único RuntimeError aqui é `SEC_EDGAR_CONTACT_EMAIL` ausente.
+    try:
+        reit_fundamentals = collect_reit_fundamentals(tickers)
+        for item in reit_fundamentals:
+            net_income = item["net_income"]
+            print(
+                f"{item['ticker']}: Revenue {item['revenue']:.1f} / "
+                f"Equity {item['stockholders_equity']:.1f} / EPS {item['eps_diluted']} / "
+                f"Net income {'n/a' if net_income is None else f'{net_income:.1f}'} "
+                f"(US$ millions, FY{item['reference_year']})"
+            )
+        print(f"Updated {len(reit_fundamentals)} REIT fundamentals record(s)")
+    except RuntimeError as err:
+        print(f"Skipping SEC EDGAR collection: {err}")
+
+    return 0
+
+
 def main_us_stock(ticker: str) -> int:
     """Ação americana (Fase 10, item 8). Fatia 1 deu cotação/técnicos/
     dividendos/histórico de preço via Yahoo, sem sufixo `.SA`. Fatia 2
@@ -1122,6 +1218,11 @@ if __name__ == "__main__":
             print("Usage: python main.py --us-ticker <TICKER>")
             sys.exit(1)
         sys.exit(main_us_stock(sys.argv[2].strip().upper()))
+    if len(sys.argv) > 1 and sys.argv[1] == "--reit-ticker":
+        if len(sys.argv) < 3 or not sys.argv[2].strip():
+            print("Usage: python main.py --reit-ticker <TICKER>")
+            sys.exit(1)
+        sys.exit(main_reit(sys.argv[2].strip().upper()))
     if len(sys.argv) > 1 and sys.argv[1] == "--fii-cvm-data":
         if len(sys.argv) < 3 or not sys.argv[2].strip():
             print("Usage: python main.py --fii-cvm-data <CNPJ1,CNPJ2,...>")

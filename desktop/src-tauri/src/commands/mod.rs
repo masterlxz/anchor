@@ -18,6 +18,7 @@ pub mod graham;
 pub mod portfolio;
 pub mod profitability;
 pub mod projected_ceiling;
+pub mod reit;
 pub mod rim;
 pub mod rnav;
 pub mod stock_notes;

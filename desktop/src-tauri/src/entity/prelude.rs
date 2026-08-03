@@ -23,6 +23,8 @@ pub use super::graham_inputs::Entity as GrahamInputs;
 pub use super::indicator_thresholds::Entity as IndicatorThresholds;
 pub use super::portfolio::Entity as Portfolio;
 pub use super::projected_ceiling_inputs::Entity as ProjectedCeilingInputs;
+pub use super::reit_fundamentals::Entity as ReitFundamentals;
+pub use super::reit_manual_indicators::Entity as ReitManualIndicators;
 pub use super::rim_inputs::Entity as RimInputs;
 pub use super::rnav_inputs::Entity as RnavInputs;
 pub use super::stock_dcf_fundamentals::Entity as StockDcfFundamentals;

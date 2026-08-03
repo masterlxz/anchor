@@ -82,7 +82,7 @@ async fn upsert_fii_cnpj_cache(
 // nas mesmas tabelas `stock_fundamentals`/`stock_dcf_fundamentals` que
 // `acao_br` já usa (schema já era agnóstico de moeda/classe, sem migration).
 
-const ASSET_CLASSES: [&str; 9] = [
+const ASSET_CLASSES: [&str; 10] = [
     "acao_br",
     "fii",
     "etf_br",
@@ -90,6 +90,7 @@ const ASSET_CLASSES: [&str; 9] = [
     "bdr",
     "metal",
     "acao_internacional",
+    "reit",
     "tesouro_direto",
     "renda_fixa",
 ];

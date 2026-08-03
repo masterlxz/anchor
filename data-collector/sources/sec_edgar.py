@@ -407,6 +407,77 @@ def fetch_dcf_fundamentals(ticker_ciks: dict[str, int]) -> list[dict]:
     return results
 
 
+def fetch_reit_fundamentals(ticker_ciks: dict[str, int]) -> list[dict]:
+    """Indicadores imobiliários pra REIT (Fase 10, item 8) — diferente de
+    `fetch_dcf_fundamentals`/`fetch_fundamentals`, que alimentam os 8
+    modelos de valuation que REIT não usa (decisão explícita: DCF clássico
+    não encaixa bem em imobiliário, mesmo espírito de FII não ter
+    LPA/VPA/ROE). **Achado ao vivo, confirmado contra Realty Income/Simon
+    Property/Prologis/AvalonBay**: FFO/AFFO e taxa de ocupação — os
+    indicadores "de verdade" de REIT — não existem como tag XBRL em nenhuma
+    taxonomia (`us-gaap`/`srt`/`invest`), são métricas non-GAAP só em texto/
+    tabela do 10-K. Os campos abaixo são o que sobra automatizável: receita,
+    valor de imóveis, patrimônio líquido, LPA, lucro líquido.
+
+    `NetIncomeLoss` é inconsistente entre REITs (Simon Property, um UPREIT,
+    não reporta essa tag — usa `ProfitLoss`) — tratado como opcional com
+    fallback de tag via `_try_tags`, mesmo mecanismo que a D&A do DCF já usa
+    pra empresas que só reportam depreciação separada de amortização.
+
+    Obrigatórios (ticker descartado se faltar, mesmo padrão de
+    `fetch_fundamentals`): receita, patrimônio líquido, LPA — as 3 tags
+    consistentes nas 4 empresas testadas. Opcionais: valor de imóveis
+    (custo e líquido), lucro líquido.
+    """
+    if not ticker_ciks:
+        return []
+
+    results = []
+    for ticker, cik in ticker_ciks.items():
+        try:
+            revenue_row = _try_tags(
+                cik,
+                ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax"],
+                _latest_duration,
+            )
+            if revenue_row is None:
+                continue
+
+            equity = _required(cik, ["StockholdersEquity"], lambda rows: _latest_instant(rows, 0))
+            eps = _required(cik, ["EarningsPerShareDiluted"], _latest_duration)
+
+            results.append(
+                {
+                    "ticker": ticker,
+                    "reference_year": revenue_row["fy"],
+                    "revenue": _to_millions(revenue_row["val"]),
+                    "real_estate_property_net": _to_millions_or_none(
+                        _optional(
+                            cik,
+                            ["RealEstateInvestmentPropertyNet"],
+                            lambda rows: _latest_instant(rows, 0),
+                        )
+                    ),
+                    "real_estate_property_at_cost": _to_millions_or_none(
+                        _optional(
+                            cik,
+                            ["RealEstateInvestmentPropertyAtCost"],
+                            lambda rows: _latest_instant(rows, 0),
+                        )
+                    ),
+                    "stockholders_equity": _to_millions(equity),
+                    "net_income": _to_millions_or_none(
+                        _optional(cik, ["NetIncomeLoss", "ProfitLoss"], _latest_duration)
+                    ),
+                    "eps_diluted": eps,
+                }
+            )
+        except LookupError:
+            continue
+
+    return results
+
+
 def fetch_payout(ticker_ciks: dict[str, int]) -> list[dict]:
     """Payout médio dos últimos `PAYOUT_YEARS_AVERAGED` anos fiscais
     disponíveis (soma de dividendos pagos ÷ soma de lucro líquido, ambos

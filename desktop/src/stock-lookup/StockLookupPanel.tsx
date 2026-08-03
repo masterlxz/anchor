@@ -12,6 +12,7 @@ import CryptoLookupSection from "./CryptoLookupSection";
 import BdrLookupSection from "./BdrLookupSection";
 import MetalLookupSection from "./MetalLookupSection";
 import UsStockLookupSection from "./UsStockLookupSection";
+import ReitLookupSection from "./ReitLookupSection";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -100,7 +101,9 @@ function StockLookupPanel({ workspaceId }: { workspaceId: number }) {
                           ? "XAU"
                           : assetClass === "acao_internacional"
                             ? "AAPL"
-                            : "PETR4"
+                            : assetClass === "reit"
+                              ? "O"
+                              : "PETR4"
               }
             />
           </Field>
@@ -118,6 +121,8 @@ function StockLookupPanel({ workspaceId }: { workspaceId: number }) {
             <BdrLookupSection key={activeTicker} ticker={activeTicker} />
           ) : assetClass === "metal" ? (
             <MetalLookupSection key={activeTicker} ticker={activeTicker} />
+          ) : assetClass === "reit" ? (
+            <ReitLookupSection key={activeTicker} ticker={activeTicker} />
           ) : assetClass === "acao_internacional" ? (
             <UsStockLookupSection
               key={activeTicker}

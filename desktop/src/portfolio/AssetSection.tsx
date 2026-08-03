@@ -77,6 +77,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
   const isBdr = assetClass === "bdr";
   const isMetal = assetClass === "metal";
   const isUsStock = assetClass === "acao_internacional";
+  const isReit = assetClass === "reit";
 
   const queryClient = useQueryClient();
 
@@ -126,7 +127,9 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
             ? "metal"
             : isUsStock
               ? "acao_internacional"
-              : null,
+              : isReit
+                ? "reit"
+                : null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["asset-section-stock-quote", activeTicker] });
@@ -182,8 +185,8 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
       } else if (isMetal) {
         setExposureType("categoria_especial");
         setExposureValue("gold_metal");
-      } else if (isUsStock) {
-        // Mesmo padrão do BDR: "US" é o chute óbvio pra ação americana
+      } else if (isUsStock || isReit) {
+        // Mesmo padrão do BDR: "US" é o chute óbvio pra ação/REIT americano
         // (NYSE/NASDAQ), editável.
         setExposureType("pais");
         setExposureValue("US");
@@ -193,7 +196,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAutoQuoteClass, isCripto, isBdr, isMetal, isUsStock, activeTicker, lookupQuery.data]);
+  }, [isAutoQuoteClass, isCripto, isBdr, isMetal, isUsStock, isReit, activeTicker, lookupQuery.data]);
 
   // Sugestão de CNPJ (só FII) — dispara junto com o prefill acima, uma vez
   // por ticker. `cnpj` fica vazio se não achar sugestão confiável (o
@@ -274,9 +277,9 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
       <CardContent>
         <p className="mb-4 text-sm text-muted-foreground">
           Catalog of tradeable/registrable assets — shared across every Portfolio in the
-          Workspace. Stock (B3), FII (B3), ETF (B3), Crypto, BDR (B3) and Metal fetch data
-          automatically by ticker; the other classes (International stocks, Tesouro Direto,
-          Fixed income) still use manual registration for now.
+          Workspace. Stock (B3), FII (B3), ETF (B3), Crypto, BDR (B3), Metal, International stock
+          and REIT fetch data automatically by ticker; the other classes (Tesouro Direto, Fixed
+          income) still use manual registration for now.
         </p>
 
         <div className="mb-4 max-w-xs">
@@ -299,7 +302,9 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
         {isAutoQuoteClass && (
           <form onSubmit={handleTickerSearch} className="mb-4 flex items-end gap-3">
             <Field
-              label={isCripto || isMetal || isUsStock ? "Search ticker" : "Search ticker (B3)"}
+              label={
+                isCripto || isMetal || isUsStock || isReit ? "Search ticker" : "Search ticker (B3)"
+              }
               className="flex-1"
             >
               <Input
@@ -317,7 +322,9 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
                             ? "XAU"
                             : isUsStock
                               ? "AAPL"
-                              : "PETR4"
+                              : isReit
+                                ? "O"
+                                : "PETR4"
                 }
                 value={tickerQuery}
                 onChange={(e) => setTickerQuery(e.currentTarget.value)}

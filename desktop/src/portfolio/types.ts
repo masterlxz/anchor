@@ -39,8 +39,12 @@ export type Custodia = {
 // (nem país nem "BR"/"US" fazem sentido pra metal). `acao_internacional`
 // ganhou cotação automática numa fatia 1 (Fatia 2, fundamentos via SEC
 // EDGAR, fica pra depois) — mesmo endpoint Yahoo do resto, sem sufixo
-// (ticker puro, ex.: AAPL); exposição default "US", mesmo padrão do BDR. Ver
-// commands/asset.rs::ASSET_CLASSES.
+// (ticker puro, ex.: AAPL); exposição default "US", mesmo padrão do BDR.
+// `reit` (equivalente americano do FII) — mesma fonte Yahoo de cotação que
+// `acao_internacional`, mas indicadores imobiliários próprios via SEC EDGAR
+// (`reit_fundamentals`/`reit_manual_indicators`, não `stock_fundamentals`/
+// `stock_dcf_fundamentals` — sem os 8 modelos de valuation, que não
+// encaixam bem em imobiliário). Ver commands/asset.rs::ASSET_CLASSES.
 export type AssetClass =
   | "acao_br"
   | "fii"
@@ -49,6 +53,7 @@ export type AssetClass =
   | "bdr"
   | "metal"
   | "acao_internacional"
+  | "reit"
   | "tesouro_direto"
   | "renda_fixa";
 
@@ -60,6 +65,7 @@ export const ASSET_CLASSES: AssetClass[] = [
   "bdr",
   "metal",
   "acao_internacional",
+  "reit",
   "tesouro_direto",
   "renda_fixa",
 ];
@@ -72,6 +78,7 @@ export const ASSET_CLASS_LABELS: Record<AssetClass, string> = {
   bdr: "BDR (B3)",
   metal: "Metal",
   acao_internacional: "International stock",
+  reit: "REIT",
   tesouro_direto: "Tesouro Direto",
   renda_fixa: "Fixed income",
 };
@@ -93,6 +100,7 @@ export const ASSET_CLASSES_WITH_AUTO_QUOTE: AssetClass[] = [
   "bdr",
   "metal",
   "acao_internacional",
+  "reit",
 ];
 
 export type ExposureType = "pais" | "categoria_especial";
@@ -145,6 +153,39 @@ export type FiiCvmProperty = {
   percentual_locado: number | null;
   source: string;
   fetched_at: string;
+};
+
+// Fase 10, item 8 — indicadores imobiliários de REIT via SEC EDGAR, tabela
+// própria (não stock_fundamentals/stock_dcf_fundamentals — REIT não usa os
+// 8 modelos de valuation). Time series (mesmo padrão de StockFundamentals),
+// leitura recente-primeiro filtrada por ticker no client. Campos nullable
+// refletem taxonomia XBRL inconsistente entre REITs (ex.: Simon Property
+// não reporta NetIncomeLoss). Ver commands/reit.rs.
+export type ReitFundamentals = {
+  id: number;
+  ticker: string;
+  reference_year: number;
+  revenue: number;
+  real_estate_property_net: number | null;
+  real_estate_property_at_cost: number | null;
+  stockholders_equity: number;
+  net_income: number | null;
+  eps_diluted: number;
+  source: string;
+  fetched_at: string;
+};
+
+// FFO/AFFO por ação e taxa de ocupação — confirmado ao vivo que não
+// existem como tag XBRL (métricas non-GAAP só em texto/tabela do 10-K) —
+// campo manual editável, mesmo espírito do landbank do RNAV. Uma linha por
+// ticker, upsert.
+export type ReitManualIndicators = {
+  id: number;
+  ticker: string;
+  ffo_per_share: number | null;
+  affo_per_share: number | null;
+  occupancy_pct: number | null;
+  updated_at: string;
 };
 
 export type TransactionType =
