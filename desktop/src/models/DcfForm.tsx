@@ -53,7 +53,7 @@ function SectionHeading({ children }: { children: string }) {
   );
 }
 
-function DcfForm({ ticker: initialTicker }: { ticker?: string } = {}) {
+function DcfForm({ ticker: initialTicker, assetClass }: { ticker?: string; assetClass?: string } = {}) {
   const [ticker, setTicker] = useState(initialTicker ?? "");
   const [referenceYear, setReferenceYear] = useState(
     String(new Date().getFullYear()),
@@ -76,7 +76,7 @@ function DcfForm({ ticker: initialTicker }: { ticker?: string } = {}) {
   const [kd, setKd] = useState("");
   const [perpetuityGrowth, setPerpetuityGrowth] = useState("");
 
-  const tickerCollector = useTickerCollector();
+  const tickerCollector = useTickerCollector(assetClass);
   const [tickerError, setTickerError] = useState<string | null>(null);
 
   const { calculateMutation, saveMutation } = useValuationActions<

@@ -74,11 +74,13 @@ async fn upsert_fii_cnpj_cache(
 // fonte própria (Yahoo sem `.SA` — contrato futuro do COMEX, `GC=F`, não é
 // listado na B3) via `--metal-ticker` no coletor Python, preço convertido
 // de onça troy pra grama na fonte (`sources/metais_yahoo.py`). `acao_internacional`
-// (ação americana NYSE/NASDAQ) ganhou cotação automática numa fatia 1
-// (pesquisa: SEC EDGAR pra fundamentos fica pra uma fatia futura) — mesmo
-// endpoint Yahoo `.SA` do resto, só sem o sufixo (ticker puro, ex.: AAPL),
-// via `--us-ticker` no coletor Python; `acoes_yahoo.py` ganhou um parâmetro
-// `suffix` (default `.SA`) pra isso em vez de duplicar o módulo.
+// (ação americana NYSE/NASDAQ) ganhou cotação automática numa fatia 1 —
+// mesmo endpoint Yahoo `.SA` do resto, só sem o sufixo (ticker puro, ex.:
+// AAPL), via `--us-ticker` no coletor Python; `acoes_yahoo.py` ganhou um
+// parâmetro `suffix` (default `.SA`) pra isso em vez de duplicar o módulo.
+// Fatia 2 acrescentou fundamentos + DCF via SEC EDGAR (`sources/sec_edgar.py`)
+// nas mesmas tabelas `stock_fundamentals`/`stock_dcf_fundamentals` que
+// `acao_br` já usa (schema já era agnóstico de moeda/classe, sem migration).
 
 const ASSET_CLASSES: [&str; 9] = [
     "acao_br",

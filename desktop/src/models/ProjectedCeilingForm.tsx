@@ -29,7 +29,7 @@ type ProjectedCeilingInputsModel = {
   ke: number;
 };
 
-function ProjectedCeilingForm({ ticker: initialTicker }: { ticker?: string } = {}) {
+function ProjectedCeilingForm({ ticker: initialTicker, assetClass }: { ticker?: string; assetClass?: string } = {}) {
   const [ticker, setTicker] = useState(initialTicker ?? "");
   const [referenceYear, setReferenceYear] = useState(
     String(new Date().getFullYear()),
@@ -41,7 +41,7 @@ function ProjectedCeilingForm({ ticker: initialTicker }: { ticker?: string } = {
   const [desiredYield, setDesiredYield] = useState("6");
   const [ke, setKe] = useState("");
 
-  const tickerCollector = useTickerCollector();
+  const tickerCollector = useTickerCollector(assetClass);
   const [tickerError, setTickerError] = useState<string | null>(null);
 
   const { calculateMutation, saveMutation } = useValuationActions<

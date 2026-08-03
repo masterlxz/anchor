@@ -27,10 +27,12 @@ function NewValuationDialog({
   open,
   onOpenChange,
   ticker,
+  assetClass,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   ticker: string;
+  assetClass?: string;
 }) {
   const [selectedModel, setSelectedModel] = useState<ModelKey>("bazin");
   const SelectedForm = MODELS[selectedModel].component;
@@ -62,7 +64,7 @@ function NewValuationDialog({
           </Field>
         </div>
 
-        <SelectedForm key={selectedModel} ticker={ticker} />
+        <SelectedForm key={selectedModel} ticker={ticker} assetClass={assetClass} />
       </DialogContent>
     </Dialog>
   );

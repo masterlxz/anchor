@@ -54,7 +54,7 @@ type RnavInputsModel = {
   shares_outstanding: number;
 };
 
-function RnavForm({ ticker: initialTicker }: { ticker?: string } = {}) {
+function RnavForm({ ticker: initialTicker, assetClass }: { ticker?: string; assetClass?: string } = {}) {
   const [ticker, setTicker] = useState(initialTicker ?? "");
   const [referenceYear, setReferenceYear] = useState(
     String(new Date().getFullYear()),
@@ -65,7 +65,7 @@ function RnavForm({ ticker: initialTicker }: { ticker?: string } = {}) {
   const [netCash, setNetCash] = useState("");
   const [sharesOutstanding, setSharesOutstanding] = useState("");
 
-  const tickerCollector = useTickerCollector();
+  const tickerCollector = useTickerCollector(assetClass);
   const [tickerError, setTickerError] = useState<string | null>(null);
   const [landbankDialogOpen, setLandbankDialogOpen] = useState(false);
 

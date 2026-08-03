@@ -23,7 +23,7 @@ type BazinInputsModel = {
   desired_yield: number;
 };
 
-function BazinForm({ ticker: initialTicker }: { ticker?: string } = {}) {
+function BazinForm({ ticker: initialTicker, assetClass }: { ticker?: string; assetClass?: string } = {}) {
   const [ticker, setTicker] = useState(initialTicker ?? "");
   const [referenceYear, setReferenceYear] = useState(
     String(new Date().getFullYear()),
@@ -32,7 +32,7 @@ function BazinForm({ ticker: initialTicker }: { ticker?: string } = {}) {
   const [averageDividend, setAverageDividend] = useState("");
   const [desiredYield, setDesiredYield] = useState("6");
 
-  const tickerCollector = useTickerCollector();
+  const tickerCollector = useTickerCollector(assetClass);
   const [tickerError, setTickerError] = useState<string | null>(null);
 
   const { calculateMutation, saveMutation } = useValuationActions<

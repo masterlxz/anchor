@@ -333,6 +333,7 @@ function StockAnalysisSection({ ticker }: { ticker: string }) {
             open={newValuationOpen}
             onOpenChange={setNewValuationOpen}
             ticker={ticker}
+            assetClass="acao_br"
           />
 
           {/* Sem DialogHeader/DialogTitle aqui de propósito —

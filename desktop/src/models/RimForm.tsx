@@ -29,7 +29,7 @@ type RimInputsModel = {
   fade_years: number;
 };
 
-function RimForm({ ticker: initialTicker }: { ticker?: string } = {}) {
+function RimForm({ ticker: initialTicker, assetClass }: { ticker?: string; assetClass?: string } = {}) {
   const [ticker, setTicker] = useState(initialTicker ?? "");
   const [referenceYear, setReferenceYear] = useState(
     String(new Date().getFullYear()),
@@ -41,7 +41,7 @@ function RimForm({ ticker: initialTicker }: { ticker?: string } = {}) {
   const [ke, setKe] = useState("");
   const [fadeYears, setFadeYears] = useState("5");
 
-  const tickerCollector = useTickerCollector();
+  const tickerCollector = useTickerCollector(assetClass);
   const [tickerError, setTickerError] = useState<string | null>(null);
 
   const { calculateMutation, saveMutation } = useValuationActions<

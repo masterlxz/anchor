@@ -25,6 +25,7 @@ from sources import (
     cvm_dfp,
     cvm_fii,
     metais_yahoo,
+    sec_edgar,
 )
 
 BASE_DIR = Path(__file__).parent
@@ -825,13 +826,109 @@ def collect_us_price_history(tickers: list[str]) -> list[dict]:
     return prices
 
 
+def collect_us_stock_fundamentals(tickers: list[str]) -> list[dict]:
+    """Fase 10, item 8, Fatia 2 — LPA/VPA/ROE/Payout de ação americana via
+    SEC EDGAR (`sec_edgar.py`). Mais simples que a versão BR
+    (`collect_stock_fundamentals`): não precisa de uma etapa separada
+    corrigindo o ROE, a SEC já dá o dado calculado direto de
+    NetIncomeLoss/StockholdersEquity, sem a instabilidade trimestral-vs-TTM
+    que o campo `roe` da bolsai tinha."""
+    if not tickers:
+        return []
+
+    fundamentals = sec_edgar.fetch_fundamentals(tickers)
+
+    ticker_ciks = {f["ticker"]: f["cik"] for f in fundamentals}
+    payout_by_ticker = {
+        item["ticker"]: item["payout"] for item in sec_edgar.fetch_payout(ticker_ciks)
+    }
+    for item in fundamentals:
+        item["payout"] = payout_by_ticker.get(item["ticker"])
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA journal_mode=WAL")
+    now = datetime.now(timezone.utc).isoformat()
+    conn.executemany(
+        "INSERT INTO stock_fundamentals (ticker, lpa, vpa, roe, payout, source, fetched_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [
+            (
+                item["ticker"],
+                item["lpa"],
+                item["vpa"],
+                item["roe"],
+                item["payout"],
+                "sec_edgar",
+                now,
+            )
+            for item in fundamentals
+        ],
+    )
+    conn.commit()
+    conn.close()
+
+    return fundamentals
+
+
+def collect_us_stock_dcf_fundamentals(fundamentals: list[dict]) -> list[dict]:
+    """Fase 10, item 8, Fatia 2 — espelho de `collect_stock_dcf_fundamentals`
+    (mesmas colunas/tabela `stock_dcf_fundamentals`), completando com os
+    campos vindos da SEC EDGAR. `shares_outstanding` vem de `fundamentals`
+    (já buscado por `collect_us_stock_fundamentals`), não da SEC diretamente
+    — mesmo desenho do par bolsai/CVM."""
+    ticker_ciks = {f["ticker"]: f["cik"] for f in fundamentals}
+    if not ticker_ciks:
+        return []
+
+    shares_outstanding_millions = {
+        f["ticker"]: f["shares_outstanding"] / 1_000_000 for f in fundamentals
+    }
+
+    records = sec_edgar.fetch_dcf_fundamentals(ticker_ciks)
+    for record in records:
+        record["shares_outstanding"] = shares_outstanding_millions[record["ticker"]]
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA journal_mode=WAL")
+    now = datetime.now(timezone.utc).isoformat()
+    conn.executemany(
+        "INSERT INTO stock_dcf_fundamentals (ticker, reference_year, ebit, "
+        "depreciation_amortization, capex, nwc_change, total_debt, cash, "
+        "shares_outstanding, source, fetched_at, tax_rate, revenue, inventory) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            (
+                r["ticker"],
+                r["reference_year"],
+                r["ebit"],
+                r["depreciation_amortization"],
+                r["capex"],
+                r["nwc_change"],
+                r["total_debt"],
+                r["cash"],
+                r["shares_outstanding"],
+                "sec_edgar",
+                now,
+                r["tax_rate"],
+                r["revenue"],
+                r["inventory"],
+            )
+            for r in records
+        ],
+    )
+    conn.commit()
+    conn.close()
+
+    return records
+
+
 def main_us_stock(ticker: str) -> int:
-    """Ação americana (Fase 10, item 8, Fatia 1) — mesmos 4 passos Yahoo de
-    `main()` (cotação, dividendo médio, técnicos, pagamentos + histórico de
-    preço), sem sufixo `.SA`. Sem bloco de fundamentos/DCF nesta fatia —
-    `acoes_bolsai`/`cvm_dfp` são fontes só do mercado brasileiro; a fonte
-    equivalente pra fundamentos americanos (SEC EDGAR) fica pra uma fatia
-    futura (ver PHASE.md).
+    """Ação americana (Fase 10, item 8). Fatia 1 deu cotação/técnicos/
+    dividendos/histórico de preço via Yahoo, sem sufixo `.SA`. Fatia 2
+    (esta) acrescenta fundamentos + DCF via SEC EDGAR (`sec_edgar.py`),
+    mesmo papel que `acoes_bolsai`/`cvm_dfp` cumprem pra ação BR — só que
+    aqui uma fonte só cobre os dois (LPA/VPA/ROE/Payout e os 9 campos do
+    DCF), ao contrário do par bolsai+CVM.
     """
     load_dotenv(BASE_DIR / ".env")
     tickers = [ticker]
@@ -859,6 +956,42 @@ def main_us_stock(ticker: str) -> int:
 
     collect_us_stock_dividend_payments(tickers)
     collect_us_price_history(tickers)
+
+    # Fundamentos/DCF via SEC EDGAR (Fatia 2) — o único caso de RuntimeError
+    # aqui é `SEC_EDGAR_CONTACT_EMAIL` ausente (não existe "chave de API" pra
+    # SEC), mesmo contrato de "pula barato, não derruba o resto" que o
+    # bloco bolsai/CVM já tem em `main()`.
+    try:
+        us_fundamentals = collect_us_stock_fundamentals(tickers)
+        for item in us_fundamentals:
+            payout = item["payout"]
+            print(
+                f"{item['ticker']}: LPA US$ {item['lpa']} / VPA US$ {item['vpa']} / "
+                f"ROE {item['roe']}% / Payout {'n/a' if payout is None else f'{payout}%'}"
+            )
+        print(f"Updated {len(us_fundamentals)} fundamentals record(s)")
+    except RuntimeError as err:
+        print(f"Skipping SEC EDGAR collection: {err}")
+        us_fundamentals = []
+
+    if not us_fundamentals:
+        return 0
+
+    us_dcf_fundamentals = collect_us_stock_dcf_fundamentals(us_fundamentals)
+    for item in us_dcf_fundamentals:
+        da = item["depreciation_amortization"]
+        capex = item["capex"]
+        tax_rate = item["tax_rate"]
+        print(
+            f"{item['ticker']}: EBIT {item['ebit']:.1f} / "
+            f"Tax rate {'n/a' if tax_rate is None else f'{tax_rate:.1f}%'} / "
+            f"D&A {'n/a' if da is None else f'{da:.1f}'} / "
+            f"Capex {'n/a' if capex is None else f'{capex:.1f}'} / "
+            f"ΔNWC {item['nwc_change']:.1f} / Debt {item['total_debt']:.1f} / "
+            f"Cash {item['cash']:.1f} / Revenue {item['revenue']:.1f} / "
+            f"Inventory {item['inventory']:.1f} (US$ millions)"
+        )
+    print(f"Updated {len(us_dcf_fundamentals)} DCF fundamentals record(s)")
 
     return 0
 

@@ -23,6 +23,9 @@ export const MODELS = {
     label: "Projected Ceiling",
     component: ProjectedCeilingForm,
   },
-} as const satisfies Record<string, { label: string; component: ComponentType<{ ticker?: string }> }>;
+} as const satisfies Record<
+  string,
+  { label: string; component: ComponentType<{ ticker?: string; assetClass?: string }> }
+>;
 
 export type ModelKey = keyof typeof MODELS;

@@ -1,28 +1,49 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AppError } from "../types";
+import type { AppError, ValuationModel } from "../types";
 import { latestForTicker } from "../collector/latestForTicker";
 import type {
+  StockDcfFundamentals,
   StockDividendPayment,
   StockDividendsAvg,
+  StockFundamentals,
   StockPriceHistory,
   StockQuote,
   StockTechnicals,
 } from "../collector/types";
+import VerdictBadge from "../components/VerdictBadge";
 import DividendHistoryChart from "./DividendHistoryChart";
 import PriceHistoryChart from "./PriceHistoryChart";
+import NewValuationDialog from "../models/NewValuationDialog";
+import SavedValuationsPanel from "../valuations/SavedValuationsPanel";
 import {
   AddToAssetsButton,
   CompanyLogo,
   StatTile,
   formatPercent,
+  formatRatio,
   type StockNote,
 } from "./shared";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 type CollectorSummary = { success: boolean; output: string };
+
+// Mesma constante de `StockAnalysisSection.tsx` — duplicada aqui em vez de
+// compartilhada, seguindo o precedente do projeto de não abstrair UI entre
+// seções de classe até uma 3ª instância idêntica aparecer.
+const MODEL_LABELS: Record<string, string> = {
+  bazin: "Bazin",
+  graham: "Graham",
+  gordon: "Gordon / DDM",
+  dcf: "DCF / FCFF",
+  banks: "Banks (P/B)",
+  rim: "RIM (Bancos)",
+  rnav: "RNAV",
+  projected_ceiling: "Projected Ceiling",
+};
 
 // `shared.tsx::formatCurrency` é fixo em R$ (formato de toda classe B3) —
 // ação americana usa seu próprio formatador local em USD, mesmo padrão que
@@ -31,21 +52,25 @@ function formatUsd(value: number | null | undefined): string {
   return value == null ? "—" : `US$ ${value.toFixed(2)}`;
 }
 
-/// Fase 10, item 8, Fatia 1 (pesquisa: SEC EDGAR pra fundamentos americanos,
-/// PHASE.md) — análise de ação americana (NYSE/NASDAQ, ex.: AAPL), irmã de
-/// `BdrLookupSection.tsx`: mesma ausência de fundamentos/DCF nesta fatia,
-/// mas por um motivo diferente do BDR (bolsai/CVM são fontes só do mercado
-/// brasileiro, não é "a fonte não tem" e sim "a fonte certa é outra" — SEC
-/// EDGAR, fica pra uma fatia futura). Usa o mesmo endpoint de cotação do
-/// Yahoo que o resto do app, só sem o sufixo `.SA` (`acoes_yahoo.py` ganhou
-/// um parâmetro `suffix` pra isso) — precisa passar `asset_class:
-/// "acao_internacional"` explicitamente pro coletor rotear pro `--us-ticker`
-/// (`commands/collector.rs::run_stock_collector`), diferente de BDR/ETF que
-/// caem no `--ticker` genérico com `asset_class: null`. Exposição padrão no
-/// cadastro é "US", mesmo padrão do BDR.
+/// Fase 10, item 8 — análise de ação americana (NYSE/NASDAQ, ex.: AAPL).
+/// Fatia 1 deu cotação/técnicos/dividendos/histórico de preço, mesmo
+/// endpoint Yahoo do resto do app sem o sufixo `.SA` (`acoes_yahoo.py`
+/// ganhou um parâmetro `suffix` pra isso) — precisa passar `asset_class:
+/// "acao_internacional"` explicitamente pro coletor rotear pro
+/// `--us-ticker` (`commands/collector.rs::run_stock_collector`), diferente
+/// de BDR/ETF que caem no `--ticker` genérico com `asset_class: null`.
+/// Fatia 2 acrescenta fundamentos + DCF via SEC EDGAR (`sec_edgar.py`) e o
+/// fluxo de "New Valuation"/"All Saved Valuations", irmã de
+/// `StockAnalysisSection.tsx` — mesmos blocos, mantendo as convenções
+/// próprias deste arquivo (`formatUsd`, sem "R$") em vez de virar
+/// componente compartilhado (precedente do projeto: não abstrair UI entre
+/// seções de classe até uma 3ª instância idêntica aparecer). Exposição
+/// padrão no cadastro é "US", mesmo padrão do BDR.
 function UsStockLookupSection({ ticker }: { ticker: string }) {
   const [noteDraft, setNoteDraft] = useState("");
   const autoFetchedTickerRef = useRef<string | null>(null);
+  const [newValuationOpen, setNewValuationOpen] = useState(false);
+  const [savedValuationsOpen, setSavedValuationsOpen] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -69,12 +94,35 @@ function UsStockLookupSection({ ticker }: { ticker: string }) {
       queryClient.invalidateQueries({ queryKey: ["us-stock-lookup-dividends", ticker] });
       queryClient.invalidateQueries({ queryKey: ["us-stock-lookup-dividends-avg", ticker] });
       queryClient.invalidateQueries({ queryKey: ["us-stock-lookup-price-history", ticker] });
+      queryClient.invalidateQueries({ queryKey: ["us-stock-lookup-fundamentals", ticker] });
+      queryClient.invalidateQueries({ queryKey: ["us-stock-lookup-dcf-fundamentals", ticker] });
     },
   });
 
   const priceHistoryQuery = useQuery<StockPriceHistory[], AppError>({
     queryKey: ["us-stock-lookup-price-history", ticker],
     queryFn: () => invoke("list_stock_price_history", { ticker }),
+  });
+
+  const fundamentalsQuery = useQuery<StockFundamentals | null, AppError>({
+    queryKey: ["us-stock-lookup-fundamentals", ticker],
+    queryFn: async () => {
+      const rows = await invoke<StockFundamentals[]>("list_stock_fundamentals");
+      return latestForTicker(rows, ticker);
+    },
+  });
+
+  const dcfFundamentalsQuery = useQuery<StockDcfFundamentals | null, AppError>({
+    queryKey: ["us-stock-lookup-dcf-fundamentals", ticker],
+    queryFn: async () => {
+      const rows = await invoke<StockDcfFundamentals[]>("list_stock_dcf_fundamentals");
+      return latestForTicker(rows, ticker);
+    },
+  });
+
+  const valuationsQuery = useQuery<ValuationModel[], AppError>({
+    queryKey: ["valuations"],
+    queryFn: () => invoke("list_valuations"),
   });
 
   // Mesmo padrão cache-aware do resto do app: cotação ausente dispara o
@@ -135,6 +183,43 @@ function UsStockLookupSection({ ticker }: { ticker: string }) {
   const price = quoteQuery.data?.price ?? null;
   const dividends = dividendsQuery.data ?? [];
 
+  const lpa = fundamentalsQuery.data?.lpa ?? null;
+  const vpa = fundamentalsQuery.data?.vpa ?? null;
+  const roe = fundamentalsQuery.data?.roe ?? null;
+  const pl = price != null && lpa ? price / lpa : null;
+  const pvp = price != null && vpa ? price / vpa : null;
+
+  // Mesmos indicadores derivados de `StockAnalysisSection.tsx` (Fase 9.2) —
+  // conta em cima de campos que a SEC EDGAR já traz, sem comando próprio.
+  // `ebit`/`total_debt`/`cash`/`shares_outstanding`/`revenue` já vêm em
+  // US$ milhões (`sec_edgar.py::_to_millions`), soma/divide direto.
+  const ebit = dcfFundamentalsQuery.data?.ebit ?? null;
+  const da = dcfFundamentalsQuery.data?.depreciation_amortization ?? null;
+  const totalDebt = dcfFundamentalsQuery.data?.total_debt ?? null;
+  const cash = dcfFundamentalsQuery.data?.cash ?? null;
+  const sharesOutstanding = dcfFundamentalsQuery.data?.shares_outstanding ?? null;
+  const revenue = dcfFundamentalsQuery.data?.revenue ?? null;
+
+  const ebitda = ebit != null && da != null ? ebit + da : null;
+  const netDebt = totalDebt != null && cash != null ? totalDebt - cash : null;
+  const netDebtToEbitda = netDebt != null && ebitda ? netDebt / ebitda : null;
+
+  const marketCap = price != null && sharesOutstanding != null ? price * sharesOutstanding : null;
+  const enterpriseValue =
+    marketCap != null && totalDebt != null && cash != null
+      ? marketCap + totalDebt - cash
+      : null;
+  const evToEbit = enterpriseValue != null && ebit ? enterpriseValue / ebit : null;
+
+  const netIncome =
+    roe != null && vpa != null && sharesOutstanding != null
+      ? (roe / 100) * vpa * sharesOutstanding
+      : null;
+  const netMargin = netIncome != null && revenue ? (netIncome / revenue) * 100 : null;
+
+  const savedValuations = (valuationsQuery.data ?? []).filter((v) => v.ticker === ticker);
+  const latestValuation = savedValuations[0] ?? null;
+
   return (
     <div className="flex flex-col gap-6">
       {quoteQuery.isError && <p className="text-red-600">{quoteQuery.error.message}</p>}
@@ -192,6 +277,11 @@ function UsStockLookupSection({ ticker }: { ticker: string }) {
               label="Avg dividend/share (5y)"
               value={formatUsd(dividendsAvgQuery.data?.avg_dividend_5y)}
             />
+            <StatTile label="P/L" value={formatRatio(pl)} />
+            <StatTile label="P/VP" value={formatRatio(pvp)} />
+            <StatTile label="Net Debt/EBITDA" value={formatRatio(netDebtToEbitda)} />
+            <StatTile label="EV/EBIT" value={formatRatio(evToEbit)} />
+            <StatTile label="Net Margin" value={formatPercent(netMargin)} />
           </div>
 
           <div>
@@ -200,6 +290,29 @@ function UsStockLookupSection({ ticker }: { ticker: string }) {
               history={priceHistoryQuery.data ?? []}
               currencyPrefix={quoteQuery.data?.currency === "USD" ? "US$" : "R$"}
             />
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Fundamentals</h3>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <StatTile label="LPA" value={formatUsd(lpa)} />
+              <StatTile label="VPA" value={formatUsd(vpa)} />
+              <StatTile label="ROE" value={formatPercent(roe)} />
+              <StatTile label="Payout" value={formatPercent(fundamentalsQuery.data?.payout)} />
+            </div>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-sm font-semibold text-muted-foreground">DCF fundamentals</h3>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <StatTile label="EBIT" value={formatRatio(ebit)} />
+              <StatTile
+                label="Tax rate"
+                value={formatPercent(dcfFundamentalsQuery.data?.tax_rate)}
+              />
+              <StatTile label="Total debt" value={formatRatio(totalDebt)} />
+              <StatTile label="Cash" value={formatRatio(cash)} />
+            </div>
           </div>
 
           {dividends.length > 0 && (
@@ -215,6 +328,56 @@ function UsStockLookupSection({ ticker }: { ticker: string }) {
               No dividend payments found for {ticker} — not every company distributes.
             </p>
           )}
+
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-muted-foreground">Saved valuation</h3>
+              <div className="flex gap-2">
+                <Button type="button" size="sm" onClick={() => setNewValuationOpen(true)}>
+                  New Valuation
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSavedValuationsOpen(true)}
+                >
+                  All Saved Valuations
+                </Button>
+              </div>
+            </div>
+            {latestValuation ? (
+              <div className="rounded-lg border border-border bg-card p-4">
+                <p className="text-sm text-muted-foreground">
+                  {MODEL_LABELS[latestValuation.model] ?? latestValuation.model}
+                </p>
+                <p className="mt-1 text-2xl font-semibold">
+                  {formatUsd(latestValuation.fair_price)}
+                </p>
+                <div className="mt-2">
+                  <VerdictBadge verdict={latestValuation.verdict} />
+                </div>
+              </div>
+            ) : (
+              <p className="text-muted-foreground">No saved valuation for {ticker} yet.</p>
+            )}
+          </div>
+
+          <NewValuationDialog
+            open={newValuationOpen}
+            onOpenChange={setNewValuationOpen}
+            ticker={ticker}
+            assetClass="acao_internacional"
+          />
+
+          {/* Sem DialogHeader/DialogTitle aqui de propósito — mesmo motivo
+              de `StockAnalysisSection.tsx`: `SavedValuationsPanel` já traz
+              o próprio `Card`/`CardTitle`. */}
+          <Dialog open={savedValuationsOpen} onOpenChange={setSavedValuationsOpen}>
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
+              <SavedValuationsPanel />
+            </DialogContent>
+          </Dialog>
 
           <div>
             <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Notes</h3>

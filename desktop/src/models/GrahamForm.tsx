@@ -23,7 +23,7 @@ type GrahamInputsModel = {
   book_value_per_share: number;
 };
 
-function GrahamForm({ ticker: initialTicker }: { ticker?: string } = {}) {
+function GrahamForm({ ticker: initialTicker, assetClass }: { ticker?: string; assetClass?: string } = {}) {
   const [ticker, setTicker] = useState(initialTicker ?? "");
   const [referenceYear, setReferenceYear] = useState(
     String(new Date().getFullYear()),
@@ -32,7 +32,7 @@ function GrahamForm({ ticker: initialTicker }: { ticker?: string } = {}) {
   const [eps, setEps] = useState("");
   const [bookValuePerShare, setBookValuePerShare] = useState("");
 
-  const tickerCollector = useTickerCollector();
+  const tickerCollector = useTickerCollector(assetClass);
   const [tickerError, setTickerError] = useState<string | null>(null);
 
   const { calculateMutation, saveMutation } = useValuationActions<

@@ -25,7 +25,7 @@ type GordonInputsModel = {
   ke: number;
 };
 
-function GordonForm({ ticker: initialTicker }: { ticker?: string } = {}) {
+function GordonForm({ ticker: initialTicker, assetClass }: { ticker?: string; assetClass?: string } = {}) {
   const [ticker, setTicker] = useState(initialTicker ?? "");
   const [referenceYear, setReferenceYear] = useState(
     String(new Date().getFullYear()),
@@ -35,7 +35,7 @@ function GordonForm({ ticker: initialTicker }: { ticker?: string } = {}) {
   const [expectedGrowth, setExpectedGrowth] = useState("");
   const [ke, setKe] = useState("");
 
-  const tickerCollector = useTickerCollector();
+  const tickerCollector = useTickerCollector(assetClass);
   const [tickerError, setTickerError] = useState<string | null>(null);
 
   const { calculateMutation, saveMutation } = useValuationActions<
