@@ -1,6 +1,7 @@
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 use serde::{Deserialize, Serialize};
 
+use super::valuation::ValuationOutcomeResponse;
 use crate::domain::banks::{self, BanksInputs};
 use crate::entity::{banks_inputs, valuation};
 use crate::error::AppError;
@@ -22,8 +23,30 @@ pub struct BanksValuationResponse {
     pub inputs: banks_inputs::Model,
 }
 
+// Sessão 56 — preview, sem persistir (ver `save_banks` abaixo).
 #[tauri::command]
 pub async fn calculate_banks(
+    request: CalculateBanksRequest,
+) -> Result<ValuationOutcomeResponse, AppError> {
+    let outcome = banks::calculate(
+        &BanksInputs {
+            book_value_per_share: request.book_value_per_share,
+            roe: request.roe,
+            payout: request.payout,
+            ke: request.ke,
+        },
+        request.current_price,
+    )?;
+
+    Ok(ValuationOutcomeResponse {
+        fair_price: outcome.fair_price,
+        safety_margin: outcome.safety_margin,
+        verdict: outcome.verdict.as_str().to_string(),
+    })
+}
+
+#[tauri::command]
+pub async fn save_banks(
     db: tauri::State<'_, DatabaseConnection>,
     request: CalculateBanksRequest,
 ) -> Result<BanksValuationResponse, AppError> {

@@ -1,9 +1,7 @@
 import { useState, type FormEvent } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { useMutation } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
-import type { AppError, ValuationModel } from "../types";
 import { useTickerCollector } from "../collector/useTickerCollector";
+import { useValuationActions } from "./useValuationActions";
 import ValuationResult from "../components/ValuationResult";
 import Field from "../components/Field";
 import { Input } from "@/components/ui/input";
@@ -47,11 +45,6 @@ type DcfInputsModel = {
   perpetuity_growth: number;
 };
 
-type DcfValuationResponse = {
-  valuation: ValuationModel;
-  inputs: DcfInputsModel;
-};
-
 function SectionHeading({ children }: { children: string }) {
   return (
     <h2 className="mt-2 text-sm font-semibold text-muted-foreground sm:col-span-2">
@@ -60,8 +53,8 @@ function SectionHeading({ children }: { children: string }) {
   );
 }
 
-function DcfForm() {
-  const [ticker, setTicker] = useState("");
+function DcfForm({ ticker: initialTicker }: { ticker?: string } = {}) {
+  const [ticker, setTicker] = useState(initialTicker ?? "");
   const [referenceYear, setReferenceYear] = useState(
     String(new Date().getFullYear()),
   );
@@ -86,11 +79,11 @@ function DcfForm() {
   const tickerCollector = useTickerCollector();
   const [tickerError, setTickerError] = useState<string | null>(null);
 
-  const mutation = useMutation<DcfValuationResponse, AppError, CalculateDcfRequest>(
-    {
-      mutationFn: (request) => invoke("calculate_dcf", { request }),
-    },
-  );
+  const { calculateMutation, saveMutation } = useValuationActions<
+    CalculateDcfRequest,
+    DcfInputsModel
+  >("dcf");
+  const [lastAction, setLastAction] = useState<"calculate" | "save" | null>(null);
 
   async function handleFetch() {
     if (!ticker.trim()) {
@@ -124,9 +117,8 @@ function DcfForm() {
     }
   }
 
-  function handleSubmit(event: FormEvent) {
-    event.preventDefault();
-    mutation.mutate({
+  function buildRequest(): CalculateDcfRequest {
+    return {
       ticker: ticker.toUpperCase(),
       reference_year: Number(referenceYear),
       current_price: Number(currentPrice),
@@ -143,8 +135,23 @@ function DcfForm() {
       market_risk_premium: Number(marketRiskPremium) / 100,
       kd: Number(kd) / 100,
       perpetuity_growth: Number(perpetuityGrowth) / 100,
-    });
+    };
   }
+
+  function handleCalculate(event: FormEvent) {
+    event.preventDefault();
+    setLastAction("calculate");
+    calculateMutation.mutate(buildRequest());
+  }
+
+  function handleSave() {
+    setLastAction("save");
+    saveMutation.mutate(buildRequest());
+  }
+
+  const activeMutation = lastAction === "save" ? saveMutation : calculateMutation;
+  const resultValuation =
+    lastAction === "save" ? (saveMutation.data?.valuation ?? null) : (calculateMutation.data ?? null);
 
   return (
     <Card>
@@ -153,7 +160,7 @@ function DcfForm() {
       </CardHeader>
       <CardContent>
         <form
-          onSubmit={handleSubmit}
+          onSubmit={handleCalculate}
           className="grid grid-cols-1 gap-4 sm:grid-cols-2"
         >
           <Field label="Ticker">
@@ -340,21 +347,31 @@ function DcfForm() {
             />
           </Field>
 
-          <Button
-            type="submit"
-            disabled={mutation.isPending}
-            className="sm:col-span-2"
-          >
-            {mutation.isPending ? "Calculating..." : "Calculate"}
-          </Button>
+          <div className="flex gap-3 sm:col-span-2">
+            <Button type="submit" disabled={calculateMutation.isPending} className="flex-1">
+              {calculateMutation.isPending ? "Calculating..." : "Calculate"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleSave}
+              disabled={saveMutation.isPending}
+              className="flex-1"
+            >
+              {saveMutation.isPending ? "Saving..." : "Save"}
+            </Button>
+          </div>
         </form>
 
         <ValuationResult
-          isError={mutation.isError}
-          error={mutation.error ?? null}
-          isSuccess={mutation.isSuccess}
-          valuation={mutation.data?.valuation ?? null}
+          isError={activeMutation.isError}
+          error={activeMutation.error ?? null}
+          isSuccess={activeMutation.isSuccess}
+          valuation={resultValuation}
         />
+        {lastAction === "save" && saveMutation.isSuccess && (
+          <p className="mt-2 text-sm text-green-700">Saved.</p>
+        )}
       </CardContent>
     </Card>
   );

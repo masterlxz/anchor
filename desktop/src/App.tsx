@@ -1,13 +1,4 @@
 import { useState } from "react";
-import BazinForm from "./models/BazinForm";
-import GrahamForm from "./models/GrahamForm";
-import GordonForm from "./models/GordonForm";
-import DcfForm from "./models/DcfForm";
-import BanksForm from "./models/BanksForm";
-import RimForm from "./models/RimForm";
-import RnavForm from "./models/RnavForm";
-import ProjectedCeilingForm from "./models/ProjectedCeilingForm";
-import SavedValuationsPanel from "./valuations/SavedValuationsPanel";
 import StockLookupPanel from "./stock-lookup/StockLookupPanel";
 import AlertsPanel from "./alerts/AlertsPanel";
 import PortfolioPanel from "./portfolio/PortfolioPanel";
@@ -17,33 +8,9 @@ import ChatToggleButton from "./chat/ChatToggleButton";
 import type { GeminiContent } from "./chat/types";
 import SettingsPage from "./settings/SettingsPage";
 import ChatScreen from "./chat-full/ChatScreen";
-import Field from "./components/Field";
 import { Button } from "@/components/ui/button";
 import { MessageSquareIcon, SettingsIcon, LogOutIcon } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-const MODELS = {
-  bazin: { label: "Bazin", component: BazinForm },
-  graham: { label: "Graham", component: GrahamForm },
-  gordon: { label: "Gordon / DDM", component: GordonForm },
-  dcf: { label: "DCF / FCFF", component: DcfForm },
-  banks: { label: "Banks (P/B)", component: BanksForm },
-  rim: { label: "RIM (Bancos)", component: RimForm },
-  rnav: { label: "RNAV", component: RnavForm },
-  projected_ceiling: {
-    label: "Projected Ceiling",
-    component: ProjectedCeilingForm,
-  },
-} as const;
-
-type ModelKey = keyof typeof MODELS;
 
 // Fase 10, item 8, Sessão 51 — a antiga aba solta "Crypto Score" foi
 // absorvida por Research (agora um seletor de classe ali, junto com Ação/
@@ -52,31 +19,30 @@ type ModelKey = keyof typeof MODELS;
 // de nome, só o lugar de onde a UI os chama (StockLookupPanel.tsx →
 // CryptoLookupSection.tsx). Sessão 54: mesma lógica pra "TruthID Sync" —
 // virou uma seção dentro de Configurações (`SettingsPage.tsx` →
-// `TruthIdSettingsSection.tsx`), não mais aba própria aqui.
+// `TruthIdSettingsSection.tsx`), não mais aba própria aqui. Sessão 56: a
+// aba "Valuation" (seletor de modelo + 8 forms) migrou pra dentro de
+// Research/análise de ação (`StockAnalysisSection.tsx` → botão "New
+// Valuation" → `models/NewValuationDialog.tsx`) — os modelos servem pra
+// "empresas", não só uma tela solta, e a lista "Saved Valuations" foi
+// junto (mesmo componente `valuations/SavedValuationsPanel.tsx`, agora
+// aberto via popup em vez de toggle de aba).
 const SECTIONS = {
-  valuation: "Valuation",
   lookup: "Research",
   portfolio: "Portfolio",
   alerts: "Alerts",
 } as const;
 
-type ValuationView = "form" | "saved";
-
 type SectionKey = keyof typeof SECTIONS;
 
 // Sem lib de rotas — app desktop de janela única não tem barra de endereço
 // pra uma URL de verdade ganhar alguma coisa. Esse estado troca a tela
-// inteira (Tabs vs Configurações), mesmo padrão já usado dentro da aba
-// Valuation pro toggle form/saved, só que no nível do App inteiro.
+// inteira (Tabs vs Configurações/chat).
 type AppView = "main" | "settings" | "chat";
 
 function App() {
   const [workspaceId, setWorkspaceId] = useState<number | null>(null);
   const [view, setView] = useState<AppView>("main");
-  const [section, setSection] = useState<SectionKey>("valuation");
-  const [valuationView, setValuationView] = useState<ValuationView>("form");
-  const [selectedModel, setSelectedModel] = useState<ModelKey>("bazin");
-  const SelectedForm = MODELS[selectedModel].component;
+  const [section, setSection] = useState<SectionKey>("lookup");
   const [chatOpen, setChatOpen] = useState(false);
   const [chatHistory, setChatHistory] = useState<GeminiContent[]>([]);
 
@@ -149,53 +115,6 @@ function App() {
               </Button>
             </div>
           </div>
-
-          <TabsContent value="valuation" className="flex flex-col gap-6">
-            {valuationView === "form" ? (
-              <>
-                <div className="flex items-end justify-between gap-4">
-                  <Field label="Valuation model" className="flex-1">
-                    <Select
-                      value={selectedModel}
-                      onValueChange={(value) => setSelectedModel(value as ModelKey)}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(MODELS).map(([key, { label }]) => (
-                          <SelectItem key={key} value={key}>
-                            {label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setValuationView("saved")}
-                  >
-                    Saved Valuations
-                  </Button>
-                </div>
-
-                <SelectedForm />
-              </>
-            ) : (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-fit"
-                  onClick={() => setValuationView("form")}
-                >
-                  ← Back
-                </Button>
-                <SavedValuationsPanel />
-              </>
-            )}
-          </TabsContent>
 
           <TabsContent value="lookup">
             <StockLookupPanel />

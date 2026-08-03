@@ -1,6 +1,7 @@
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 use serde::{Deserialize, Serialize};
 
+use super::valuation::ValuationOutcomeResponse;
 use crate::domain::projected_ceiling::{self, ProjectedCeilingInputs};
 use crate::entity::{projected_ceiling_inputs, valuation};
 use crate::error::AppError;
@@ -23,8 +24,31 @@ pub struct ProjectedCeilingValuationResponse {
     pub inputs: projected_ceiling_inputs::Model,
 }
 
+// Sessão 56 — preview, sem persistir (ver `save_projected_ceiling` abaixo).
 #[tauri::command]
 pub async fn calculate_projected_ceiling(
+    request: CalculateProjectedCeilingRequest,
+) -> Result<ValuationOutcomeResponse, AppError> {
+    let outcome = projected_ceiling::calculate(
+        &ProjectedCeilingInputs {
+            current_dividend: request.current_dividend,
+            expected_growth: request.expected_growth,
+            projection_years: request.projection_years,
+            desired_yield: request.desired_yield,
+            ke: request.ke,
+        },
+        request.current_price,
+    )?;
+
+    Ok(ValuationOutcomeResponse {
+        fair_price: outcome.fair_price,
+        safety_margin: outcome.safety_margin,
+        verdict: outcome.verdict.as_str().to_string(),
+    })
+}
+
+#[tauri::command]
+pub async fn save_projected_ceiling(
     db: tauri::State<'_, DatabaseConnection>,
     request: CalculateProjectedCeilingRequest,
 ) -> Result<ProjectedCeilingValuationResponse, AppError> {

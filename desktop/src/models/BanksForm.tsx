@@ -1,9 +1,7 @@
 import { useState, type FormEvent } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { useMutation } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
-import type { AppError, ValuationModel } from "../types";
 import { useTickerCollector } from "../collector/useTickerCollector";
+import { useValuationActions } from "./useValuationActions";
 import ValuationResult from "../components/ValuationResult";
 import Field from "../components/Field";
 import { Input } from "@/components/ui/input";
@@ -29,13 +27,8 @@ type BanksInputsModel = {
   ke: number;
 };
 
-type BanksValuationResponse = {
-  valuation: ValuationModel;
-  inputs: BanksInputsModel;
-};
-
-function BanksForm() {
-  const [ticker, setTicker] = useState("");
+function BanksForm({ ticker: initialTicker }: { ticker?: string } = {}) {
+  const [ticker, setTicker] = useState(initialTicker ?? "");
   const [referenceYear, setReferenceYear] = useState(
     String(new Date().getFullYear()),
   );
@@ -48,13 +41,11 @@ function BanksForm() {
   const tickerCollector = useTickerCollector();
   const [tickerError, setTickerError] = useState<string | null>(null);
 
-  const mutation = useMutation<
-    BanksValuationResponse,
-    AppError,
-    CalculateBanksRequest
-  >({
-    mutationFn: (request) => invoke("calculate_banks", { request }),
-  });
+  const { calculateMutation, saveMutation } = useValuationActions<
+    CalculateBanksRequest,
+    BanksInputsModel
+  >("banks");
+  const [lastAction, setLastAction] = useState<"calculate" | "save" | null>(null);
 
   async function handleFetch() {
     if (!ticker.trim()) {
@@ -82,9 +73,8 @@ function BanksForm() {
     }
   }
 
-  function handleSubmit(event: FormEvent) {
-    event.preventDefault();
-    mutation.mutate({
+  function buildRequest(): CalculateBanksRequest {
+    return {
       ticker: ticker.toUpperCase(),
       reference_year: Number(referenceYear),
       current_price: Number(currentPrice),
@@ -92,8 +82,23 @@ function BanksForm() {
       roe: Number(roe) / 100,
       payout: Number(payout) / 100,
       ke: Number(ke) / 100,
-    });
+    };
   }
+
+  function handleCalculate(event: FormEvent) {
+    event.preventDefault();
+    setLastAction("calculate");
+    calculateMutation.mutate(buildRequest());
+  }
+
+  function handleSave() {
+    setLastAction("save");
+    saveMutation.mutate(buildRequest());
+  }
+
+  const activeMutation = lastAction === "save" ? saveMutation : calculateMutation;
+  const resultValuation =
+    lastAction === "save" ? (saveMutation.data?.valuation ?? null) : (calculateMutation.data ?? null);
 
   return (
     <Card>
@@ -102,7 +107,7 @@ function BanksForm() {
       </CardHeader>
       <CardContent>
         <form
-          onSubmit={handleSubmit}
+          onSubmit={handleCalculate}
           className="grid grid-cols-1 gap-4 sm:grid-cols-2"
         >
           <Field label="Ticker">
@@ -193,21 +198,31 @@ function BanksForm() {
             />
           </Field>
 
-          <Button
-            type="submit"
-            disabled={mutation.isPending}
-            className="sm:col-span-2"
-          >
-            {mutation.isPending ? "Calculating..." : "Calculate"}
-          </Button>
+          <div className="flex gap-3 sm:col-span-2">
+            <Button type="submit" disabled={calculateMutation.isPending} className="flex-1">
+              {calculateMutation.isPending ? "Calculating..." : "Calculate"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleSave}
+              disabled={saveMutation.isPending}
+              className="flex-1"
+            >
+              {saveMutation.isPending ? "Saving..." : "Save"}
+            </Button>
+          </div>
         </form>
 
         <ValuationResult
-          isError={mutation.isError}
-          error={mutation.error ?? null}
-          isSuccess={mutation.isSuccess}
-          valuation={mutation.data?.valuation ?? null}
+          isError={activeMutation.isError}
+          error={activeMutation.error ?? null}
+          isSuccess={activeMutation.isSuccess}
+          valuation={resultValuation}
         />
+        {lastAction === "save" && saveMutation.isSuccess && (
+          <p className="mt-2 text-sm text-green-700">Saved.</p>
+        )}
       </CardContent>
     </Card>
   );

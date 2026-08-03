@@ -2,7 +2,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
     Unchanged,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
 use crate::domain::{banks, bazin, dcf, gordon, graham, projected_ceiling, rim, rnav};
@@ -11,6 +11,20 @@ use crate::entity::{
     projected_ceiling_inputs, rim_inputs, rnav_inputs, valuation,
 };
 use crate::error::AppError;
+
+// Sessão 56 — resposta compartilhada pelas 8 `calculate_<model>` (agora só
+// preview, sem insert — ver `save_<model>` em cada `commands/<model>.rs` pra
+// a versão que persiste). Todo `domain::<model>::ValuationOutcome` já tem
+// exatamente este shape (`fair_price`/`safety_margin`/`verdict`), só o
+// `Verdict` é um enum próprio por módulo — convertido pra `String` aqui, no
+// ponto de saída de cada comando, em vez de cada `domain` módulo precisar
+// derivar `Serialize`.
+#[derive(Serialize)]
+pub struct ValuationOutcomeResponse {
+    pub fair_price: f64,
+    pub safety_margin: f64,
+    pub verdict: String,
+}
 
 #[tauri::command]
 pub async fn list_valuations(

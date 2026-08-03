@@ -1,6 +1,7 @@
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 use serde::{Deserialize, Serialize};
 
+use super::valuation::ValuationOutcomeResponse;
 use crate::domain::rim::{self, RimInputs};
 use crate::entity::{rim_inputs, valuation};
 use crate::error::AppError;
@@ -23,8 +24,31 @@ pub struct RimValuationResponse {
     pub inputs: rim_inputs::Model,
 }
 
+// Sessão 56 — preview, sem persistir (ver `save_rim` abaixo).
 #[tauri::command]
 pub async fn calculate_rim(
+    request: CalculateRimRequest,
+) -> Result<ValuationOutcomeResponse, AppError> {
+    let outcome = rim::calculate(
+        &RimInputs {
+            book_value_per_share: request.book_value_per_share,
+            roe_current: request.roe_current,
+            payout: request.payout,
+            ke: request.ke,
+            fade_years: request.fade_years,
+        },
+        request.current_price,
+    )?;
+
+    Ok(ValuationOutcomeResponse {
+        fair_price: outcome.fair_price,
+        safety_margin: outcome.safety_margin,
+        verdict: outcome.verdict.as_str().to_string(),
+    })
+}
+
+#[tauri::command]
+pub async fn save_rim(
     db: tauri::State<'_, DatabaseConnection>,
     request: CalculateRimRequest,
 ) -> Result<RimValuationResponse, AppError> {

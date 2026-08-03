@@ -15,6 +15,8 @@ import type {
 import VerdictBadge from "../components/VerdictBadge";
 import DividendHistoryChart from "./DividendHistoryChart";
 import PriceHistoryChart from "./PriceHistoryChart";
+import NewValuationDialog from "../models/NewValuationDialog";
+import SavedValuationsPanel from "../valuations/SavedValuationsPanel";
 import {
   AddToAssetsButton,
   CompanyLogo,
@@ -26,6 +28,7 @@ import {
 } from "./shared";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 type CollectorSummary = { success: boolean; output: string };
 
@@ -58,10 +61,19 @@ const MODEL_LABELS: Record<string, string> = {
 /// DCF, técnicos, proventos, valuation salva. Irmã de `FiiLookupSection.tsx`
 /// (indicadores completamente diferentes — vacância/inadimplência/imóveis
 /// não fazem sentido aqui, LPA/VPA/ROE não fazem sentido lá), escolhidas
-/// pelo seletor de classe em `StockLookupPanel.tsx`.
+/// pelo seletor de classe em `StockLookupPanel.tsx`. Sessão 56 — a antiga
+/// aba própria "Valuation" (seletor de modelo + 8 forms, `App.tsx`) migrou
+/// pra cá: bloco "Saved valuation" ganhou "New Valuation" (abre
+/// `NewValuationDialog.tsx`, ticker pré-preenchido) e "All Saved
+/// Valuations" (abre `SavedValuationsPanel.tsx`, todos os tickers, dentro
+/// de um `Dialog`) — pedido explícito do dono do projeto: os modelos
+/// servem pra "empresas", não só Ação BR, então a tela migra pra dentro da
+/// análise em vez de ficar solta no nav principal.
 function StockAnalysisSection({ ticker }: { ticker: string }) {
   const [noteDraft, setNoteDraft] = useState("");
   const autoFetchedTickerRef = useRef<string | null>(null);
+  const [newValuationOpen, setNewValuationOpen] = useState(false);
+  const [savedValuationsOpen, setSavedValuationsOpen] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -284,7 +296,22 @@ function StockAnalysisSection({ ticker }: { ticker: string }) {
           </div>
 
           <div>
-            <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Saved valuation</h3>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-muted-foreground">Saved valuation</h3>
+              <div className="flex gap-2">
+                <Button type="button" size="sm" onClick={() => setNewValuationOpen(true)}>
+                  New Valuation
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSavedValuationsOpen(true)}
+                >
+                  All Saved Valuations
+                </Button>
+              </div>
+            </div>
             {latestValuation ? (
               <div className="rounded-lg border border-border bg-card p-4">
                 <p className="text-sm text-muted-foreground">
@@ -301,6 +328,21 @@ function StockAnalysisSection({ ticker }: { ticker: string }) {
               <p className="text-muted-foreground">No saved valuation for {ticker} yet.</p>
             )}
           </div>
+
+          <NewValuationDialog
+            open={newValuationOpen}
+            onOpenChange={setNewValuationOpen}
+            ticker={ticker}
+          />
+
+          {/* Sem DialogHeader/DialogTitle aqui de propósito —
+              `SavedValuationsPanel` já traz o próprio `Card`/`CardTitle`
+              ("Saved valuations"), um título duplicado ficaria redundante. */}
+          <Dialog open={savedValuationsOpen} onOpenChange={setSavedValuationsOpen}>
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
+              <SavedValuationsPanel />
+            </DialogContent>
+          </Dialog>
 
           <div>
             <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Notes</h3>

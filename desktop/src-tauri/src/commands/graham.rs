@@ -1,6 +1,7 @@
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 use serde::{Deserialize, Serialize};
 
+use super::valuation::ValuationOutcomeResponse;
 use crate::domain::graham::{self, GrahamInputs};
 use crate::entity::{graham_inputs, valuation};
 use crate::error::AppError;
@@ -20,8 +21,28 @@ pub struct GrahamValuationResponse {
     pub inputs: graham_inputs::Model,
 }
 
+// Sessão 56 — preview, sem persistir (ver `save_graham` abaixo).
 #[tauri::command]
 pub async fn calculate_graham(
+    request: CalculateGrahamRequest,
+) -> Result<ValuationOutcomeResponse, AppError> {
+    let outcome = graham::calculate(
+        &GrahamInputs {
+            eps: request.eps,
+            book_value_per_share: request.book_value_per_share,
+        },
+        request.current_price,
+    )?;
+
+    Ok(ValuationOutcomeResponse {
+        fair_price: outcome.fair_price,
+        safety_margin: outcome.safety_margin,
+        verdict: outcome.verdict.as_str().to_string(),
+    })
+}
+
+#[tauri::command]
+pub async fn save_graham(
     db: tauri::State<'_, DatabaseConnection>,
     request: CalculateGrahamRequest,
 ) -> Result<GrahamValuationResponse, AppError> {

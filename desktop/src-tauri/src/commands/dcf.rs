@@ -1,6 +1,7 @@
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 use serde::{Deserialize, Serialize};
 
+use super::valuation::ValuationOutcomeResponse;
 use crate::domain::dcf::{self, DcfInputs};
 use crate::entity::{dcf_inputs, valuation};
 use crate::error::AppError;
@@ -31,8 +32,39 @@ pub struct DcfValuationResponse {
     pub inputs: dcf_inputs::Model,
 }
 
+// Sessão 56 — preview, sem persistir (ver `save_dcf` abaixo).
 #[tauri::command]
 pub async fn calculate_dcf(
+    request: CalculateDcfRequest,
+) -> Result<ValuationOutcomeResponse, AppError> {
+    let outcome = dcf::calculate(
+        &DcfInputs {
+            ebit: request.ebit,
+            tax_rate: request.tax_rate,
+            depreciation_amortization: request.depreciation_amortization,
+            capex: request.capex,
+            nwc_change: request.nwc_change,
+            total_debt: request.total_debt,
+            cash: request.cash,
+            shares_outstanding: request.shares_outstanding,
+            beta: request.beta,
+            risk_free_rate: request.risk_free_rate,
+            market_risk_premium: request.market_risk_premium,
+            kd: request.kd,
+            perpetuity_growth: request.perpetuity_growth,
+        },
+        request.current_price,
+    )?;
+
+    Ok(ValuationOutcomeResponse {
+        fair_price: outcome.fair_price,
+        safety_margin: outcome.safety_margin,
+        verdict: outcome.verdict.as_str().to_string(),
+    })
+}
+
+#[tauri::command]
+pub async fn save_dcf(
     db: tauri::State<'_, DatabaseConnection>,
     request: CalculateDcfRequest,
 ) -> Result<DcfValuationResponse, AppError> {

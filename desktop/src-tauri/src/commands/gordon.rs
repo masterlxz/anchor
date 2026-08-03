@@ -1,6 +1,7 @@
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 use serde::{Deserialize, Serialize};
 
+use super::valuation::ValuationOutcomeResponse;
 use crate::domain::gordon::{self, GordonInputs};
 use crate::entity::{gordon_inputs, valuation};
 use crate::error::AppError;
@@ -21,8 +22,29 @@ pub struct GordonValuationResponse {
     pub inputs: gordon_inputs::Model,
 }
 
+// Sessão 56 — preview, sem persistir (ver `save_gordon` abaixo).
 #[tauri::command]
 pub async fn calculate_gordon(
+    request: CalculateGordonRequest,
+) -> Result<ValuationOutcomeResponse, AppError> {
+    let outcome = gordon::calculate(
+        &GordonInputs {
+            current_dividend: request.current_dividend,
+            expected_growth: request.expected_growth,
+            ke: request.ke,
+        },
+        request.current_price,
+    )?;
+
+    Ok(ValuationOutcomeResponse {
+        fair_price: outcome.fair_price,
+        safety_margin: outcome.safety_margin,
+        verdict: outcome.verdict.as_str().to_string(),
+    })
+}
+
+#[tauri::command]
+pub async fn save_gordon(
     db: tauri::State<'_, DatabaseConnection>,
     request: CalculateGordonRequest,
 ) -> Result<GordonValuationResponse, AppError> {
