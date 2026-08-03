@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { AppError } from "../types";
 import type { ApiKeySummary } from "../settings/SettingsPage";
 import { PROVIDER_LABELS } from "../settings/SettingsPage";
@@ -13,6 +15,33 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
+// Estilos mínimos pro Markdown curto que a IA devolve (### subtítulos, listas,
+// negrito) — não usa o mapa de componentes do assistant-ui porque aquele é
+// acoplado ao `MarkdownTextPrimitive` do chat, não ao `ReactMarkdown` genérico.
+const aboutMarkdownComponents = {
+  h3: ({ className, ...props }: React.ComponentPropsWithoutRef<"h3">) => (
+    <h3
+      className={`mt-5 mb-1.5 text-sm font-semibold first:mt-0 ${className ?? ""}`}
+      {...props}
+    />
+  ),
+  p: ({ className, ...props }: React.ComponentPropsWithoutRef<"p">) => (
+    <p className={`mb-1.5 text-sm leading-relaxed last:mb-0 ${className ?? ""}`} {...props} />
+  ),
+  ul: ({ className, ...props }: React.ComponentPropsWithoutRef<"ul">) => (
+    <ul
+      className={`my-1.5 ms-5 list-disc text-sm leading-relaxed last:mb-0 [&>li]:mt-1.5 ${className ?? ""}`}
+      {...props}
+    />
+  ),
+  li: ({ className, ...props }: React.ComponentPropsWithoutRef<"li">) => (
+    <li className={`leading-relaxed ${className ?? ""}`} {...props} />
+  ),
+  strong: ({ className, ...props }: React.ComponentPropsWithoutRef<"strong">) => (
+    <strong className={`font-semibold ${className ?? ""}`} {...props} />
+  ),
+};
 
 type CompanyAiInfo = {
   id: number;
@@ -54,7 +83,7 @@ function AboutCompanySection({
   const infoQueryKey = ["company-ai-info", assetClass, ticker];
   const infoQuery = useQuery<CompanyAiInfo | null, AppError>({
     queryKey: infoQueryKey,
-    queryFn: () => invoke("get_company_ai_info", { ticker, asset_class: assetClass }),
+    queryFn: () => invoke("get_company_ai_info", { ticker, assetClass }),
     enabled: keys.length > 0,
   });
 
@@ -107,7 +136,9 @@ function AboutCompanySection({
           <p className="text-sm text-muted-foreground">Gerando com IA…</p>
         ) : info ? (
           <>
-            <p className="text-sm whitespace-pre-wrap">{info.content}</p>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={aboutMarkdownComponents}>
+              {info.content}
+            </ReactMarkdown>
             <p className="mt-3 text-xs text-muted-foreground">
               Gerado via {PROVIDER_LABELS[info.provider] ?? info.provider} em{" "}
               {new Date(info.generated_at).toLocaleString()}
