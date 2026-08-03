@@ -59,8 +59,9 @@ pub(crate) async fn run_collector(
 }
 
 // `asset_class` distingue "cripto" (fonte CoinGecko, `--crypto-ticker`,
-// Sessão 51) e "metal" (fonte Yahoo sem `.SA` — COMEX, `--metal-ticker`,
-// Sessão 55) do resto (Ação BR/FII/ETF/BDR, todos o mesmo endpoint Yahoo
+// Sessão 51), "metal" (fonte Yahoo sem `.SA` — COMEX, `--metal-ticker`,
+// Sessão 55) e "acao_internacional" (Yahoo sem `.SA` — ação americana,
+// `--us-ticker`) do resto (Ação BR/FII/ETF/BDR, todos o mesmo endpoint Yahoo
 // `.SA`, `--ticker`) — ver PHASE.md item 8. `None` preserva o comportamento
 // anterior (chamadores que não sabem/não precisam distinguir classe, ex.:
 // os formulários de valuation via `useTickerCollector`).
@@ -73,6 +74,7 @@ pub async fn run_stock_collector(
     match asset_class.as_deref() {
         Some("cripto") => run_collector(&lock, &["--crypto-ticker", &ticker]).await,
         Some("metal") => run_collector(&lock, &["--metal-ticker", &ticker]).await,
+        Some("acao_internacional") => run_collector(&lock, &["--us-ticker", &ticker]).await,
         _ => run_collector(&lock, &["--ticker", &ticker]).await,
     }
 }

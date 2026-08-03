@@ -76,6 +76,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
   const isCripto = assetClass === "cripto";
   const isBdr = assetClass === "bdr";
   const isMetal = assetClass === "metal";
+  const isUsStock = assetClass === "acao_internacional";
 
   const queryClient = useQueryClient();
 
@@ -119,7 +120,13 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
     mutationFn: (t) =>
       invoke<CollectorSummary>("run_stock_collector", {
         ticker: t,
-        asset_class: isCripto ? "cripto" : isMetal ? "metal" : null,
+        asset_class: isCripto
+          ? "cripto"
+          : isMetal
+            ? "metal"
+            : isUsStock
+              ? "acao_internacional"
+              : null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["asset-section-stock-quote", activeTicker] });
@@ -175,13 +182,18 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
       } else if (isMetal) {
         setExposureType("categoria_especial");
         setExposureValue("gold_metal");
+      } else if (isUsStock) {
+        // Mesmo padrão do BDR: "US" é o chute óbvio pra ação americana
+        // (NYSE/NASDAQ), editável.
+        setExposureType("pais");
+        setExposureValue("US");
       } else {
         setExposureType("pais");
         setExposureValue("BR");
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAutoQuoteClass, isCripto, isBdr, isMetal, activeTicker, lookupQuery.data]);
+  }, [isAutoQuoteClass, isCripto, isBdr, isMetal, isUsStock, activeTicker, lookupQuery.data]);
 
   // Sugestão de CNPJ (só FII) — dispara junto com o prefill acima, uma vez
   // por ticker. `cnpj` fica vazio se não achar sugestão confiável (o
@@ -287,7 +299,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
         {isAutoQuoteClass && (
           <form onSubmit={handleTickerSearch} className="mb-4 flex items-end gap-3">
             <Field
-              label={isCripto || isMetal ? "Search ticker" : "Search ticker (B3)"}
+              label={isCripto || isMetal || isUsStock ? "Search ticker" : "Search ticker (B3)"}
               className="flex-1"
             >
               <Input
@@ -303,7 +315,9 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
                           ? "AAPL34"
                           : isMetal
                             ? "XAU"
-                            : "PETR4"
+                            : isUsStock
+                              ? "AAPL"
+                              : "PETR4"
                 }
                 value={tickerQuery}
                 onChange={(e) => setTickerQuery(e.currentTarget.value)}

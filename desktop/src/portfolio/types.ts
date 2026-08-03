@@ -36,7 +36,10 @@ export type Custodia = {
 // Brasil. `metal` entrou na Sessão 55 — só ouro (`XAU`) por ora, cotação
 // via Yahoo sem `.SA` (COMEX, não é listada na B3), preço já convertido pra
 // USD/grama na fonte; exposição default `categoria_especial`/`gold_metal`
-// (nem país nem "BR"/"US" fazem sentido pra metal). Ver
+// (nem país nem "BR"/"US" fazem sentido pra metal). `acao_internacional`
+// ganhou cotação automática numa fatia 1 (Fatia 2, fundamentos via SEC
+// EDGAR, fica pra depois) — mesmo endpoint Yahoo do resto, sem sufixo
+// (ticker puro, ex.: AAPL); exposição default "US", mesmo padrão do BDR. Ver
 // commands/asset.rs::ASSET_CLASSES.
 export type AssetClass =
   | "acao_br"
@@ -89,6 +92,7 @@ export const ASSET_CLASSES_WITH_AUTO_QUOTE: AssetClass[] = [
   "cripto",
   "bdr",
   "metal",
+  "acao_internacional",
 ];
 
 export type ExposureType = "pais" | "categoria_especial";

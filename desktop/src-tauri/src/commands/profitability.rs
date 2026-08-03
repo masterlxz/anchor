@@ -30,8 +30,15 @@ const DIVIDEND: &str = "provento";
 // sub-ledger de caixa, então uma compra não é "caixa→ativo", é "ativo
 // aparece", e pro efeito desta fatia isso equivale a um aporte na
 // sub-carteira.
-const ASSET_CLASSES_WITH_AUTO_QUOTE: [&str; 6] =
-    ["acao_br", "fii", "etf_br", "cripto", "bdr", "metal"];
+const ASSET_CLASSES_WITH_AUTO_QUOTE: [&str; 7] = [
+    "acao_br",
+    "fii",
+    "etf_br",
+    "cripto",
+    "bdr",
+    "metal",
+    "acao_internacional",
+];
 const PRICE_TOLERANCE_DAYS: i64 = 7;
 
 #[derive(Serialize)]

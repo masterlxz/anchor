@@ -675,6 +675,194 @@ def main_metal_ticker(ticker: str) -> int:
     return 0
 
 
+def collect_us_stock_quotes(tickers: list[str]) -> list[dict]:
+    if not tickers:
+        return []
+
+    quotes = acoes_yahoo.fetch_quotes(tickers, suffix="")
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA journal_mode=WAL")
+    now = datetime.now(timezone.utc).isoformat()
+    conn.executemany(
+        "INSERT INTO stock_quotes (ticker, price, name, exchange, currency, source, fetched_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [
+            (
+                quote["ticker"],
+                quote["price"],
+                quote["name"],
+                quote["exchange"],
+                quote["currency"],
+                "yahoo_finance",
+                now,
+            )
+            for quote in quotes
+        ],
+    )
+    conn.commit()
+    conn.close()
+
+    return quotes
+
+
+def collect_us_stock_dividends_avg(tickers: list[str]) -> list[dict]:
+    if not tickers:
+        return []
+
+    dividends = acoes_yahoo.fetch_dividends_avg(tickers, suffix="")
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA journal_mode=WAL")
+    now = datetime.now(timezone.utc).isoformat()
+    conn.executemany(
+        "INSERT INTO stock_dividends_avg (ticker, avg_dividend_5y, source, fetched_at) "
+        "VALUES (?, ?, ?, ?)",
+        [
+            (item["ticker"], item["avg_dividend_5y"], "yahoo_finance", now)
+            for item in dividends
+        ],
+    )
+    conn.commit()
+    conn.close()
+
+    return dividends
+
+
+def collect_us_stock_technicals(tickers: list[str]) -> list[dict]:
+    if not tickers:
+        return []
+
+    technicals = acoes_yahoo.fetch_technicals(tickers, suffix="")
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA journal_mode=WAL")
+    now = datetime.now(timezone.utc).isoformat()
+    conn.executemany(
+        "INSERT INTO stock_technicals (ticker, sma_50, sma_100, sma_200, "
+        "cagr_5y, cagr_10y, source, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            (
+                item["ticker"],
+                item["sma_50"],
+                item["sma_100"],
+                item["sma_200"],
+                item["cagr_5y"],
+                item["cagr_10y"],
+                "yahoo_finance",
+                now,
+            )
+            for item in technicals
+        ],
+    )
+    conn.commit()
+    conn.close()
+
+    return technicals
+
+
+def collect_us_stock_dividend_payments(tickers: list[str]) -> list[dict]:
+    if not tickers:
+        return []
+
+    payments = acoes_yahoo.fetch_dividend_payments(tickers, suffix="")
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA journal_mode=WAL")
+    now = datetime.now(timezone.utc).isoformat()
+    changes_before = conn.total_changes
+    conn.executemany(
+        "INSERT OR IGNORE INTO stock_dividend_payments "
+        "(ticker, payment_date, amount, price_at_payment, yield_pct, source, fetched_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [
+            (
+                item["ticker"],
+                item["payment_date"],
+                item["amount"],
+                item["price_at_payment"],
+                item["yield_pct"],
+                "yahoo_finance",
+                now,
+            )
+            for item in payments
+        ],
+    )
+    new_count = conn.total_changes - changes_before
+    conn.commit()
+    conn.close()
+
+    print(
+        f"Fetched {len(payments)} dividend payment(s) from source, "
+        f"{new_count} new (rest already saved)"
+    )
+    return payments
+
+
+def collect_us_price_history(tickers: list[str]) -> list[dict]:
+    if not tickers:
+        return []
+
+    prices = acoes_yahoo.fetch_price_history(tickers, suffix="")
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA journal_mode=WAL")
+    now = datetime.now(timezone.utc).isoformat()
+    changes_before = conn.total_changes
+    conn.executemany(
+        "INSERT OR IGNORE INTO stock_price_history "
+        "(ticker, price_date, close_price, source, fetched_at) VALUES (?, ?, ?, ?, ?)",
+        [
+            (item["ticker"], item["price_date"], item["close_price"], "yahoo_finance", now)
+            for item in prices
+        ],
+    )
+    new_count = conn.total_changes - changes_before
+    conn.commit()
+    conn.close()
+
+    print(f"Fetched {len(prices)} daily price point(s), {new_count} new (rest already saved)")
+    return prices
+
+
+def main_us_stock(ticker: str) -> int:
+    """Ação americana (Fase 10, item 8, Fatia 1) — mesmos 4 passos Yahoo de
+    `main()` (cotação, dividendo médio, técnicos, pagamentos + histórico de
+    preço), sem sufixo `.SA`. Sem bloco de fundamentos/DCF nesta fatia —
+    `acoes_bolsai`/`cvm_dfp` são fontes só do mercado brasileiro; a fonte
+    equivalente pra fundamentos americanos (SEC EDGAR) fica pra uma fatia
+    futura (ver PHASE.md).
+    """
+    load_dotenv(BASE_DIR / ".env")
+    tickers = [ticker]
+
+    quotes = collect_us_stock_quotes(tickers)
+    for quote in quotes:
+        print(f"{quote['ticker']}: US$ {quote['price']}")
+    print(f"Updated {len(quotes)} quote(s)")
+
+    dividends = collect_us_stock_dividends_avg(tickers)
+    for item in dividends:
+        print(f"{item['ticker']}: avg dividend/share (5y) US$ {item['avg_dividend_5y']:.4f}")
+    print(f"Updated {len(dividends)} dividend average record(s)")
+
+    technicals = collect_us_stock_technicals(tickers)
+    for item in technicals:
+        sma_200 = item["sma_200"]
+        cagr_10y = item["cagr_10y"]
+        print(
+            f"{item['ticker']}: SMA200 "
+            f"{'n/a' if sma_200 is None else f'US$ {sma_200:.2f}'} / "
+            f"CAGR 10y {'n/a' if cagr_10y is None else f'{cagr_10y:.1f}%'}"
+        )
+    print(f"Updated {len(technicals)} technicals record(s)")
+
+    collect_us_stock_dividend_payments(tickers)
+    collect_us_price_history(tickers)
+
+    return 0
+
+
 def main(ticker: str | None = None) -> int:
     load_dotenv(BASE_DIR / ".env")
 
@@ -796,6 +984,11 @@ if __name__ == "__main__":
             print("Usage: python main.py --metal-ticker <TICKER>")
             sys.exit(1)
         sys.exit(main_metal_ticker(sys.argv[2].strip().upper()))
+    if len(sys.argv) > 1 and sys.argv[1] == "--us-ticker":
+        if len(sys.argv) < 3 or not sys.argv[2].strip():
+            print("Usage: python main.py --us-ticker <TICKER>")
+            sys.exit(1)
+        sys.exit(main_us_stock(sys.argv[2].strip().upper()))
     if len(sys.argv) > 1 and sys.argv[1] == "--fii-cvm-data":
         if len(sys.argv) < 3 or not sys.argv[2].strip():
             print("Usage: python main.py --fii-cvm-data <CNPJ1,CNPJ2,...>")

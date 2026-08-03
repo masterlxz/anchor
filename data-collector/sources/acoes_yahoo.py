@@ -53,7 +53,7 @@ SECONDS_PER_YEAR = 365.25 * 86400
 CAGR_ANCHOR_TOLERANCE_DAYS = 30
 
 
-def fetch_quotes(tickers: list[str]) -> list[dict]:
+def fetch_quotes(tickers: list[str], suffix: str = ".SA") -> list[dict]:
     """Busca a cotação atual de uma lista de tickers.
 
     Retorna uma lista de {"ticker": str, "price": float, "name": str | None,
@@ -63,13 +63,16 @@ def fetch_quotes(tickers: list[str]) -> list[dict]:
     é obrigatório — os outros usam `.get()` pra não descartar o ticker se o
     Yahoo omitir algum deles. Tickers que falharem na API são ignorados —
     não derrubam o resto, mesmo padrão de `fetch_dividends_avg`.
+
+    `suffix` é `.SA` (B3) por padrão — ação americana chama com `suffix=""`
+    (ticker puro, sem sufixo de bolsa, mesma API).
     """
     results = []
 
     for ticker in tickers:
         try:
             response = requests.get(
-                f"{YAHOO_CHART_URL}/{ticker}.SA",
+                f"{YAHOO_CHART_URL}/{ticker}{suffix}",
                 params={"range": "5d", "interval": "1d"},
                 headers={"User-Agent": "Mozilla/5.0"},
                 timeout=15,
@@ -93,7 +96,7 @@ def fetch_quotes(tickers: list[str]) -> list[dict]:
     return results
 
 
-def fetch_price_history(tickers: list[str]) -> list[dict]:
+def fetch_price_history(tickers: list[str], suffix: str = ".SA") -> list[dict]:
     """Busca a série diária de fechamento dos últimos 10 anos.
 
     Mesma chamada (`range=10y&interval=1d`) já usada por `fetch_technicals`,
@@ -107,14 +110,14 @@ def fetch_price_history(tickers: list[str]) -> list[dict]:
     Retorna uma lista de dicts com `ticker`, `price_date` (`YYYY-MM-DD`) e
     `close_price` — um item por pregão (dias sem pregão, `close=None`, são
     descartados). Tickers que falharem na API são ignorados, mesmo padrão
-    do resto do módulo.
+    do resto do módulo. `suffix`, ver `fetch_quotes`.
     """
     results = []
 
     for ticker in tickers:
         try:
             response = requests.get(
-                f"{YAHOO_CHART_URL}/{ticker}.SA",
+                f"{YAHOO_CHART_URL}/{ticker}{suffix}",
                 params={"range": HISTORY_RANGE, "interval": "1d"},
                 headers={"User-Agent": "Mozilla/5.0"},
                 timeout=15,
@@ -135,12 +138,13 @@ def fetch_price_history(tickers: list[str]) -> list[dict]:
     return results
 
 
-def fetch_dividends_avg(tickers: list[str]) -> list[dict]:
+def fetch_dividends_avg(tickers: list[str], suffix: str = ".SA") -> list[dict]:
     """Busca o dividendo médio por ação dos últimos 5 anos completos.
 
     Retorna uma lista de {"ticker": str, "avg_dividend_5y": float}. Tickers
     sem dividendo nenhum registrado (ex: growth stock, IPO recente sem ano
     completo) ou que falharem na API são ignorados — não derrubam o resto.
+    `suffix`, ver `fetch_quotes`.
     """
     current_year = datetime.now(timezone.utc).year
     results = []
@@ -148,7 +152,7 @@ def fetch_dividends_avg(tickers: list[str]) -> list[dict]:
     for ticker in tickers:
         try:
             response = requests.get(
-                f"{YAHOO_CHART_URL}/{ticker}.SA",
+                f"{YAHOO_CHART_URL}/{ticker}{suffix}",
                 params={"range": HISTORY_RANGE, "interval": "3mo", "events": "div"},
                 headers={"User-Agent": "Mozilla/5.0"},
                 timeout=15,
@@ -205,21 +209,21 @@ def _closest_close(
     return best_close
 
 
-def fetch_technicals(tickers: list[str]) -> list[dict]:
+def fetch_technicals(tickers: list[str], suffix: str = ".SA") -> list[dict]:
     """Busca médias móveis (50/100/200 dias) e CAGR (5/10 anos) de preço.
 
     Retorna uma lista de dicts com `ticker`, `sma_50`, `sma_100`, `sma_200`,
     `cagr_5y`, `cagr_10y` (`float` em % ou `None` quando não há histórico
     suficiente pra aquele cálculo — ex: IPO recente sem 200 pregões ou sem
     5/10 anos completos). Tickers que falharem na API são ignorados, mesmo
-    padrão de `fetch_quotes`/`fetch_dividends_avg`.
+    padrão de `fetch_quotes`/`fetch_dividends_avg`. `suffix`, ver `fetch_quotes`.
     """
     results = []
 
     for ticker in tickers:
         try:
             response = requests.get(
-                f"{YAHOO_CHART_URL}/{ticker}.SA",
+                f"{YAHOO_CHART_URL}/{ticker}{suffix}",
                 params={"range": HISTORY_RANGE, "interval": "1d"},
                 headers={"User-Agent": "Mozilla/5.0"},
                 timeout=15,
@@ -270,7 +274,7 @@ def fetch_technicals(tickers: list[str]) -> list[dict]:
 DIVIDEND_PRICE_TOLERANCE_DAYS = 5
 
 
-def fetch_dividend_payments(tickers: list[str]) -> list[dict]:
+def fetch_dividend_payments(tickers: list[str], suffix: str = ".SA") -> list[dict]:
     """Busca o histórico completo de pagamentos de dividendo (10 anos) com o
     preço de fechamento do dia do pagamento, pro gráfico da tela Stock
     Lookup (Fase 9.3).
@@ -280,14 +284,15 @@ def fetch_dividend_payments(tickers: list[str]) -> list[dict]:
     achar um candle perto o bastante — ex.: pagamento no limite dos 10 anos
     de histórico) e `yield_pct` (`amount / price_at_payment * 100`, `None`
     junto quando o preço também é `None`). Um ticker sem nenhum dividendo no
-    período é ignorado, mesmo padrão de `fetch_dividends_avg`.
+    período é ignorado, mesmo padrão de `fetch_dividends_avg`. `suffix`, ver
+    `fetch_quotes`.
     """
     results = []
 
     for ticker in tickers:
         try:
             response = requests.get(
-                f"{YAHOO_CHART_URL}/{ticker}.SA",
+                f"{YAHOO_CHART_URL}/{ticker}{suffix}",
                 params={"range": HISTORY_RANGE, "interval": "1d", "events": "div"},
                 headers={"User-Agent": "Mozilla/5.0"},
                 timeout=15,
