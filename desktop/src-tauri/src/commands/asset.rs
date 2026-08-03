@@ -69,13 +69,18 @@ async fn upsert_fii_cnpj_cache(
 // entrou na Sessão 53 — recibo negociado na B3 representando empresa
 // estrangeira (ex.: AAPL34), mas bate no mesmo endpoint Yahoo `.SA` que
 // `acao_br`/`fii`/`etf_br` já usam (confirmado ao vivo), zero coletor
-// novo, mesmo caminho de `etf_br`: sem fundamentos (bolsai não tem).
-const ASSET_CLASSES: [&str; 8] = [
+// novo, mesmo caminho de `etf_br`: sem fundamentos (bolsai não tem). `metal`
+// entrou na Sessão 55 — cotação automática também (só ouro, `XAU`, por ora),
+// fonte própria (Yahoo sem `.SA` — contrato futuro do COMEX, `GC=F`, não é
+// listado na B3) via `--metal-ticker` no coletor Python, preço convertido
+// de onça troy pra grama na fonte (`sources/metais_yahoo.py`).
+const ASSET_CLASSES: [&str; 9] = [
     "acao_br",
     "fii",
     "etf_br",
     "cripto",
     "bdr",
+    "metal",
     "acao_internacional",
     "tesouro_direto",
     "renda_fixa",

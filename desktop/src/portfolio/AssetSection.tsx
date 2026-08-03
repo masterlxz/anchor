@@ -75,6 +75,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
   const isFii = assetClass === "fii";
   const isCripto = assetClass === "cripto";
   const isBdr = assetClass === "bdr";
+  const isMetal = assetClass === "metal";
 
   const queryClient = useQueryClient();
 
@@ -118,7 +119,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
     mutationFn: (t) =>
       invoke<CollectorSummary>("run_stock_collector", {
         ticker: t,
-        asset_class: isCripto ? "cripto" : null,
+        asset_class: isCripto ? "cripto" : isMetal ? "metal" : null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["asset-section-stock-quote", activeTicker] });
@@ -171,13 +172,16 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
         // Sessão 53).
         setExposureType("pais");
         setExposureValue("US");
+      } else if (isMetal) {
+        setExposureType("categoria_especial");
+        setExposureValue("gold_metal");
       } else {
         setExposureType("pais");
         setExposureValue("BR");
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAutoQuoteClass, isCripto, isBdr, activeTicker, lookupQuery.data]);
+  }, [isAutoQuoteClass, isCripto, isBdr, isMetal, activeTicker, lookupQuery.data]);
 
   // Sugestão de CNPJ (só FII) — dispara junto com o prefill acima, uma vez
   // por ticker. `cnpj` fica vazio se não achar sugestão confiável (o
@@ -258,7 +262,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
       <CardContent>
         <p className="mb-4 text-sm text-muted-foreground">
           Catalog of tradeable/registrable assets — shared across every Portfolio in the
-          Workspace. Stock (B3), FII (B3), ETF (B3), Crypto and BDR (B3) fetch data
+          Workspace. Stock (B3), FII (B3), ETF (B3), Crypto, BDR (B3) and Metal fetch data
           automatically by ticker; the other classes (International stocks, Tesouro Direto,
           Fixed income) still use manual registration for now.
         </p>
@@ -282,7 +286,10 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
 
         {isAutoQuoteClass && (
           <form onSubmit={handleTickerSearch} className="mb-4 flex items-end gap-3">
-            <Field label={isCripto ? "Search ticker" : "Search ticker (B3)"} className="flex-1">
+            <Field
+              label={isCripto || isMetal ? "Search ticker" : "Search ticker (B3)"}
+              className="flex-1"
+            >
               <Input
                 required
                 placeholder={
@@ -294,7 +301,9 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
                         ? "ETH"
                         : isBdr
                           ? "AAPL34"
-                          : "PETR4"
+                          : isMetal
+                            ? "XAU"
+                            : "PETR4"
                 }
                 value={tickerQuery}
                 onChange={(e) => setTickerQuery(e.currentTarget.value)}

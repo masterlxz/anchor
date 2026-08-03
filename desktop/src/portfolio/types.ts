@@ -20,8 +20,8 @@ export type Custodia = {
   created_at: string;
 };
 
-// Fase 10.2, escopo Sessão 29 — REIT/metal/imóvel/empresa não listada
-// (Sessão 30) ficam pra uma fatia futura. `fii` entrou na Sessão 41, `etf_br`
+// Fase 10.2, escopo Sessão 29 — REIT/imóvel/empresa não listada (Sessão 30)
+// ficam pra uma fatia futura. `fii` entrou na Sessão 41, `etf_br`
 // na Sessão 49 — só a fatia de cotação automática por ora, sem indicador de
 // fundo específico (CVM não tem categoria de dados abertos pra fundo de
 // índice, diferente de FII, achado pesquisando de verdade — ver PHASE.md
@@ -33,13 +33,18 @@ export type Custodia = {
 // `.SA` de acao_br/fii/etf_br (confirmado ao vivo), zero coletor novo;
 // exposição default "US" (editável), diferente das outras classes B3 que
 // default "BR" — um BDR representa empresa estrangeira, quase nunca
-// Brasil. Ver commands/asset.rs::ASSET_CLASSES.
+// Brasil. `metal` entrou na Sessão 55 — só ouro (`XAU`) por ora, cotação
+// via Yahoo sem `.SA` (COMEX, não é listada na B3), preço já convertido pra
+// USD/grama na fonte; exposição default `categoria_especial`/`gold_metal`
+// (nem país nem "BR"/"US" fazem sentido pra metal). Ver
+// commands/asset.rs::ASSET_CLASSES.
 export type AssetClass =
   | "acao_br"
   | "fii"
   | "etf_br"
   | "cripto"
   | "bdr"
+  | "metal"
   | "acao_internacional"
   | "tesouro_direto"
   | "renda_fixa";
@@ -50,6 +55,7 @@ export const ASSET_CLASSES: AssetClass[] = [
   "etf_br",
   "cripto",
   "bdr",
+  "metal",
   "acao_internacional",
   "tesouro_direto",
   "renda_fixa",
@@ -61,6 +67,7 @@ export const ASSET_CLASS_LABELS: Record<AssetClass, string> = {
   etf_br: "ETF (B3)",
   cripto: "Crypto",
   bdr: "BDR (B3)",
+  metal: "Metal",
   acao_internacional: "International stock",
   tesouro_direto: "Tesouro Direto",
   renda_fixa: "Fixed income",
@@ -72,15 +79,16 @@ export const FIXED_INCOME_CLASSES: AssetClass[] = ["tesouro_direto", "renda_fixa
 // Classes com busca automática de cotação por ticker — usada por
 // AssetSection.tsx (form vira busca) e Research (StockLookupPanel.tsx,
 // dispatch por classe). Ação BR/FII/ETF/BDR compartilham o mesmo endpoint
-// Yahoo `{ticker}.SA`; cripto usa CoinGecko (fonte diferente, ver
-// commands/collector.rs::run_stock_collector) — daqui pra baixo o front não
-// distingue a fonte, só o backend sabe rotear.
+// Yahoo `{ticker}.SA`; cripto usa CoinGecko e metal usa Yahoo sem `.SA`
+// (fontes diferentes, ver commands/collector.rs::run_stock_collector) —
+// daqui pra baixo o front não distingue a fonte, só o backend sabe rotear.
 export const ASSET_CLASSES_WITH_AUTO_QUOTE: AssetClass[] = [
   "acao_br",
   "fii",
   "etf_br",
   "cripto",
   "bdr",
+  "metal",
 ];
 
 export type ExposureType = "pais" | "categoria_especial";

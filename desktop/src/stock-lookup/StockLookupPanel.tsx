@@ -10,6 +10,7 @@ import FiiLookupSection from "./FiiLookupSection";
 import EtfLookupSection from "./EtfLookupSection";
 import CryptoLookupSection from "./CryptoLookupSection";
 import BdrLookupSection from "./BdrLookupSection";
+import MetalLookupSection from "./MetalLookupSection";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,9 +36,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 /// `CryptoLookupSection.tsx` (Sessão 51 — absorveu a antiga aba solta
 /// "Crypto Score", removida do nav principal)/`BdrLookupSection.tsx`
 /// (Sessão 53 — irmã quase idêntica de `EtfLookupSection.tsx`, mesma
-/// ausência de fundamentos/DCF, bolsai não tem pra BDR), que só recebem o
-/// ticker já commitado — cada uma cuida do próprio fetch/estado, sem nada
-/// compartilhado entre elas além do visual (`shared.tsx`).
+/// ausência de fundamentos/DCF, bolsai não tem pra BDR)/`MetalLookupSection.tsx`
+/// (Sessão 55 — só ouro por ora, fonte Yahoo sem `.SA`, sem
+/// fundamentos/dividendos, que não fazem sentido pra metal), que só
+/// recebem o ticker já commitado — cada uma cuida do próprio fetch/estado,
+/// sem nada compartilhado entre elas além do visual (`shared.tsx`).
 function StockLookupPanel() {
   const [tickerInput, setTickerInput] = useState("");
   const [activeTicker, setActiveTicker] = useState<string | null>(null);
@@ -90,7 +93,9 @@ function StockLookupPanel() {
                       ? "ETH"
                       : assetClass === "bdr"
                         ? "AAPL34"
-                        : "PETR4"
+                        : assetClass === "metal"
+                          ? "XAU"
+                          : "PETR4"
               }
             />
           </Field>
@@ -106,6 +111,8 @@ function StockLookupPanel() {
             <CryptoLookupSection key={activeTicker} ticker={activeTicker} />
           ) : assetClass === "bdr" ? (
             <BdrLookupSection key={activeTicker} ticker={activeTicker} />
+          ) : assetClass === "metal" ? (
+            <MetalLookupSection key={activeTicker} ticker={activeTicker} />
           ) : (
             <StockAnalysisSection key={activeTicker} ticker={activeTicker} />
           ))}

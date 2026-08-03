@@ -23,13 +23,15 @@ const DIVIDEND: &str = "provento";
 // (`ticker`/`price_date`/`close_price`, sem coluna de fonte usada aqui),
 // então esta consulta não distingue de onde o preço veio. `bdr` entrou na
 // Sessão 53 — mesmo endpoint Yahoo `.SA` de `acao_br`/`fii`/`etf_br`, zero
-// mudança de coletor. Essa sub-carteira
+// mudança de coletor. `metal` entrou na Sessão 55 — fonte Yahoo sem `.SA`
+// (COMEX), mesma tabela genérica, mesmo raciocínio. Essa sub-carteira
 // é tratada como autocontida: suas próprias compra(+)/venda(−) são os
 // fluxos de caixa externos do Dietz Modificado — o app não modela um
 // sub-ledger de caixa, então uma compra não é "caixa→ativo", é "ativo
 // aparece", e pro efeito desta fatia isso equivale a um aporte na
 // sub-carteira.
-const ASSET_CLASSES_WITH_AUTO_QUOTE: [&str; 5] = ["acao_br", "fii", "etf_br", "cripto", "bdr"];
+const ASSET_CLASSES_WITH_AUTO_QUOTE: [&str; 6] =
+    ["acao_br", "fii", "etf_br", "cripto", "bdr", "metal"];
 const PRICE_TOLERANCE_DAYS: i64 = 7;
 
 #[derive(Serialize)]

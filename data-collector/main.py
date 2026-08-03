@@ -24,6 +24,7 @@ from sources import (
     cripto_ultrasound,
     cvm_dfp,
     cvm_fii,
+    metais_yahoo,
 )
 
 BASE_DIR = Path(__file__).parent
@@ -620,6 +621,60 @@ def main_crypto_ticker(symbol: str) -> int:
     return 0
 
 
+def collect_metal_ticker(ticker: str) -> dict:
+    """Quote + price history pra um metal (Fase 10, item 8, Sessão 55).
+
+    Mesmo papel que `collect_crypto_ticker` cumpre pra cripto: uma chamada
+    só devolve preço atual + série histórica, gravados nas mesmas tabelas
+    genéricas `stock_quotes`/`stock_price_history` que todo o resto do app
+    já lê (TWR, Research, Ativos) — preço já convertido pra USD/grama por
+    `metais_yahoo.fetch_quote_and_history` (COMEX cota em onça troy).
+    """
+    result = metais_yahoo.fetch_quote_and_history(ticker)
+    now = datetime.now(timezone.utc).isoformat()
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute(
+        "INSERT INTO stock_quotes (ticker, price, name, exchange, currency, source, fetched_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (ticker, result["price"], result["name"], "COMEX", "USD", "yahoo_finance", now),
+    )
+    changes_before = conn.total_changes
+    conn.executemany(
+        "INSERT OR IGNORE INTO stock_price_history "
+        "(ticker, price_date, close_price, source, fetched_at) VALUES (?, ?, ?, ?, ?)",
+        [(ticker, p["price_date"], p["close_price"], "yahoo_finance", now) for p in result["history"]],
+    )
+    new_history_count = conn.total_changes - changes_before
+    conn.commit()
+    conn.close()
+
+    return {
+        "ticker": ticker,
+        "name": result["name"],
+        "price": result["price"],
+        "history_points": len(result["history"]),
+        "new_history_points": new_history_count,
+    }
+
+
+def main_metal_ticker(ticker: str) -> int:
+    load_dotenv(BASE_DIR / ".env")
+    try:
+        result = collect_metal_ticker(ticker)
+    except RuntimeError as err:
+        print(str(err))
+        return 1
+
+    print(f"{result['ticker']} ({result['name']}): US$ {result['price']:.2f}/g")
+    print(
+        f"Updated price history: {result['history_points']} point(s), "
+        f"{result['new_history_points']} new"
+    )
+    return 0
+
+
 def main(ticker: str | None = None) -> int:
     load_dotenv(BASE_DIR / ".env")
 
@@ -736,6 +791,11 @@ if __name__ == "__main__":
             print("Usage: python main.py --crypto-ticker <SYMBOL>")
             sys.exit(1)
         sys.exit(main_crypto_ticker(sys.argv[2].strip().upper()))
+    if len(sys.argv) > 1 and sys.argv[1] == "--metal-ticker":
+        if len(sys.argv) < 3 or not sys.argv[2].strip():
+            print("Usage: python main.py --metal-ticker <TICKER>")
+            sys.exit(1)
+        sys.exit(main_metal_ticker(sys.argv[2].strip().upper()))
     if len(sys.argv) > 1 and sys.argv[1] == "--fii-cvm-data":
         if len(sys.argv) < 3 or not sys.argv[2].strip():
             print("Usage: python main.py --fii-cvm-data <CNPJ1,CNPJ2,...>")

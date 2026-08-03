@@ -58,21 +58,22 @@ pub(crate) async fn run_collector(
     Ok(summary)
 }
 
-// `asset_class` só distingue "cripto" (fonte CoinGecko, `--crypto-ticker`)
-// do resto (Ação BR/FII/ETF, todos o mesmo endpoint Yahoo `.SA`, `--ticker`)
-// — ver PHASE.md item 8, Sessão 51. `None` preserva o comportamento anterior
-// (chamadores que não sabem/não precisam distinguir classe, ex.: os
-// formulários de valuation via `useTickerCollector`).
+// `asset_class` distingue "cripto" (fonte CoinGecko, `--crypto-ticker`,
+// Sessão 51) e "metal" (fonte Yahoo sem `.SA` — COMEX, `--metal-ticker`,
+// Sessão 55) do resto (Ação BR/FII/ETF/BDR, todos o mesmo endpoint Yahoo
+// `.SA`, `--ticker`) — ver PHASE.md item 8. `None` preserva o comportamento
+// anterior (chamadores que não sabem/não precisam distinguir classe, ex.:
+// os formulários de valuation via `useTickerCollector`).
 #[tauri::command]
 pub async fn run_stock_collector(
     lock: tauri::State<'_, AtomicBool>,
     ticker: String,
     asset_class: Option<String>,
 ) -> Result<CollectorSummary, AppError> {
-    if asset_class.as_deref() == Some("cripto") {
-        run_collector(&lock, &["--crypto-ticker", &ticker]).await
-    } else {
-        run_collector(&lock, &["--ticker", &ticker]).await
+    match asset_class.as_deref() {
+        Some("cripto") => run_collector(&lock, &["--crypto-ticker", &ticker]).await,
+        Some("metal") => run_collector(&lock, &["--metal-ticker", &ticker]).await,
+        _ => run_collector(&lock, &["--ticker", &ticker]).await,
     }
 }
 

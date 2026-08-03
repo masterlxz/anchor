@@ -137,9 +137,10 @@ function ProfitabilitySection({ portfolioId }: { portfolioId: number }) {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <p className="text-sm text-muted-foreground">
-            Covers Stock (B3), FII, ETF, Crypto and BDR in this slice — contributions/withdrawals
-            and the other classes (Tesouro Direto, Fixed income, international stocks) don't
-            factor into this calculation yet, for lack of automated historical prices for them.
+            Covers Stock (B3), FII, ETF, Crypto, BDR and Metal in this slice —
+            contributions/withdrawals and the other classes (Tesouro Direto, Fixed income,
+            international stocks) don't factor into this calculation yet, for lack of automated
+            historical prices for them.
           </p>
 
           <div>
@@ -153,8 +154,9 @@ function ProfitabilitySection({ portfolioId }: { portfolioId: number }) {
             </Button>
             {autoQuoteTickers.length === 0 && (
               <p className="mt-2 text-sm text-muted-foreground">
-                No Stock (B3), FII or ETF assets in the portfolio yet. (Crypto price history
-                updates automatically when its quote is fetched — no button needed for it.)
+                No Stock (B3), FII, ETF or BDR assets in the portfolio yet. (Crypto and Metal
+                price history update automatically when their quote is fetched — no button
+                needed for them.)
               </p>
             )}
           </div>
