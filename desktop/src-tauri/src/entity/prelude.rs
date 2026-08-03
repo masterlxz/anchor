@@ -10,6 +10,7 @@ pub use super::asset_favorites::Entity as AssetFavorites;
 pub use super::assets::Entity as Assets;
 pub use super::banks_inputs::Entity as BanksInputs;
 pub use super::bazin_inputs::Entity as BazinInputs;
+pub use super::company_ai_info::Entity as CompanyAiInfo;
 pub use super::crypto_fear_greed::Entity as CryptoFearGreed;
 pub use super::crypto_indicators::Entity as CryptoIndicators;
 pub use super::custodia::Entity as Custodia;

@@ -6,6 +6,7 @@ pub mod banks;
 pub mod bazin;
 pub mod chat;
 pub mod collector;
+pub mod company_ai_info;
 pub mod conversation;
 pub mod crypto_indicator;
 pub mod custodia;

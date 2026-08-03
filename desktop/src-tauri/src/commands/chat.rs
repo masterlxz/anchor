@@ -628,6 +628,48 @@ pub async fn generate_reply(
     }
 }
 
+// Sessão 60 — a variant of `generate_reply` for one-shot completions that
+// don't need the valuations/alerts DB context or the `propose_valuation`
+// tool (e.g. the "Sobre o ativo" AI summary in Research). Takes the system
+// instruction and a single user turn directly instead of building either
+// internally, so callers outside this file stay decoupled from
+// `SYSTEM_REPERTOIRE`/`build_system_instruction`.
+pub async fn generate_completion(
+    db: &DatabaseConnection,
+    key_id: i32,
+    model: &str,
+    system_instruction: String,
+    user_prompt: String,
+) -> Result<(String, TokenUsage), AppError> {
+    let (provider, api_key) = read_api_key_secret(db, key_id).await?;
+    let history = vec![GeminiContent {
+        role: "user".to_string(),
+        parts: vec![GeminiPart {
+            text: Some(user_prompt),
+            function_call: None,
+        }],
+    }];
+    let (outcome, usage) = match provider {
+        Provider::Gemini => {
+            ask_gemini_api(&api_key, model, system_instruction, history, false).await?
+        }
+        Provider::Claude => {
+            ask_claude_api(&api_key, model, system_instruction, history, false).await?
+        }
+        Provider::OpenAi => {
+            ask_openai_api(&api_key, model, system_instruction, history, false).await?
+        }
+    };
+    match outcome {
+        AiOutcome::Text(text) => Ok((text, usage)),
+        // `tools_enabled: false` above means no tool was ever declared to
+        // the provider — same reasoning as `ask_ai`'s exhaustive match.
+        AiOutcome::ToolCall { .. } => Err(AppError::InvalidInput(
+            "unexpected tool call with tools disabled".to_string(),
+        )),
+    }
+}
+
 // Provider-generic entry point for the floating chat widget. `key_id` (Fase
 // 7.9.2/7.9.3 — one of possibly several named keys per provider) replaces the
 // old plain `provider` string; the provider itself is now derived from the

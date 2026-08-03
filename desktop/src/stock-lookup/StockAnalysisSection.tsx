@@ -17,6 +17,7 @@ import DividendHistoryChart from "./DividendHistoryChart";
 import PriceHistoryChart from "./PriceHistoryChart";
 import NewValuationDialog from "../models/NewValuationDialog";
 import SavedValuationsPanel from "../valuations/SavedValuationsPanel";
+import AboutCompanySection from "./AboutCompanySection";
 import {
   AddToAssetsButton,
   CompanyLogo,
@@ -240,6 +241,8 @@ function StockAnalysisSection({ ticker }: { ticker: string }) {
               </Button>
             </div>
           </div>
+
+          <AboutCompanySection ticker={ticker} assetClass="acao_br" />
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <StatTile label="Price" value={formatCurrency(price)} />

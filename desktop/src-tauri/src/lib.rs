@@ -55,6 +55,8 @@ pub fn run() {
             commands::api_key::rename_api_key,
             commands::api_key::delete_api_key,
             commands::chat::ask_ai,
+            commands::company_ai_info::get_company_ai_info,
+            commands::company_ai_info::generate_company_ai_info,
             commands::document_extraction::extract_document_data,
             commands::conversation::list_conversations,
             commands::conversation::create_conversation,
