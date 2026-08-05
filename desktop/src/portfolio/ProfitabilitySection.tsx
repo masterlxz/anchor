@@ -36,11 +36,12 @@ type CollectorSummary = { success: boolean; output: string };
 // Subconjunto de ASSET_CLASSES_WITH_AUTO_QUOTE (portfolio/types.ts) elegível
 // pro botão de backfill manual em lote abaixo — só as classes que
 // compartilham o endpoint Yahoo `.SA` via `run_price_history_backfill`.
-// Cripto fica de fora de propósito: `stock_price_history` dela já é
-// preenchida sozinha (mesma chamada CoinGecko que traz a cotação, ver
-// `collect_crypto_ticker` em data-collector/main.py), então não tem o que
-// esse botão faria por ela — sem o filtro aqui, mandar um ticker cripto
-// pro coletor Yahoo tentaria `CRIPTO.SA`, que não existe.
+// Cripto/Metal/International stock/REIT/ETF (US) ficam de fora de
+// propósito: `stock_price_history` delas já é preenchida sozinha a cada
+// busca em Research (CoinGecko pra cripto, Yahoo sem `.SA` pras demais —
+// ver `collect_crypto_ticker`/`collect_us_price_history` em
+// data-collector/main.py) — sem o filtro aqui, mandar um desses tickers pro
+// coletor `.SA` genérico tentaria algo como `CRIPTO.SA`/`SPY.SA`, errado.
 const YAHOO_BACKFILL_CLASSES = ["acao_br", "fii", "etf_br", "bdr"];
 
 // Mesma paleta/convenção de DividendHistoryChart.tsx (rampa de verde do
@@ -137,9 +138,9 @@ function ProfitabilitySection({ portfolioId }: { portfolioId: number }) {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <p className="text-sm text-muted-foreground">
-            Covers Stock (B3), FII, ETF, Crypto, BDR and Metal in this slice —
-            contributions/withdrawals and the other classes (Tesouro Direto, Fixed income,
-            international stocks) don't factor into this calculation yet, for lack of automated
+            Covers Stock (B3), FII, ETF (B3 and US), Crypto, BDR, Metal, International stock and
+            REIT in this slice — contributions/withdrawals and the other classes (Tesouro Direto,
+            Fixed income) don't factor into this calculation yet, for lack of automated
             historical prices for them.
           </p>
 
@@ -154,9 +155,9 @@ function ProfitabilitySection({ portfolioId }: { portfolioId: number }) {
             </Button>
             {autoQuoteTickers.length === 0 && (
               <p className="mt-2 text-sm text-muted-foreground">
-                No Stock (B3), FII, ETF or BDR assets in the portfolio yet. (Crypto and Metal
-                price history update automatically when their quote is fetched — no button
-                needed for them.)
+                No Stock (B3), FII, ETF (B3) or BDR assets in the portfolio yet. (Crypto, Metal,
+                International stock, REIT and ETF (US) price history update automatically when
+                their quote is fetched — no button needed for them.)
               </p>
             )}
           </div>

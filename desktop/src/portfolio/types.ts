@@ -44,7 +44,11 @@ export type Custodia = {
 // `acao_internacional`, mas indicadores imobiliários próprios via SEC EDGAR
 // (`reit_fundamentals`/`reit_manual_indicators`, não `stock_fundamentals`/
 // `stock_dcf_fundamentals` — sem os 8 modelos de valuation, que não
-// encaixam bem em imobiliário). Ver commands/asset.rs::ASSET_CLASSES.
+// encaixam bem em imobiliário). `etf_us` (ETF listado nos EUA, ex.: SPY) —
+// mesma fonte Yahoo sem `.SA` de `acao_internacional`/`reit`, sem
+// fundamentos nenhum (nem os 8 modelos nem indicador de fundo dedicado,
+// mesmo motivo do `etf_br`: ETF não tem demonstração financeira própria).
+// Ver commands/asset.rs::ASSET_CLASSES.
 export type AssetClass =
   | "acao_br"
   | "fii"
@@ -54,6 +58,7 @@ export type AssetClass =
   | "metal"
   | "acao_internacional"
   | "reit"
+  | "etf_us"
   | "tesouro_direto"
   | "renda_fixa";
 
@@ -66,6 +71,7 @@ export const ASSET_CLASSES: AssetClass[] = [
   "metal",
   "acao_internacional",
   "reit",
+  "etf_us",
   "tesouro_direto",
   "renda_fixa",
 ];
@@ -79,6 +85,7 @@ export const ASSET_CLASS_LABELS: Record<AssetClass, string> = {
   metal: "Metal",
   acao_internacional: "International stock",
   reit: "REIT",
+  etf_us: "ETF (US)",
   tesouro_direto: "Tesouro Direto",
   renda_fixa: "Fixed income",
 };
@@ -101,6 +108,7 @@ export const ASSET_CLASSES_WITH_AUTO_QUOTE: AssetClass[] = [
   "metal",
   "acao_internacional",
   "reit",
+  "etf_us",
 ];
 
 export type ExposureType = "pais" | "categoria_especial";

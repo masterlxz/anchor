@@ -78,6 +78,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
   const isMetal = assetClass === "metal";
   const isUsStock = assetClass === "acao_internacional";
   const isReit = assetClass === "reit";
+  const isEtfUs = assetClass === "etf_us";
 
   const queryClient = useQueryClient();
 
@@ -121,7 +122,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
     mutationFn: (t) =>
       invoke<CollectorSummary>("run_stock_collector", {
         ticker: t,
-        asset_class: isCripto
+        assetClass: isCripto
           ? "cripto"
           : isMetal
             ? "metal"
@@ -129,7 +130,9 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
               ? "acao_internacional"
               : isReit
                 ? "reit"
-                : null,
+                : isEtfUs
+                  ? "etf_us"
+                  : null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["asset-section-stock-quote", activeTicker] });
@@ -185,9 +188,9 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
       } else if (isMetal) {
         setExposureType("categoria_especial");
         setExposureValue("gold_metal");
-      } else if (isUsStock || isReit) {
-        // Mesmo padrão do BDR: "US" é o chute óbvio pra ação/REIT americano
-        // (NYSE/NASDAQ), editável.
+      } else if (isUsStock || isReit || isEtfUs) {
+        // Mesmo padrão do BDR: "US" é o chute óbvio pra ação/REIT/ETF
+        // americano (NYSE/NASDAQ), editável.
         setExposureType("pais");
         setExposureValue("US");
       } else {
@@ -196,7 +199,17 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAutoQuoteClass, isCripto, isBdr, isMetal, isUsStock, isReit, activeTicker, lookupQuery.data]);
+  }, [
+    isAutoQuoteClass,
+    isCripto,
+    isBdr,
+    isMetal,
+    isUsStock,
+    isReit,
+    isEtfUs,
+    activeTicker,
+    lookupQuery.data,
+  ]);
 
   // Sugestão de CNPJ (só FII) — dispara junto com o prefill acima, uma vez
   // por ticker. `cnpj` fica vazio se não achar sugestão confiável (o
@@ -303,7 +316,9 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
           <form onSubmit={handleTickerSearch} className="mb-4 flex items-end gap-3">
             <Field
               label={
-                isCripto || isMetal || isUsStock || isReit ? "Search ticker" : "Search ticker (B3)"
+                isCripto || isMetal || isUsStock || isReit || isEtfUs
+                  ? "Search ticker"
+                  : "Search ticker (B3)"
               }
               className="flex-1"
             >
@@ -324,7 +339,9 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
                               ? "AAPL"
                               : isReit
                                 ? "O"
-                                : "PETR4"
+                                : isEtfUs
+                                  ? "SPY"
+                                  : "PETR4"
                 }
                 value={tickerQuery}
                 onChange={(e) => setTickerQuery(e.currentTarget.value)}

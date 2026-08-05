@@ -104,7 +104,7 @@ function MetalLookupSection({ ticker }: { ticker: string }) {
 
   const collectorMutation = useMutation<CollectorSummary, AppError, string>({
     mutationFn: (t) =>
-      invoke<CollectorSummary>("run_stock_collector", { ticker: t, asset_class: "metal" }),
+      invoke<CollectorSummary>("run_stock_collector", { ticker: t, assetClass: "metal" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["metal-lookup-quote", ticker] });
       queryClient.invalidateQueries({ queryKey: ["metal-lookup-history", ticker] });

@@ -965,6 +965,42 @@ def collect_reit_fundamentals(tickers: list[str]) -> list[dict]:
     return fundamentals
 
 
+def main_etf_us(ticker: str) -> int:
+    """ETF americano (Fase 10, item 8) — cotação/técnicos/dividendos/
+    histórico de preço via Yahoo sem sufixo (idêntico ao bloco inicial de
+    `main_us_stock`/`main_reit`). Sem fundamentos/DCF nem indicadores
+    dedicados — ETF não tem demonstração financeira própria na SEC, mesmo
+    motivo pelo qual `etf_br` também não busca fundamentos."""
+    load_dotenv(BASE_DIR / ".env")
+    tickers = [ticker]
+
+    quotes = collect_us_stock_quotes(tickers)
+    for quote in quotes:
+        print(f"{quote['ticker']}: US$ {quote['price']}")
+    print(f"Updated {len(quotes)} quote(s)")
+
+    dividends = collect_us_stock_dividends_avg(tickers)
+    for item in dividends:
+        print(f"{item['ticker']}: avg dividend/share (5y) US$ {item['avg_dividend_5y']:.4f}")
+    print(f"Updated {len(dividends)} dividend average record(s)")
+
+    technicals = collect_us_stock_technicals(tickers)
+    for item in technicals:
+        sma_200 = item["sma_200"]
+        cagr_10y = item["cagr_10y"]
+        print(
+            f"{item['ticker']}: SMA200 "
+            f"{'n/a' if sma_200 is None else f'US$ {sma_200:.2f}'} / "
+            f"CAGR 10y {'n/a' if cagr_10y is None else f'{cagr_10y:.1f}%'}"
+        )
+    print(f"Updated {len(technicals)} technicals record(s)")
+
+    collect_us_stock_dividend_payments(tickers)
+    collect_us_price_history(tickers)
+
+    return 0
+
+
 def main_reit(ticker: str) -> int:
     """REIT (Fase 10, item 8) — cotação/técnicos/dividendos/histórico de
     preço via Yahoo sem sufixo (idêntico a `main_us_stock`, REIT é só mais
@@ -1223,6 +1259,11 @@ if __name__ == "__main__":
             print("Usage: python main.py --reit-ticker <TICKER>")
             sys.exit(1)
         sys.exit(main_reit(sys.argv[2].strip().upper()))
+    if len(sys.argv) > 1 and sys.argv[1] == "--etf-us-ticker":
+        if len(sys.argv) < 3 or not sys.argv[2].strip():
+            print("Usage: python main.py --etf-us-ticker <TICKER>")
+            sys.exit(1)
+        sys.exit(main_etf_us(sys.argv[2].strip().upper()))
     if len(sys.argv) > 1 and sys.argv[1] == "--fii-cvm-data":
         if len(sys.argv) < 3 or not sys.argv[2].strip():
             print("Usage: python main.py --fii-cvm-data <CNPJ1,CNPJ2,...>")

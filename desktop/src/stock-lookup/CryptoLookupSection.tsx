@@ -183,7 +183,7 @@ function CryptoLookupSection({ ticker }: { ticker: string }) {
 
   const collectorMutation = useMutation<CollectorSummary, AppError, string>({
     mutationFn: (t) =>
-      invoke<CollectorSummary>("run_stock_collector", { ticker: t, asset_class: "cripto" }),
+      invoke<CollectorSummary>("run_stock_collector", { ticker: t, assetClass: "cripto" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["crypto-lookup-quote", ticker] });
       queryClient.invalidateQueries({ queryKey: ["crypto-lookup-history", ticker] });

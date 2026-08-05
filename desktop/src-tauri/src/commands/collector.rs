@@ -76,6 +76,7 @@ pub async fn run_stock_collector(
         Some("metal") => run_collector(&lock, &["--metal-ticker", &ticker]).await,
         Some("acao_internacional") => run_collector(&lock, &["--us-ticker", &ticker]).await,
         Some("reit") => run_collector(&lock, &["--reit-ticker", &ticker]).await,
+        Some("etf_us") => run_collector(&lock, &["--etf-us-ticker", &ticker]).await,
         _ => run_collector(&lock, &["--ticker", &ticker]).await,
     }
 }

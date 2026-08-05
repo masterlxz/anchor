@@ -13,6 +13,7 @@ import BdrLookupSection from "./BdrLookupSection";
 import MetalLookupSection from "./MetalLookupSection";
 import UsStockLookupSection from "./UsStockLookupSection";
 import ReitLookupSection from "./ReitLookupSection";
+import EtfUsLookupSection from "./EtfUsLookupSection";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,7 +43,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 /// (Sessão 55 — só ouro por ora, fonte Yahoo sem `.SA`, sem
 /// fundamentos/dividendos, que não fazem sentido pra metal)/
 /// `UsStockLookupSection.tsx` (Fatia 1 — ação americana, fonte Yahoo sem
-/// `.SA`, sem fundamentos/DCF nesta fatia — SEC EDGAR fica pra depois), que
+/// `.SA`, sem fundamentos/DCF nesta fatia — SEC EDGAR fica pra depois)/
+/// `ReitLookupSection.tsx` (REIT — indicadores imobiliários via SEC EDGAR,
+/// sem os 8 modelos de valuation)/`EtfUsLookupSection.tsx` (ETF americano —
+/// irmã de `EtfLookupSection.tsx` com a mesma fonte Yahoo sem `.SA` de
+/// `UsStockLookupSection.tsx`/`ReitLookupSection.tsx`, sem fundamentos), que
 /// só recebem o ticker já commitado — cada uma cuida do próprio fetch/estado,
 /// sem nada compartilhado entre elas além do visual (`shared.tsx`).
 function StockLookupPanel({ workspaceId }: { workspaceId: number }) {
@@ -103,7 +108,9 @@ function StockLookupPanel({ workspaceId }: { workspaceId: number }) {
                             ? "AAPL"
                             : assetClass === "reit"
                               ? "O"
-                              : "PETR4"
+                              : assetClass === "etf_us"
+                                ? "SPY"
+                                : "PETR4"
               }
             />
           </Field>
@@ -123,6 +130,8 @@ function StockLookupPanel({ workspaceId }: { workspaceId: number }) {
             <MetalLookupSection key={activeTicker} ticker={activeTicker} />
           ) : assetClass === "reit" ? (
             <ReitLookupSection key={activeTicker} ticker={activeTicker} />
+          ) : assetClass === "etf_us" ? (
+            <EtfUsLookupSection key={activeTicker} ticker={activeTicker} />
           ) : assetClass === "acao_internacional" ? (
             <UsStockLookupSection
               key={activeTicker}

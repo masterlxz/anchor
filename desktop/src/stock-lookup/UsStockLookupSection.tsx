@@ -94,7 +94,7 @@ function UsStockLookupSection({
     mutationFn: (t) =>
       invoke<CollectorSummary>("run_stock_collector", {
         ticker: t,
-        asset_class: "acao_internacional",
+        assetClass: "acao_internacional",
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["us-stock-lookup-quote", ticker] });

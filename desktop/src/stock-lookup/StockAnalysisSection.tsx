@@ -123,7 +123,7 @@ function StockAnalysisSection({
 
   const collectorMutation = useMutation<CollectorSummary, AppError, string>({
     mutationFn: (t) =>
-      invoke<CollectorSummary>("run_stock_collector", { ticker: t, asset_class: null }),
+      invoke<CollectorSummary>("run_stock_collector", { ticker: t, assetClass: null }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stock-lookup", ticker] });
       queryClient.invalidateQueries({ queryKey: ["stock-lookup-price-history", ticker] });
