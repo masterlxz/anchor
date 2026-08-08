@@ -330,6 +330,64 @@ Diferente de ação (1x/ano), aqui é um **score contínuo**: cada indicador vir
 
 **Marco**: os 8 modelos de valuation deixam de ser uma tela solta no nav principal e passam a viver dentro da análise de cada ativo — "Calculate" e "Save" agora são ações distintas, como pedido, sem quebrar o fluxo de editar um cálculo já salvo (`SavedValuationsPanel.tsx`/`EditValuationForm.tsx`, inalterados).
 
+#### 9. Preço-Teto para Commodities (ideia registrada na Sessão 65, ainda não decidida com o dono do projeto)
+
+Dono do projeto trouxe um rascunho à parte (`feature_preco_teto_commodities.md`, conteúdo transcrito aqui e arquivo removido) — diferente dos 8 modelos acima, ainda não passou por `AskUserQuestion`/planejamento, é brainstorm de arquitetura puro. Já é antecipado pelo `ROADMAP.md` ("Mais metodologias de valuation... Bazin/preço-teto").
+
+**Contexto/motivação**: DCF ingênuo com preço spot não funciona bem pra empresa de commodity — o valuation dança conforme o ciclo (value trap na baixa, falsa margem de segurança no topo). A ideia é calcular preço-teto usando inputs normalizados através do ciclo (preço de longo prazo, custo caixa through-cycle), em vez de projeções derivadas do preço/custo atual do trimestre.
+
+**Escopo inicial proposto**: celulose/papel (Suzano, Klabin) e minério de ferro (Vale). Arquitetura pensada pra ser genérica o suficiente pra adicionar outras commodities (petróleo, soja, etc.) sem refatorar.
+
+**Modelo de dados proposto** (3 entidades, não o par `valuation`+`<model>_inputs` que os 8 modelos acima usam — ver tensão de design abaixo):
+
+```
+CommodityAsset {
+  ticker: string
+  commodity_type: enum ("pulp", "iron_ore", ...)
+  capacity: float          // capacidade produtiva, ton/ano
+  currency: enum (BRL, USD)
+}
+
+CommodityAssumptions {
+  ticker: string
+  long_term_price: float         // preço de LP normalizado, consenso de research, por tonelada
+  cash_cost_c1: float            // custo caixa normalizado (through-cycle, não último trimestre)
+  cost_curve_percentile: float   // posição na curva de custo global (0-100)
+  demand_growth_scenario: enum ("structural_growth", "cyclical_neutral", "structural_decline")
+  sustaining_capex_per_ton: float
+  replacement_cost_per_ton: float // custo de reposição de capacidade greenfield, referência p/ cross-check
+  source: string                  // ex: "Wood Mackenzie Q2 2026", "Itaú BBA Commodities"
+  as_of: date                     // data da última atualização — usado pra flag de "assumption desatualizada"
+}
+
+MarketData {
+  ticker: string
+  spot_price: float
+  fx_rate: float
+  net_debt: float
+  shares_outstanding: float
+  ev: float
+  source: string
+  fetched_at: timestamp
+}
+```
+
+**Princípio de design proposto**: `CommodityAssumptions` é dado manual, versionado, atualizado esporadicamente (não existe API confiável pra preço de LP/C1 de commodity). `MarketData` é automatizável via B3/Yahoo (mesmo padrão dos coletores já existentes). O módulo nunca deveria misturar os dois como se tivessem o mesmo grau de atualização — a UI deveria mostrar `as_of` das assumptions com destaque quando desatualizada (ex.: > 6 meses), mesmo espírito do `anos_desatualizado` que a regra geral do topo desta fase já calcula pros 8 modelos atuais.
+
+**Lógica de cálculo proposta**:
+1. Receita normalizada = `capacity × long_term_price`
+2. Custo normalizado = `capacity × cash_cost_c1` (conversão de câmbio se C1 estiver em USD e ativo reportar em BRL)
+3. FCFF normalizado = receita − custo − `sustaining_capex_per_ton × capacity` − impostos, com WACC padrão do modelo geral (mesmo CAPM/WACC do modelo DCF/FCFF, seção 1)
+4. Preço-teto (DCF) = valor presente do FCFF normalizado, perpetuidade com crescimento = 0 real (capacidade não muda no caso base)
+5. Cross-check de reposição = `EV / capacity` vs. `replacement_cost_per_ton` — sinaliza desconto/prêmio em relação ao custo de construir a planta do zero
+6. Ajuste por `demand_growth_scenario`: multiplicador de longo prazo sobre a receita normalizada — `structural_growth` (ex.: celulose, embalagem/tissue) fator 1.0 sem penalidade; `cyclical_neutral` fator 1.0; `structural_decline` (ex.: minério, risco de pico de aço chinês) fator configurável < 1.0, aplicado gradualmente sobre o horizonte de projeção, não como corte abrupto
+
+**Fora de escopo, v1 (proposto)**: atualização automática de `long_term_price`/`cash_cost_c1` (permanece manual); cálculo de opcionalidade de capex de expansão (valor separado do caso base, feature futura); curva de custo dinâmica — v1 usa `cost_curve_percentile` como input estático.
+
+**Tensão de design em aberto, não resolvida**: o rascunho propõe 3 entidades novas (`CommodityAsset`/`CommodityAssumptions`/`MarketData`) em vez de reaproveitar o par `valuation`+`<model>_inputs` que os 8 modelos acima já usam — faz sentido, já que `CommodityAssumptions` é mais persistente/compartilhada entre cálculos do mesmo ticker do que um `<model>_inputs` típico (que morre com o cálculo). Precisa decidir com o dono do projeto se isso vira um 9º par `valuation`+`commodity_inputs` (consistente com o resto, mas perde a persistência entre cálculos) ou se justifica mesmo um esquema à parte.
+
+**Outras questões em aberto do rascunho**: onde essa tela se encaixa no fluxo atual (aba nova no cadastro de ação, ou fluxo separado só pra commodities?); fonte de `replacement_cost_per_ton` precisa de pesquisa específica por commodity, atualização provavelmente anual.
+
 ---
 
 ### Fase 4 — Interface Desktop
@@ -810,4 +868,44 @@ Verificação: coletor testado ao vivo duas vezes contra `SPY` dentro do contain
 - [x] 11.1 — Executar o rename pra Anchor. **Implementado na Sessão 65 (2026-08-08)**: não foi um find-and-replace simples — mapeado antes de codar (agente `Explore`) e confirmado ao vivo que 3 pontos tinham risco operacional real, todos resolvidos com segurança: (1) `app-data` (volume Docker, chaveado pelo `identifier` do Tauri) estava **vazio de dado real** (só cache WebKit, ~37MB) — trocar `identifier`/nome do projeto Docker foi seguro, volumes antigos (`practice-valuation_*`) ficaram órfãos mas intactos, não apagados; (2) chaves de API no keyring do SO — escrita uma migração automática análoga à `migrate_legacy_key_if_needed` já existente (Fase 7.9.2), roda uma vez no próximo `list_api_keys`, sem o usuário precisar recolar nenhuma chave; (3) o banco SQLite real (`practice_valuation.db`, 5.3MB, dado de portfólio de verdade) foi renomeado fisicamente pra `anchor.db` com o app parado (`docker compose down`), backup feito antes (`practice_valuation.db.bak`, mantido), e dado confirmado intacto ao vivo depois do restart. Repositório no GitHub renomeado também (`gh repo rename anchor`, remote `origin` local atualizado sozinho). **Achado de ambiente**: o volume Docker novo (`anchor_cargo-registry`) nasceu com dono `root` (mesmo padrão já visto na Sessão 37 com `app-data`) — corrigido com `chown -R 1000:1000` nos 3 caminhos (`/root/.cargo`, `/app/src-tauri/target`, `/home/node/.local/share`) antes do primeiro `cargo check` no volume novo funcionar. **Pasta local renomeada também, mesma sessão**: dono do projeto perguntou por que eu tinha deixado esse item de fora — confirmou não ter editor/terminal apontando pro caminho antigo, então renomeei (`mv .../practice-valuation .../anchor`) com o app parado (`docker compose down` antes). O bind mount `.` do Compose é relativo, então não precisou de nenhuma mudança de config; o Linux segue o inode, não o caminho, então o próprio shell desta sessão se ajustou sozinho. `docker compose up` confirmado subindo limpo do caminho novo. **Deixado explicitamente pro dono do projeto, não executado por mim**: renomear o remote `gitea` (sem `tea` CLI disponível aqui, precisa do painel web). `cargo check`/`cargo test --lib` **105/105** e `npx tsc --noEmit` limpos em cada etapa (Tier 1 cosmético, Tier 2 identidade de pacote/crate, Tier 3 identifier+DB+keyring). Testado no app real: janela abre com título "Anchor", processo roda como binário `anchor`, dados de Portfolio/Ativos confirmados intactos pelo dono do projeto.
 - [ ] 11.2 — App mobile em Flutter, replicando as funções do desktop
 - [ ] 11.3 — Empacotamento do sidecar Python (PyInstaller/Nuitka) + CI GitHub Actions (matrix build) gerando instaladores standalone
+
+---
+
+### Fase 12 — Módulo de Finanças Gerais (Balanço Patrimonial + Fluxo de Caixa, ideia levantada na Sessão 65, não iniciada)
+
+**Objetivo**: dono do projeto trouxe um rascunho à parte (`features-financas-anchor.md`, conteúdo transcrito aqui e arquivo removido) — brainstorm de arquitetura pra expandir o app de "portfolio tracker" pra "balanço patrimonial + fluxo de caixa + investimentos", cobrindo pessoa física e jurídica (PF/PJ). Ainda não passou por `AskUserQuestion`/planejamento — puro registro da ideia, mesmo estágio em que Fase 10/11 nasceram antes de serem escopadas.
+
+**Visão geral**: dentro da área de investimentos, o usuário montaria suas próprias "partes" (workspaces/módulos plugáveis) — uma pode ser uma carteira de ativos (o que já existe hoje, Fase 10), outra pode ser um módulo de finanças gerais (dívidas, planejamento e controle de gastos). Tudo compartilharia o mesmo conceito de titular (PF/CPF ou PJ/CNPJ) já usado hoje em `Custodia` (Fase 10, item 9). Objetivo central: permitir registrar dívida tomada pela empresa/pessoa pra investir, e que isso influencie as métricas da carteira (alavancagem, retorno alavancado por ativo).
+
+**Entidades principais propostas**:
+
+- **`Transaction` (núcleo do sistema)** — modelo único cobrindo *toda* movimentação de dinheiro, não tabelas separadas pra "extrato bancário" e "extrato da carteira" (a segunda seria uma view filtrada da primeira). Campos: valor, data, `type`, categoria, `account_id`, titular. `type`: `receita`, `despesa`, `parcela_divida`, `compra_ativo`, `venda_ativo`, `aporte`, `provento` (dividendo/juros/aluguel de FII). Quando `type` é `compra_ativo`/`venda_ativo`: campos extras `asset_id`, quantidade, preço unitário. `source`: manual ou `generated_from_liability_id` (parcela gerada automaticamente). Tela "Transações gerais" = todas; tela "Transações da carteira" = filtro `WHERE type IN ('compra_ativo','venda_ativo')`. Proventos também gerariam `Transaction` automaticamente.
+
+- **`Liability` (dívida/passivo)** — entidade irmã de `Asset`, não um "ativo negativo": tem semântica própria de amortização e gera fluxo de caixa. Campos: principal, taxa (fixa / CDI+spread / IPCA+ — mesmo vocabulário `fi_indexador` já usado em `transactions` pra renda fixa, Fase 10.2), prazo, sistema de amortização (Price ou SAC), data de início, titular (PF/PJ), `linked_asset_id` **opcional** (se a dívida financiou uma posição específica, permite calcular retorno alavancado daquele ativo). Ao cadastrar, geraria automaticamente as N `Transaction` futuras do tipo `parcela_divida`, já com split juros/amortização (só o juros conta como "gasto" no orçamento; amortização é devolução de principal). Métricas derivadas: Patrimônio Líquido = ativos − passivos; Alavancagem = dívida total / PL; spread/carry entre custo da dívida e retorno do ativo linkado. **Ponto em aberto do rascunho**: como editar/quitar uma parcela gerada automaticamente (pagamento antecipado, renegociação de taxa) — editar só aquela `Transaction` ou recalcular as futuras (padrão "essa e as futuras" vs. "só essa", como evento recorrente de calendário).
+
+- **`Category`** — pra orçamento/controle de gastos: nome, tipo (receita/despesa), limite mensal opcional. Agregação de `Transaction` por categoria e período, comparado ao limite.
+
+- **`BankAccount`** — conta bancária pra organização: banco, agência/conta (ou apelido), titular (PF/PJ), saldo derivado (soma das `Transaction` daquela conta, não editável diretamente). Toda `Transaction` teria `account_id` obrigatório.
+
+- **`Attachment`** — tabela própria (não campo embutido em cada entidade), pra reuso em qualquer `Transaction`: nota fiscal, comprovante, contrato de dívida, extrato bancário anexado. Campos: referência ao arquivo, tipo, `transaction_id` (ou entidade vinculada). **Diferença chave do mecanismo de anexo já existente** (`thesis_attachments`/`asset_attachments`, Fase 10.5/10 item 8, ambos em disco local via `app_data_dir()`): o rascunho propõe que documentos financeiros fiquem **armazenados dentro do Vault (TruthID)**, não em disco local puro — ver integração com o Vault abaixo.
+
+**Integração com o Vault (TruthID)**: documentos financeiros (notas fiscais, comprovantes, extratos) são mais sensíveis que o estado de app já pensado pro `SyncRegistry` (Fase 8) — como IPFS é content-addressed e público por padrão, o conteúdo precisaria ser **criptografado no cliente antes de subir** (mesmo padrão de `pin_content_cipher.rs`/`ecies.rs` já existente da Fase 8.6, HKDF+AES-256-GCM). **Ponto em aberto do rascunho**: o arquivo binário inteiro vai no blob sincronizado do Vault, ou só o metadado/hash da transação vai pro Vault (sync entre dispositivos) enquanto o arquivo fica local/IPFS separado, só referenciado pelo hash? Afeta volume e velocidade de sync. **Depende de Fase 8.5 (sync completo) existir antes de fazer sentido.**
+
+**IA pra automação (extrato + anexos), dois passos separados**:
+1. **Extração**: parsing de PDF/OFX/CSV/foto de extrato ou nota fiscal em linhas estruturadas (data, descrição, valor). Layout varia muito por banco/emissor — é o ponto que mais quebra, precisa de fallback manual. Reaproveitaria a infra de extração de documento já existente (Fase 2.4, `document_extraction.rs` — os 3 provedores de IA já aceitam PDF nativo + JSON validado contra schema).
+2. **Categorização**: inferir `category` e `type` a partir da descrição. Se a descrição bate com uma `Liability` cadastrada (valor + dia do mês parecido), sugerir já linkar como `parcela_divida` daquela dívida em vez de virar despesa genérica.
+
+**Regra fixa proposta**: nenhuma `Transaction` seria criada ou alterada pela IA sem confirmação do usuário — fila de "sugestões pendentes" que o usuário aprova/edita/rejeita em lote (nunca automático 100%), mesmo espírito do mecanismo humano-no-loop que `ai_valuation_proposal` (Fase 7.10.4) já implementa. Dois tipos de confirmação, tecnicamente distintos mas talvez unificáveis numa única tela: (1) confirmação de dado — usuário revisa/aprova o que a IA extraiu, local, sem tocar em chave nenhuma; (2) confirmação de escrita no Vault — assinatura via TruthID (sessão delegada) pra atualizar o CID do `VaultRegistry`, idealmente com batching (várias confirmações acumulam e sincronizam de uma vez, não uma escrita por lançamento).
+
+**Reconciliação**: ao importar extrato bancário, pode haver duplicata com uma `Transaction` já criada manualmente (ex.: compra de ativo lançada na mão + o mesmo débito aparecendo no extrato importado depois). Precisaria de matching por valor + data (± tolerância) e estado de "possível duplicata" — nunca deletar/mesclar automático sem confirmação, mesmo princípio de nunca-automático-100% do resto do módulo.
+
+**Ordem de implementação sugerida pelo rascunho** (não confirmada com o dono do projeto ainda):
+1. `Transaction` + `BankAccount` (núcleo do fluxo de caixa)
+2. `Liability` + geração automática de parcelas
+3. `Category` + controle de gastos/orçamento
+4. `Attachment` + integração com Vault (criptografia antes de tudo)
+5. IA de extração/categorização de extrato e notas fiscais (com fila de confirmação)
+6. Reconciliação/deduplicação
+
+**Dependências e sobreposições com fases existentes, não resolvidas**: `Attachment`+Vault depende de Fase 8.5 (sync completo, não iniciada) pra fazer sentido de verdade — sem sync, é só mais um disco local, o que o mecanismo mais simples de `thesis_attachments`/`asset_attachments` já resolve hoje. `Transaction` como "núcleo único" se sobrepõe conceitualmente a `transactions` (Fase 10.2, hoje só cobre compra/venda/aporte/retirada/provento/transferência de ativos) — precisa decidir se este módulo estende a tabela existente ou nasce paralelo com um relacionamento entre as duas. `Liability` puxaria o mesmo vocabulário de indexador/taxa que os campos `fi_*` de `transactions` já usam pra renda fixa.
 
