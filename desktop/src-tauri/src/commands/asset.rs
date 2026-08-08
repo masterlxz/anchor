@@ -81,8 +81,19 @@ async fn upsert_fii_cnpj_cache(
 // Fatia 2 acrescentou fundamentos + DCF via SEC EDGAR (`sources/sec_edgar.py`)
 // nas mesmas tabelas `stock_fundamentals`/`stock_dcf_fundamentals` que
 // `acao_br` já usa (schema já era agnóstico de moeda/classe, sem migration).
+// `imovel` entrou na Sessão 64 (2026-08-08) — cadastro manual (sem fonte de
+// dados externa, fora de `ASSET_CLASSES_WITH_AUTO_QUOTE`), mesmo caminho de
+// `tesouro_direto`/`renda_fixa` pro form genérico. Ganha histórico de
+// avaliações e anexos (escritura/ITBI/IPTU) por `commands/property.rs`, ver
+// PHASE.md item 8. `empresa_nao_listada` fechou a lista original da Sessão
+// 30 na mesma Sessão 64 — mesmo esqueleto `AtivoManual` do imóvel (histórico
+// de avaliações + anexos, reaproveitado sem mudança), mais 3 campos próprios
+// em `assets` (`equity_shares_owned`/`equity_total_shares`/
+// `equity_company_valuation`, nullable, mesmo padrão do `cnpj` do FII) —
+// percentual de participação é sempre calculado a partir desses 2 últimos,
+// nunca gravado (decisão explícita da sessão).
 
-const ASSET_CLASSES: [&str; 11] = [
+const ASSET_CLASSES: [&str; 13] = [
     "acao_br",
     "fii",
     "etf_br",
@@ -94,6 +105,8 @@ const ASSET_CLASSES: [&str; 11] = [
     "etf_us",
     "tesouro_direto",
     "renda_fixa",
+    "imovel",
+    "empresa_nao_listada",
 ];
 const EXPOSURE_TYPES: [&str; 2] = ["pais", "categoria_especial"];
 
@@ -122,6 +135,11 @@ pub struct CreateAssetRequest {
     // submit). `None` pras demais classes, e também pro próprio FII se o
     // usuário não confirmar nenhuma sugestão.
     pub cnpj: Option<String>,
+    // Fase 10, item 8, Sessão 64 — só relevante pra `empresa_nao_listada`.
+    // `None` pras demais classes.
+    pub equity_shares_owned: Option<f64>,
+    pub equity_total_shares: Option<f64>,
+    pub equity_company_valuation: Option<f64>,
 }
 
 #[tauri::command]
@@ -151,6 +169,9 @@ pub async fn create_asset(
         exposure_type: Set(request.exposure_type),
         exposure_value: Set(request.exposure_value),
         cnpj: Set(request.cnpj.clone()),
+        equity_shares_owned: Set(request.equity_shares_owned),
+        equity_total_shares: Set(request.equity_total_shares),
+        equity_company_valuation: Set(request.equity_company_valuation),
         created_at: Set(chrono::Utc::now().to_rfc3339()),
         ..Default::default()
     }
@@ -198,4 +219,37 @@ pub async fn update_asset_cnpj(
     upsert_fii_cnpj_cache(db.inner(), &existing.ticker, &request.cnpj, &existing.name).await?;
 
     Ok(updated)
+}
+
+#[derive(Deserialize)]
+pub struct UpdateAssetEquityRequest {
+    pub asset_id: i32,
+    pub equity_shares_owned: Option<f64>,
+    pub equity_total_shares: Option<f64>,
+    pub equity_company_valuation: Option<f64>,
+}
+
+/// Comando estreito, mesmo espírito de `update_asset_cnpj` — participação
+/// societária muda com rodadas de investimento/diluição, então não pode
+/// ficar travada no valor do cadastro inicial, mas `assets` continua sem
+/// `update_asset` genérico.
+#[tauri::command]
+pub async fn update_asset_equity(
+    db: tauri::State<'_, DatabaseConnection>,
+    request: UpdateAssetEquityRequest,
+) -> Result<assets::Model, AppError> {
+    let existing = assets::Entity::find_by_id(request.asset_id)
+        .one(db.inner())
+        .await?
+        .ok_or_else(|| AppError::NotFound(format!("asset {}", request.asset_id)))?;
+
+    Ok(assets::ActiveModel {
+        id: Unchanged(existing.id),
+        equity_shares_owned: Set(request.equity_shares_owned),
+        equity_total_shares: Set(request.equity_total_shares),
+        equity_company_valuation: Set(request.equity_company_valuation),
+        ..Default::default()
+    }
+    .update(db.inner())
+    .await?)
 }

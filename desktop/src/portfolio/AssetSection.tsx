@@ -15,6 +15,13 @@ import {
 import { latestForTicker } from "../collector/latestForTicker";
 import type { StockQuote } from "../collector/types";
 import FiiCvmDetails from "./FiiCvmDetails";
+import ManualAssetDetails from "./ManualAssetDetails";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import Field from "../components/Field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -49,6 +56,9 @@ type CreateAssetRequest = {
   exposure_type: string;
   exposure_value: string;
   cnpj: string | null;
+  equity_shares_owned: number | null;
+  equity_total_shares: number | null;
+  equity_company_valuation: number | null;
 };
 
 type CollectorSummary = { success: boolean; output: string };
@@ -63,7 +73,12 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
   const [exposureType, setExposureType] = useState<ExposureType>("pais");
   const [exposureValue, setExposureValue] = useState("BR");
   const [cnpj, setCnpj] = useState("");
+  const [equitySharesOwned, setEquitySharesOwned] = useState("");
+  const [equityTotalShares, setEquityTotalShares] = useState("");
+  const [equityCompanyValuation, setEquityCompanyValuation] = useState("");
   const [expandedAssetId, setExpandedAssetId] = useState<number | null>(null);
+  const [manualAssetDialogAssetId, setManualAssetDialogAssetId] = useState<number | null>(null);
+  const [isAddAssetDialogOpen, setIsAddAssetDialogOpen] = useState(false);
 
   const [tickerQuery, setTickerQuery] = useState("");
   const [activeTicker, setActiveTicker] = useState<string | null>(null);
@@ -79,6 +94,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
   const isUsStock = assetClass === "acao_internacional";
   const isReit = assetClass === "reit";
   const isEtfUs = assetClass === "etf_us";
+  const isEmpresaNaoListada = assetClass === "empresa_nao_listada";
 
   const queryClient = useQueryClient();
 
@@ -250,6 +266,9 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
       setName("");
       setExchange("");
       setCnpj("");
+      setEquitySharesOwned("");
+      setEquityTotalShares("");
+      setEquityCompanyValuation("");
       setTickerQuery("");
       setActiveTicker(null);
       autoFetchedTickerRef.current = null;
@@ -276,6 +295,14 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
       exposure_type: exposureType,
       exposure_value: exposureValue,
       cnpj: isFii && cnpj.trim() !== "" ? cnpj.trim() : null,
+      equity_shares_owned:
+        isEmpresaNaoListada && equitySharesOwned.trim() !== "" ? Number(equitySharesOwned) : null,
+      equity_total_shares:
+        isEmpresaNaoListada && equityTotalShares.trim() !== "" ? Number(equityTotalShares) : null,
+      equity_company_valuation:
+        isEmpresaNaoListada && equityCompanyValuation.trim() !== ""
+          ? Number(equityCompanyValuation)
+          : null,
     });
   }
 
@@ -283,6 +310,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
   const showCreateForm = !isAutoQuoteClass || (activeTicker !== null && lookupQuery.data != null);
 
   return (
+    <>
     <Card>
       <CardHeader>
         <CardTitle>Assets</CardTitle>
@@ -292,10 +320,117 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
           Catalog of tradeable/registrable assets — shared across every Portfolio in the
           Workspace. Stock (B3), FII (B3), ETF (B3), Crypto, BDR (B3), Metal, International stock
           and REIT fetch data automatically by ticker; the other classes (Tesouro Direto, Fixed
-          income) still use manual registration for now.
+          income, Real estate, Private company) still use manual registration for now. Real
+          estate and Private company also get a valuation history and document attachments — see
+          the details popup below.
         </p>
 
-        <div className="mb-4 max-w-xs">
+        <div className="mb-4 flex justify-end">
+          <Button type="button" onClick={() => setIsAddAssetDialogOpen(true)}>
+            Add asset
+          </Button>
+        </div>
+
+        {assetsQuery.isError && (
+          <p className="mb-3 text-red-600">{assetsQuery.error.message}</p>
+        )}
+
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Ticker</TableHead>
+              <TableHead>Name</TableHead>
+              <TableHead>Class</TableHead>
+              <TableHead>Currency</TableHead>
+              <TableHead>Exchange</TableHead>
+              <TableHead>Exposure</TableHead>
+              <TableHead>★</TableHead>
+              <TableHead></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {assets.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center text-muted-foreground">
+                  No assets registered yet.
+                </TableCell>
+              </TableRow>
+            )}
+            {assets.map((asset) => {
+              const isFavorite = favoriteAssetIds.has(asset.id);
+              const isExpanded = expandedAssetId === asset.id;
+              return (
+                <Fragment key={asset.id}>
+                  <TableRow>
+                    <TableCell>{asset.ticker}</TableCell>
+                    <TableCell>{asset.name}</TableCell>
+                    <TableCell>
+                      {ASSET_CLASS_LABELS[asset.asset_class as AssetClass] ?? asset.asset_class}
+                    </TableCell>
+                    <TableCell>{asset.currency}</TableCell>
+                    <TableCell>{asset.exchange ?? "—"}</TableCell>
+                    <TableCell>
+                      {asset.exposure_type === "pais" ? "🌍 " : "🏷️ "}
+                      {asset.exposure_value}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={toggleFavoriteMutation.isPending}
+                        onClick={() => toggleFavoriteMutation.mutate(asset.id)}
+                        aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
+                      >
+                        {isFavorite ? "★" : "☆"}
+                      </Button>
+                    </TableCell>
+                    <TableCell>
+                      {asset.asset_class === "fii" && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setExpandedAssetId(isExpanded ? null : asset.id)}
+                        >
+                          {isExpanded ? "Hide CVM" : "CVM data"}
+                        </Button>
+                      )}
+                      {(asset.asset_class === "imovel" ||
+                        asset.asset_class === "empresa_nao_listada") && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setManualAssetDialogAssetId(asset.id)}
+                        >
+                          {asset.asset_class === "imovel" ? "Property details" : "Company details"}
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                  {isExpanded && asset.asset_class === "fii" && (
+                    <TableRow>
+                      <TableCell colSpan={8} className="bg-muted/30">
+                        <FiiCvmDetails asset={asset} />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </Fragment>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+
+    <Dialog open={isAddAssetDialogOpen} onOpenChange={setIsAddAssetDialogOpen}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Add asset</DialogTitle>
+        </DialogHeader>
+
+        <div className="max-w-xs">
           <Field label="Asset class">
             <Select value={assetClass} onValueChange={(value) => setAssetClass(value as AssetClass)}>
               <SelectTrigger className="w-full">
@@ -313,7 +448,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
         </div>
 
         {isAutoQuoteClass && (
-          <form onSubmit={handleTickerSearch} className="mb-4 flex items-end gap-3">
+          <form onSubmit={handleTickerSearch} className="flex items-end gap-3">
             <Field
               label={
                 isCripto || isMetal || isUsStock || isReit || isEtfUs
@@ -352,33 +487,33 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
         )}
 
         {isAutoQuoteClass && lookupQuery.isError && (
-          <p className="mb-3 text-red-600">{lookupQuery.error.message}</p>
+          <p className="text-red-600">{lookupQuery.error.message}</p>
         )}
         {isAutoQuoteClass && collectorMutation.isError && (
-          <p className="mb-3 text-red-600">{collectorMutation.error.message}</p>
+          <p className="text-red-600">{collectorMutation.error.message}</p>
         )}
         {isAutoQuoteClass && activeTicker && lookupQuery.isLoading && (
-          <p className="mb-3 text-muted-foreground">Loading {activeTicker}...</p>
+          <p className="text-muted-foreground">Loading {activeTicker}...</p>
         )}
         {isAutoQuoteClass && activeTicker && lookupQuery.data === null && collectorMutation.isPending && (
-          <p className="mb-3 text-muted-foreground">Fetching {activeTicker} for the first time...</p>
+          <p className="text-muted-foreground">Fetching {activeTicker} for the first time...</p>
         )}
         {isAutoQuoteClass &&
           activeTicker &&
           lookupQuery.isSuccess &&
           lookupQuery.data === null &&
           !collectorMutation.isPending && (
-            <p className="mb-3 text-muted-foreground">No data found for {activeTicker}.</p>
+            <p className="text-muted-foreground">No data found for {activeTicker}.</p>
           )}
 
         {showCreateForm && (
-          <form onSubmit={handleSubmit} className="mb-8 flex flex-col gap-4">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Field label="Ticker / identifier">
                 <Input
                   required
                   disabled={isAutoQuoteClass}
-                  placeholder="e.g.: PETR4, Tesouro IPCA+ 2035"
+                  placeholder="e.g.: PETR4, Tesouro IPCA+ 2035, Apt 302 - Rua X"
                   value={ticker}
                   onChange={(e) => setTicker(e.currentTarget.value)}
                 />
@@ -460,6 +595,60 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
               </Field>
             )}
 
+            {isEmpresaNaoListada && (
+              <div className="flex flex-col gap-2">
+                <p className="text-sm text-muted-foreground">
+                  Equity stake (optional at registration — editable later from the details popup).
+                  Percentage is always calculated from shares owned / total company shares, never
+                  typed in directly.
+                </p>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <Field label="Shares owned">
+                    <Input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={equitySharesOwned}
+                      onChange={(e) => setEquitySharesOwned(e.currentTarget.value)}
+                    />
+                  </Field>
+                  <Field label="Total company shares">
+                    <Input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={equityTotalShares}
+                      onChange={(e) => setEquityTotalShares(e.currentTarget.value)}
+                    />
+                  </Field>
+                  <Field label={`Company valuation (${currency || "BRL"})`}>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={equityCompanyValuation}
+                      onChange={(e) => setEquityCompanyValuation(e.currentTarget.value)}
+                    />
+                  </Field>
+                </div>
+                {equitySharesOwned.trim() !== "" &&
+                  equityTotalShares.trim() !== "" &&
+                  Number(equityTotalShares) > 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      Your stake: {((Number(equitySharesOwned) / Number(equityTotalShares)) * 100).toFixed(2)}%
+                      {equityCompanyValuation.trim() !== "" &&
+                        ` (~${(
+                          (Number(equitySharesOwned) / Number(equityTotalShares)) *
+                          Number(equityCompanyValuation)
+                        ).toLocaleString("pt-BR", {
+                          style: "currency",
+                          currency: currency || "BRL",
+                        })})`}
+                    </p>
+                  )}
+              </div>
+            )}
+
             {createMutation.isError && (
               <p className="text-red-600">{createMutation.error.message}</p>
             )}
@@ -469,88 +658,33 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
             </Button>
           </form>
         )}
+      </DialogContent>
+    </Dialog>
 
-        {assetsQuery.isError && (
-          <p className="mb-3 text-red-600">{assetsQuery.error.message}</p>
-        )}
-
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Ticker</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Class</TableHead>
-              <TableHead>Currency</TableHead>
-              <TableHead>Exchange</TableHead>
-              <TableHead>Exposure</TableHead>
-              <TableHead>★</TableHead>
-              <TableHead></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {assets.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center text-muted-foreground">
-                  No assets registered yet.
-                </TableCell>
-              </TableRow>
-            )}
-            {assets.map((asset) => {
-              const isFavorite = favoriteAssetIds.has(asset.id);
-              const isExpanded = expandedAssetId === asset.id;
-              return (
-                <Fragment key={asset.id}>
-                  <TableRow>
-                    <TableCell>{asset.ticker}</TableCell>
-                    <TableCell>{asset.name}</TableCell>
-                    <TableCell>
-                      {ASSET_CLASS_LABELS[asset.asset_class as AssetClass] ?? asset.asset_class}
-                    </TableCell>
-                    <TableCell>{asset.currency}</TableCell>
-                    <TableCell>{asset.exchange ?? "—"}</TableCell>
-                    <TableCell>
-                      {asset.exposure_type === "pais" ? "🌍 " : "🏷️ "}
-                      {asset.exposure_value}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        disabled={toggleFavoriteMutation.isPending}
-                        onClick={() => toggleFavoriteMutation.mutate(asset.id)}
-                        aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
-                      >
-                        {isFavorite ? "★" : "☆"}
-                      </Button>
-                    </TableCell>
-                    <TableCell>
-                      {asset.asset_class === "fii" && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setExpandedAssetId(isExpanded ? null : asset.id)}
-                        >
-                          {isExpanded ? "Hide CVM" : "CVM data"}
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                  {isExpanded && (
-                    <TableRow>
-                      <TableCell colSpan={8} className="bg-muted/30">
-                        <FiiCvmDetails asset={asset} />
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </Fragment>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+    <Dialog
+      open={manualAssetDialogAssetId !== null}
+      onOpenChange={(open) => !open && setManualAssetDialogAssetId(null)}
+    >
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+        {manualAssetDialogAssetId !== null &&
+          (() => {
+            const asset = assets.find((a) => a.id === manualAssetDialogAssetId);
+            if (!asset) return null;
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle>
+                    {asset.asset_class === "imovel" ? "Property details" : "Company details"} —{" "}
+                    {asset.name}
+                  </DialogTitle>
+                </DialogHeader>
+                <ManualAssetDetails asset={asset} />
+              </>
+            );
+          })()}
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
 

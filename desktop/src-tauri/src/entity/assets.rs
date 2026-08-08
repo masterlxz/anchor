@@ -3,7 +3,7 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "assets")]
 pub struct Model {
     #[sea_orm(primary_key)]
@@ -17,12 +17,22 @@ pub struct Model {
     pub exposure_value: String,
     pub created_at: String,
     pub cnpj: Option<String>,
+    #[sea_orm(column_type = "Double", nullable)]
+    pub equity_shares_owned: Option<f64>,
+    #[sea_orm(column_type = "Double", nullable)]
+    pub equity_total_shares: Option<f64>,
+    #[sea_orm(column_type = "Double", nullable)]
+    pub equity_company_valuation: Option<f64>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
+    #[sea_orm(has_many = "super::asset_attachments::Entity")]
+    AssetAttachments,
     #[sea_orm(has_many = "super::asset_favorites::Entity")]
     AssetFavorites,
+    #[sea_orm(has_many = "super::asset_valuations::Entity")]
+    AssetValuations,
     #[sea_orm(has_many = "super::theses::Entity")]
     Theses,
     #[sea_orm(has_many = "super::transactions::Entity")]
@@ -31,9 +41,21 @@ pub enum Relation {
     WatchlistItems,
 }
 
+impl Related<super::asset_attachments::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::AssetAttachments.def()
+    }
+}
+
 impl Related<super::asset_favorites::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::AssetFavorites.def()
+    }
+}
+
+impl Related<super::asset_valuations::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::AssetValuations.def()
     }
 }
 

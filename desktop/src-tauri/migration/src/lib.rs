@@ -39,6 +39,8 @@ mod m20260802_120000_create_fii_cnpj_cache;
 mod m20260802_140000_create_crypto_fear_greed;
 mod m20260803_120000_create_company_ai_info;
 mod m20260803_140000_create_reit_tables;
+mod m20260808_100000_create_asset_valuations_and_attachments;
+mod m20260808_150000_add_equity_fields_to_assets;
 
 pub struct Migrator;
 
@@ -85,6 +87,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20260802_140000_create_crypto_fear_greed::Migration),
             Box::new(m20260803_120000_create_company_ai_info::Migration),
             Box::new(m20260803_140000_create_reit_tables::Migration),
+            Box::new(m20260808_100000_create_asset_valuations_and_attachments::Migration),
+            Box::new(m20260808_150000_add_equity_fields_to_assets::Migration),
         ]
     }
 }

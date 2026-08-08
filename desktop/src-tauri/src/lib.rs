@@ -100,6 +100,7 @@ pub fn run() {
             commands::asset::list_assets,
             commands::asset::create_asset,
             commands::asset::update_asset_cnpj,
+            commands::asset::update_asset_equity,
             commands::fii::resolve_fii_cnpj,
             commands::fii::run_fii_cvm_collector,
             commands::fii::list_fii_cvm_monthly,
@@ -128,7 +129,14 @@ pub fn run() {
             commands::thesis::list_thesis_attachments,
             commands::thesis::add_thesis_attachment,
             commands::thesis::delete_thesis_attachment,
-            commands::thesis::get_thesis_attachment_path
+            commands::thesis::get_thesis_attachment_path,
+            commands::property::list_asset_valuations,
+            commands::property::add_asset_valuation,
+            commands::property::delete_asset_valuation,
+            commands::property::list_asset_attachments,
+            commands::property::add_asset_attachment,
+            commands::property::delete_asset_attachment,
+            commands::property::get_asset_attachment_path
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

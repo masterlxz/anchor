@@ -48,6 +48,14 @@ export type Custodia = {
 // mesma fonte Yahoo sem `.SA` de `acao_internacional`/`reit`, sem
 // fundamentos nenhum (nem os 8 modelos nem indicador de fundo dedicado,
 // mesmo motivo do `etf_br`: ETF não tem demonstração financeira própria).
+// `imovel` e `empresa_nao_listada` entraram na Sessão 64 — cadastro manual
+// (mesmo caminho de `tesouro_direto`/`renda_fixa`, fora de
+// `ASSET_CLASSES_WITH_AUTO_QUOTE`), compartilhando o esqueleto `AtivoManual`
+// do rascunho original (histórico de avaliações + anexos, ver
+// AssetValuation/AssetAttachment abaixo e `ManualAssetDetails.tsx`).
+// `empresa_nao_listada` ganha ainda os 3 campos de participação societária
+// em `Asset` abaixo (`equity_*`) — sem coluna própria de percentual, sempre
+// calculado a partir de `equity_shares_owned`/`equity_total_shares`.
 // Ver commands/asset.rs::ASSET_CLASSES.
 export type AssetClass =
   | "acao_br"
@@ -60,7 +68,9 @@ export type AssetClass =
   | "reit"
   | "etf_us"
   | "tesouro_direto"
-  | "renda_fixa";
+  | "renda_fixa"
+  | "imovel"
+  | "empresa_nao_listada";
 
 export const ASSET_CLASSES: AssetClass[] = [
   "acao_br",
@@ -74,6 +84,8 @@ export const ASSET_CLASSES: AssetClass[] = [
   "etf_us",
   "tesouro_direto",
   "renda_fixa",
+  "imovel",
+  "empresa_nao_listada",
 ];
 
 export const ASSET_CLASS_LABELS: Record<AssetClass, string> = {
@@ -88,6 +100,8 @@ export const ASSET_CLASS_LABELS: Record<AssetClass, string> = {
   etf_us: "ETF (US)",
   tesouro_direto: "Tesouro Direto",
   renda_fixa: "Fixed income",
+  imovel: "Real estate",
+  empresa_nao_listada: "Private company",
 };
 
 // Classes que usam os campos fi_* (renda fixa detalhada) na transação de compra.
@@ -124,6 +138,9 @@ export type Asset = {
   exposure_value: string;
   created_at: string;
   cnpj: string | null;
+  equity_shares_owned: number | null;
+  equity_total_shares: number | null;
+  equity_company_valuation: number | null;
 };
 
 // Fase 10, item 8, Sessão 41 — indicadores de FII direto da CVM (dados
@@ -323,5 +340,33 @@ export type ThesisAttachment = {
   stored_relative_path: string;
   file_size_bytes: number;
   content_type: string | null;
+  created_at: string;
+};
+
+// Fase 10, item 8 — classe `imovel` (cadastro manual). Histórico de
+// avaliações do imóvel; `origin` só grava "manual" por ora (reajuste
+// automático por % ainda não decidido, ver PHASE.md item 8). Ver
+// `commands/property.rs`.
+export type AssetValuation = {
+  id: number;
+  asset_id: number;
+  valuation_date: string;
+  value: number;
+  origin: string;
+  notes: string | null;
+  created_at: string;
+};
+
+// Anexo de um ativo de cadastro manual (escritura, ITBI, IPTU pago, foto),
+// mesmo molde de `ThesisAttachment` — arquivo em disco (app_data_dir),
+// `document_type` é texto livre pra rotular sem travar numa lista fixa.
+export type AssetAttachment = {
+  id: number;
+  asset_id: number;
+  original_file_name: string;
+  stored_relative_path: string;
+  file_size_bytes: number;
+  content_type: string | null;
+  document_type: string | null;
   created_at: string;
 };
