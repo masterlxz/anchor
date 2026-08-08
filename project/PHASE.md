@@ -703,6 +703,14 @@ Lançamentos com custódia e taxa: vínculo à custódia acontece no momento do 
 
 **Decisão em aberto**: taxa de transferência sempre no próprio ativo transferido, ou pode ser em ativo/moeda diferente (ex.: taxa de rede em cripto vs. corretagem em BRL) — não decidido.
 
+**10. Tela inicial do Workspace / Dashboard personalizável** (ideia trazida pelo dono do projeto na Sessão 68, puro registro — não passou por `AskUserQuestion`/planejamento ainda). Hoje, depois do `WorkspaceGate` (Fase 10.6), o usuário cai direto numa aba do Portfolio (Custódias/Ativos/Lançamentos) — não existe uma tela-resumo. Pedido: uma tela inicial logo após entrar no Workspace, funcionando como painel/resumo de tudo — carteiras, valor total, rentabilidade — "bonitinha", tipo dashboard de verdade (não uma lista de números crus).
+
+**Painel de mercado (parte mais específica do pedido)**: cadastrar índices e ativos pra acompanhar em tempo real dentro dessa tela, independente de fazer parte da carteira do usuário — exemplo dado: S&P 500. Índice não é um ativo comprável (não tem posição/quantidade), então é um conceito novo, distinto do catálogo de `Asset` atual — decisão em aberto: nasce como uma classe própria (`indice`, sem campos de posição/custódia) reaproveitando o mesmo pipeline de cotação Yahoo (que já serve tickers de índice, ex. `^GSPC`, `^BVSP`), ou como uma extensão do mecanismo de Watchlist (Fase 10.4, que já resolve "acompanhar algo sem possuir") em vez de crescer o catálogo de `Asset`. Nenhuma das duas decidida ainda.
+
+**Personalização total, pedido explícito**: o usuário quer poder montar essa tela na mão — não um layout fixo pré-definido, um dashboard de widgets configuráveis (o que aparece, provavelmente também onde/tamanho). E pedido explicitamente **nos dois clientes**, desktop e mobile (Fase 11.2) — a persistência da configuração de layout por Workspace (e se compartilhada ou por-dispositivo, já que desktop e mobile não sincronizam ainda, ver Fase 11.2) é uma decisão em aberto.
+
+**Sobreposição não resolvida**: painel de mercado (índices/ativos "pra acompanhar") se sobrepõe conceitualmente com Watchlists/Favoritos (Fase 10.4) — pode ser a mesma coisa com apresentação diferente (cards de dashboard em vez de tabela) ou um mecanismo separado. Fica pra decidir quando essa fatia for planejada de verdade.
+
 **Ordem de implementação decidida com o dono do projeto (continuação da Sessão 29, via `AskUserQuestion`)**:
 
 **Workspace nasce single-user** — um único Workspace implícito (o próprio dono), sem convite/membro externo, sem RBAC ativo ainda. Essa escolha destrava começar a Fase 10 sem precisar resolver a permissão descentralizada primeiro (ver ressalva acima) — convite/multiusuário real vira uma fatia à parte, bloqueada até esse problema estar resolvido (provavelmente amarrado à Fase 8). **Primeira fatia concreta escolhida pra quando começarmos: multi-ativos.**
