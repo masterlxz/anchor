@@ -8,7 +8,12 @@ use crate::domain::chat_provider::Provider;
 use crate::entity::ai_api_key;
 use crate::error::AppError;
 
-pub(crate) const KEYRING_SERVICE: &str = "practice-valuation";
+pub(crate) const KEYRING_SERVICE: &str = "anchor";
+
+// Fase 11.1 — rename pra Anchor. Chaves guardadas antes do rename ficam
+// presas ao serviço antigo do keyring, invisíveis pro app assim que
+// `KEYRING_SERVICE` muda de valor.
+const LEGACY_RENAME_KEYRING_SERVICE: &str = "practice-valuation";
 
 // Fase 7.9.2: a provider can now have several named keys, so the keyring
 // username can't just be the provider id anymore (one entry per provider,
@@ -104,10 +109,36 @@ async fn migrate_legacy_key_if_needed(
     Ok(())
 }
 
+// Fase 11.1 — mesmo espírito de `migrate_legacy_key_if_needed`, mas
+// migrando pelo eixo do nome do serviço no keyring, não do esquema de
+// username (que não muda — continua `keyring_username(provider, id)`).
+// Roda pra toda linha já existente em `ai_api_key`; idempotente, já que a
+// segunda chamada não encontra mais nada sob o serviço antigo.
+async fn migrate_legacy_service_if_needed(db: &DatabaseConnection) -> Result<(), AppError> {
+    let rows = ai_api_key::Entity::find().all(db).await?;
+    for row in rows {
+        let username = keyring_username(&row.provider, row.id);
+        let legacy_entry = keyring::Entry::new(LEGACY_RENAME_KEYRING_SERVICE, &username)?;
+        let key = match legacy_entry.get_password() {
+            Ok(key) => key,
+            Err(keyring::Error::NoEntry) => continue,
+            Err(err) => return Err(err.into()),
+        };
+
+        let new_entry = keyring::Entry::new(KEYRING_SERVICE, &username)?;
+        new_entry.set_password(&key)?;
+        legacy_entry.delete_credential()?;
+    }
+
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn list_api_keys(
     db: tauri::State<'_, DatabaseConnection>,
 ) -> Result<Vec<ApiKeySummary>, AppError> {
+    migrate_legacy_service_if_needed(db.inner()).await?;
+
     for provider in [Provider::Gemini, Provider::Claude, Provider::OpenAi] {
         migrate_legacy_key_if_needed(db.inner(), provider).await?;
     }

@@ -18,7 +18,7 @@ use crate::sync_registry;
 /// aqui, é a única forma de descoberta (localhost, sem mDNS/broadcast).
 const CANDIDATE_PORTS: [u16; 5] = [47950, 47951, 47952, 47953, 47954];
 
-const APP_NAME: &str = "Practice Valuation";
+const APP_NAME: &str = "Anchor";
 const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Endereço de burn — dest do sign-request de teste. value="0" e callData="0x"

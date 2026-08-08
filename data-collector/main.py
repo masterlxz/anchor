@@ -29,7 +29,7 @@ from sources import (
 )
 
 BASE_DIR = Path(__file__).parent
-DB_PATH = BASE_DIR / "practice_valuation.db"
+DB_PATH = BASE_DIR / "anchor.db"
 CONFIG_PATH = BASE_DIR / "config.yaml"
 
 

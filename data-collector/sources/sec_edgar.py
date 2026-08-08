@@ -96,7 +96,7 @@ def _contact_email() -> str:
 
 
 def _headers() -> dict:
-    return {"User-Agent": f"practice-valuation ({_contact_email()})"}
+    return {"User-Agent": f"anchor ({_contact_email()})"}
 
 
 def _get(url: str) -> requests.Response:

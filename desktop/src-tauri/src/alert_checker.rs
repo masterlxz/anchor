@@ -128,7 +128,7 @@ pub async fn check_active_rules(db: &DatabaseConnection) -> Result<(), AppError>
                 // KDE Plasma 6/Wayland) silently drop normal-urgency notifications from apps
                 // without a registered .desktop file into the history panel only, no popup.
                 if let Err(err) = DesktopNotification::new()
-                    .summary("Practice Valuation")
+                    .summary("Anchor")
                     .body(&message)
                     .urgency(Urgency::Critical)
                     .show()

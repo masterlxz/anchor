@@ -1,4 +1,4 @@
-# Practice Valuation
+# Anchor
 
 A personal desktop app for tracking B3 stock and crypto investment theses — fair-price valuation
 models plus a crypto scoring dashboard, replacing a spreadsheet.

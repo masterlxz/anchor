@@ -100,7 +100,7 @@
     --sidebar-ring: oklch(0.708 0 0);
 }
 
-/* Practice Valuation brand theme — dark navy + green, same "personality"
+/* Anchor brand theme — dark navy + green, same "personality"
    as TruthID's palette (desktop/src/App.css there) with the accent hue
    shifted from cyan to green. Applied unconditionally (class="dark" is
    always set on <html> in index.html) — this isn't a light/dark toggle,

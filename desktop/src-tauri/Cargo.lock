@@ -212,6 +212,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "anchor"
+version = "0.1.0"
+dependencies = [
+ "aes-gcm",
+ "alloy-primitives",
+ "alloy-sol-types",
+ "base64 0.22.1",
+ "chrono",
+ "ed25519-dalek",
+ "futures",
+ "hex",
+ "hkdf",
+ "if-addrs",
+ "k256",
+ "keyring",
+ "notify-rust",
+ "rand 0.8.6",
+ "reqwest",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-opener",
+ "thiserror 2.0.18",
+ "tokio",
+]
+
+[[package]]
 name = "android_system_properties"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4287,37 +4318,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9"
 dependencies = [
  "zerocopy",
-]
-
-[[package]]
-name = "practice-valuation"
-version = "0.1.0"
-dependencies = [
- "aes-gcm",
- "alloy-primitives",
- "alloy-sol-types",
- "base64 0.22.1",
- "chrono",
- "ed25519-dalek",
- "futures",
- "hex",
- "hkdf",
- "if-addrs",
- "k256",
- "keyring",
- "notify-rust",
- "rand 0.8.6",
- "reqwest",
- "sea-orm",
- "serde",
- "serde_json",
- "sha2",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-opener",
- "thiserror 2.0.18",
- "tokio",
 ]
 
 [[package]]

@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    practice_valuation_lib::run()
+    anchor_lib::run()
 }
