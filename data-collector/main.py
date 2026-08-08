@@ -1221,6 +1221,15 @@ def main(ticker: str | None = None) -> int:
 
 
 if __name__ == "__main__":
+    # Fase 11.3 — sidecar empacotado não tem `BASE_DIR`-relativo confiável
+    # (PyInstaller extrai pra um diretório temporário), então o Rust passa o
+    # caminho certo (`app_data_dir()`) explicitamente. Sem esse argumento
+    # (uso via `.venv` em dev, como sempre), `DB_PATH` continua relativo ao
+    # próprio script — comportamento intocado.
+    if len(sys.argv) > 2 and sys.argv[1] == "--db-path":
+        DB_PATH = Path(sys.argv[2])
+        sys.argv = [sys.argv[0]] + sys.argv[3:]
+
     if len(sys.argv) > 1 and sys.argv[1] == "crypto":
         sys.exit(main_crypto())
     if len(sys.argv) > 1 and sys.argv[1] == "--ticker":

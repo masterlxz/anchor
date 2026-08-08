@@ -1,5 +1,7 @@
 use std::sync::atomic::AtomicBool;
 
+use tauri::Manager;
+
 mod alert_checker;
 mod commands;
 mod db;
@@ -15,13 +17,22 @@ mod sync_registry;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let db = tauri::async_runtime::block_on(db::connect()).expect("failed to connect to database");
-    alert_checker::spawn_periodic_check(db.clone());
-
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .manage(db)
+        .plugin(tauri_plugin_shell::init())
+        // Fase 11.3 — conexão de banco precisa de um `AppHandle` pra resolver
+        // `app_data_dir()` em build de release (`db::resolve_database_path`),
+        // que só existe a partir daqui — não dá mais pra conectar antes do
+        // `Builder` como antes.
+        .setup(|app| {
+            let handle = app.handle().clone();
+            let db = tauri::async_runtime::block_on(db::connect(&handle))
+                .expect("failed to connect to database");
+            alert_checker::spawn_periodic_check(db.clone());
+            app.manage(db);
+            Ok(())
+        })
         .manage(AtomicBool::new(false))
         .invoke_handler(tauri::generate_handler![
             commands::bazin::calculate_bazin,

@@ -2,8 +2,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
 use serde::Serialize;
+use tauri_plugin_shell::ShellExt;
 use tokio::process::Command;
 
+use crate::db;
 use crate::entity::{
     crypto_fear_greed, stock_dcf_fundamentals, stock_dividend_payments, stock_dividends_avg,
     stock_fundamentals, stock_price_history, stock_quotes, stock_technicals,
@@ -12,7 +14,9 @@ use crate::error::AppError;
 
 // Dev-only paths — the venv and script live in the data-collector/ bind
 // mount (see docker-compose.yml), same absolute-path convention as
-// db.rs's DATABASE_URL. Production path deferred to Fase 6.
+// db.rs's DEV_DATABASE_FILE_PATH. Só usados no branch de dev de
+// `run_collector` — build de release usa o sidecar registrado em
+// `tauri.conf.json::bundle.externalBin` (Fase 11.3).
 const COLLECTOR_PYTHON: &str = "/data-collector/.venv/bin/python3";
 const COLLECTOR_SCRIPT: &str = "/data-collector/main.py";
 
@@ -22,10 +26,33 @@ pub struct CollectorSummary {
     pub output: String,
 }
 
+// Aceita tanto `std::process::Output` (branch de dev, `tokio::process::Command`)
+// quanto `tauri_plugin_shell::process::Output` (branch de release, sidecar) —
+// os dois expõem `status`/`stdout`/`stderr` no mesmo formato, então um único
+// helper genérico cobre as duas fontes sem duplicar a lógica de sucesso/erro.
+fn summarize(status_success: bool, stdout: &[u8], stderr: &[u8]) -> CollectorSummary {
+    if status_success {
+        CollectorSummary {
+            success: true,
+            output: String::from_utf8_lossy(stdout).to_string(),
+        }
+    } else {
+        CollectorSummary {
+            success: false,
+            output: String::from_utf8_lossy(stderr).to_string(),
+        }
+    }
+}
+
 // `pub(crate)` — reaproveitado por `commands::fii` (Sessão 41), que também
 // invoca o mesmo subprocess do coletor pra resolver CNPJ e puxar indicadores
-// da CVM, mesmo lock/binário/script.
+// da CVM, mesmo lock/binário/script. Fase 11.3: em dev roda o `.venv` de
+// sempre; em build de release, roda o sidecar compilado (PyInstaller),
+// passando `--db-path` explicitamente — o sidecar empacotado não tem como
+// adivinhar sozinho onde o `app_data_dir()` do SO fica (ver
+// `data-collector/main.py`).
 pub(crate) async fn run_collector(
+    app: &tauri::AppHandle,
     lock: &AtomicBool,
     extra_args: &[&str],
 ) -> Result<CollectorSummary, AppError> {
@@ -33,29 +60,30 @@ pub(crate) async fn run_collector(
         return Err(AppError::CollectorBusy);
     }
 
-    let result = Command::new(COLLECTOR_PYTHON)
-        .arg(COLLECTOR_SCRIPT)
-        .args(extra_args)
-        .output()
-        .await;
+    let summary = if cfg!(debug_assertions) {
+        Command::new(COLLECTOR_PYTHON)
+            .arg(COLLECTOR_SCRIPT)
+            .args(extra_args)
+            .output()
+            .await
+            .map(|output| summarize(output.status.success(), &output.stdout, &output.stderr))
+            .map_err(|err| AppError::CollectorFailed(err.to_string()))
+    } else {
+        let db_path = db::resolve_database_path(app);
+        app.shell()
+            .sidecar("anchor-collector")
+            .map_err(|err| AppError::CollectorFailed(err.to_string()))?
+            .args(["--db-path", &db_path.to_string_lossy()])
+            .args(extra_args)
+            .output()
+            .await
+            .map(|output| summarize(output.status.success(), &output.stdout, &output.stderr))
+            .map_err(|err| AppError::CollectorFailed(err.to_string()))
+    };
 
     lock.store(false, Ordering::SeqCst);
 
-    let output = result.map_err(|err| AppError::CollectorFailed(err.to_string()))?;
-
-    let summary = if output.status.success() {
-        CollectorSummary {
-            success: true,
-            output: String::from_utf8_lossy(&output.stdout).to_string(),
-        }
-    } else {
-        CollectorSummary {
-            success: false,
-            output: String::from_utf8_lossy(&output.stderr).to_string(),
-        }
-    };
-
-    Ok(summary)
+    summary
 }
 
 // `asset_class` distingue "cripto" (fonte CoinGecko, `--crypto-ticker`,
@@ -67,25 +95,29 @@ pub(crate) async fn run_collector(
 // os formulários de valuation via `useTickerCollector`).
 #[tauri::command]
 pub async fn run_stock_collector(
+    app: tauri::AppHandle,
     lock: tauri::State<'_, AtomicBool>,
     ticker: String,
     asset_class: Option<String>,
 ) -> Result<CollectorSummary, AppError> {
     match asset_class.as_deref() {
-        Some("cripto") => run_collector(&lock, &["--crypto-ticker", &ticker]).await,
-        Some("metal") => run_collector(&lock, &["--metal-ticker", &ticker]).await,
-        Some("acao_internacional") => run_collector(&lock, &["--us-ticker", &ticker]).await,
-        Some("reit") => run_collector(&lock, &["--reit-ticker", &ticker]).await,
-        Some("etf_us") => run_collector(&lock, &["--etf-us-ticker", &ticker]).await,
-        _ => run_collector(&lock, &["--ticker", &ticker]).await,
+        Some("cripto") => run_collector(&app, &lock, &["--crypto-ticker", &ticker]).await,
+        Some("metal") => run_collector(&app, &lock, &["--metal-ticker", &ticker]).await,
+        Some("acao_internacional") => {
+            run_collector(&app, &lock, &["--us-ticker", &ticker]).await
+        }
+        Some("reit") => run_collector(&app, &lock, &["--reit-ticker", &ticker]).await,
+        Some("etf_us") => run_collector(&app, &lock, &["--etf-us-ticker", &ticker]).await,
+        _ => run_collector(&app, &lock, &["--ticker", &ticker]).await,
     }
 }
 
 #[tauri::command]
 pub async fn run_crypto_collector(
+    app: tauri::AppHandle,
     lock: tauri::State<'_, AtomicBool>,
 ) -> Result<CollectorSummary, AppError> {
-    run_collector(&lock, &["crypto"]).await
+    run_collector(&app, &lock, &["crypto"]).await
 }
 
 #[tauri::command]
@@ -162,11 +194,12 @@ pub async fn list_stock_dividend_payments(
 
 #[tauri::command]
 pub async fn run_price_history_backfill(
+    app: tauri::AppHandle,
     lock: tauri::State<'_, AtomicBool>,
     tickers: Vec<String>,
 ) -> Result<CollectorSummary, AppError> {
     let joined = tickers.join(",");
-    run_collector(&lock, &["--price-history", &joined]).await
+    run_collector(&app, &lock, &["--price-history", &joined]).await
 }
 
 #[tauri::command]

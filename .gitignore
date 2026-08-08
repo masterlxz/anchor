@@ -29,6 +29,8 @@ node_modules/
 dist/
 build/
 target/
+data-collector/*.spec
+desktop/src-tauri/binaries/
 
 # Foundry
 contracts/out/

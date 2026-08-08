@@ -20,10 +20,11 @@ pub struct FiiCnpjSuggestion {
 
 #[tauri::command]
 pub async fn resolve_fii_cnpj(
+    app: tauri::AppHandle,
     lock: tauri::State<'_, AtomicBool>,
     ticker: String,
 ) -> Result<Option<FiiCnpjSuggestion>, AppError> {
-    let summary = run_collector(&lock, &["--fii-resolve-cnpj", &ticker]).await?;
+    let summary = run_collector(&app, &lock, &["--fii-resolve-cnpj", &ticker]).await?;
     if !summary.success {
         return Err(AppError::CollectorFailed(summary.output));
     }
@@ -37,11 +38,12 @@ pub async fn resolve_fii_cnpj(
 /// aqui, só na sugestão inicial (`resolve_fii_cnpj`).
 #[tauri::command]
 pub async fn run_fii_cvm_collector(
+    app: tauri::AppHandle,
     lock: tauri::State<'_, AtomicBool>,
     cnpjs: Vec<String>,
 ) -> Result<CollectorSummary, AppError> {
     let joined = cnpjs.join(",");
-    run_collector(&lock, &["--fii-cvm-data", &joined]).await
+    run_collector(&app, &lock, &["--fii-cvm-data", &joined]).await
 }
 
 #[tauri::command]

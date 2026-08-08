@@ -262,8 +262,8 @@ impl From<PinWireResult> for PinResult {
 /// pra uso pessoal single-user nesta fatia; pendência de robustez registrada
 /// pra quando a Fase 8.5 for desenhada de verdade.
 #[tauri::command]
-pub async fn pin_database_snapshot() -> Result<PinResult, AppError> {
-    let bytes = tokio::fs::read(db::DATABASE_FILE_PATH).await?;
+pub async fn pin_database_snapshot(app: tauri::AppHandle) -> Result<PinResult, AppError> {
+    let bytes = tokio::fs::read(db::resolve_database_path(&app)).await?;
     let content_base64 = STANDARD.encode(&bytes);
 
     let (port, _) = discover().await?;
@@ -493,8 +493,12 @@ pub fn create_cross_device_pin_request() -> Result<CrossDeviceSession, AppError>
 /// Sem dead-drop nesta fase: publicar no IPFS já exigiria o próprio acesso
 /// de pin que está sendo concedido, seria circular.
 #[tauri::command]
-pub async fn push_pin_content(session_id: String, expires_at_ms: i64) -> Result<(), AppError> {
-    let bytes = tokio::fs::read(db::DATABASE_FILE_PATH).await?;
+pub async fn push_pin_content(
+    app: tauri::AppHandle,
+    session_id: String,
+    expires_at_ms: i64,
+) -> Result<(), AppError> {
+    let bytes = tokio::fs::read(db::resolve_database_path(&app)).await?;
     let key = pin_content_cipher::derive_pin_content_key(&session_id).map_err(AppError::TruthId)?;
     let encrypted = pin_content_cipher::encrypt(&bytes, &key);
 
