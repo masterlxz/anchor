@@ -26,6 +26,8 @@ pub use super::general_transaction_category::Entity as GeneralTransactionCategor
 pub use super::gordon_inputs::Entity as GordonInputs;
 pub use super::graham_inputs::Entity as GrahamInputs;
 pub use super::indicator_thresholds::Entity as IndicatorThresholds;
+pub use super::liability::Entity as Liability;
+pub use super::liability_installment::Entity as LiabilityInstallment;
 pub use super::portfolio::Entity as Portfolio;
 pub use super::projected_ceiling_inputs::Entity as ProjectedCeilingInputs;
 pub use super::reit_fundamentals::Entity as ReitFundamentals;
