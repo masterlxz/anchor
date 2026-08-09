@@ -5,12 +5,18 @@ class Quote {
   final String? exchange;
   final String? currency;
 
+  /// `coin_id` do CoinGecko por trás deste `ticker` — só preenchido por
+  /// `CoinGeckoQuoteService`, pra `Asset.externalId` guardar no cadastro e
+  /// pular a busca por texto nos próximos refreshes.
+  final String? externalId;
+
   const Quote({
     required this.ticker,
     required this.price,
     this.name,
     this.exchange,
     this.currency,
+    this.externalId,
   });
 
   /// Espelha o parsing de `chart.result[0].meta` em

@@ -3,11 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../models/quote.dart';
-
-class QuoteNotFoundException implements Exception {
-  final String ticker;
-  QuoteNotFoundException(this.ticker);
-}
+import 'quote_exceptions.dart';
 
 /// Cliente Dart do mesmo endpoint não-oficial do Yahoo Finance já usado (e
 /// confirmado contra a API real) pelo `data-collector` em
@@ -17,9 +13,27 @@ class QuoteNotFoundException implements Exception {
 class YahooQuoteService {
   static const _chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart';
 
-  /// Sufixo `.SA` fixo (B3) — mesmo default do `data-collector`.
-  Future<Quote> fetchQuote(String ticker) async {
-    final uri = Uri.parse('$_chartUrl/$ticker.SA').replace(queryParameters: {
+  /// Mapeamento ticker→símbolo do contrato futuro COMEX/NYMEX, espelhando
+  /// `data-collector/sources/metais_yahoo.py::TICKER_TO_YAHOO_SYMBOL`.
+  static const _metalYahooSymbol = {
+    'XAU': 'GC=F',
+    'XAG': 'SI=F',
+    'XPT': 'PL=F',
+    'XPD': 'PA=F',
+  };
+
+  static const _metalName = {
+    'XAU': 'Gold',
+    'XAG': 'Silver',
+    'XPT': 'Platinum',
+    'XPD': 'Palladium',
+  };
+
+  /// `suffix` é `.SA` (B3) por padrão — ação internacional chama com
+  /// `suffix: ''`, mesmo parâmetro que
+  /// `data-collector/sources/acoes_yahoo.py::fetch_quotes` já usa.
+  Future<Quote> fetchQuote(String ticker, {String suffix = '.SA'}) async {
+    final uri = Uri.parse('$_chartUrl/$ticker$suffix').replace(queryParameters: {
       'range': '5d',
       'interval': '1d',
     });
@@ -41,5 +55,22 @@ class YahooQuoteService {
     } catch (_) {
       throw QuoteNotFoundException(ticker);
     }
+  }
+
+  /// Metal precioso — mesmo endpoint Yahoo, mas por trás do ticker (`XAU`)
+  /// tem o símbolo de um contrato futuro (`GC=F`), sem sufixo `.SA`. Preço
+  /// sempre USD/onça troy, sem conversão (mesma decisão do `data-collector`).
+  Future<Quote> fetchMetalQuote(String metalTicker) async {
+    final ticker = metalTicker.toUpperCase();
+    final yahooSymbol = _metalYahooSymbol[ticker];
+    if (yahooSymbol == null) throw QuoteNotFoundException(metalTicker);
+
+    final raw = await fetchQuote(yahooSymbol, suffix: '');
+    return Quote(
+      ticker: ticker,
+      price: raw.price,
+      name: _metalName[ticker],
+      currency: 'USD',
+    );
   }
 }

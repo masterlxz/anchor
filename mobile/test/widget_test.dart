@@ -8,7 +8,7 @@ void main() {
     await tester.pumpWidget(const AnchorApp());
 
     expect(find.text('Anchor'), findsWidgets);
-    expect(find.widgetWithText(TextField, 'Ticker (B3)'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Ticker (Ação BR)'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Buscar'), findsOneWidget);
   });
 }

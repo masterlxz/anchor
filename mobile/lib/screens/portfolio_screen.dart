@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/position.dart';
 import '../services/portfolio_repository.dart';
-import '../services/yahoo_quote_service.dart';
+import '../services/quote_dispatcher.dart';
 import 'add_asset_screen.dart';
 import 'add_transaction_screen.dart';
 
@@ -22,7 +22,7 @@ class _PositionRow {
 
 class _PortfolioScreenState extends State<PortfolioScreen> {
   final _repository = PortfolioRepository();
-  final _quoteService = YahooQuoteService();
+  final _dispatcher = QuoteDispatcher();
 
   bool _loading = true;
   List<_PositionRow> _rows = [];
@@ -39,7 +39,7 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
     final positions = await _repository.getPositions();
     final rows = await Future.wait(positions.map((position) async {
       try {
-        final quote = await _quoteService.fetchQuote(position.asset.ticker);
+        final quote = await _dispatcher.fetchQuoteForAsset(position.asset);
         return _PositionRow(position, quote.price);
       } catch (_) {
         return _PositionRow(position, null);

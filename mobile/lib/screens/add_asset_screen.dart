@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/asset.dart';
 import '../services/portfolio_repository.dart';
-import '../services/yahoo_quote_service.dart';
+import '../services/quote_dispatcher.dart';
 
 class AddAssetScreen extends StatefulWidget {
   const AddAssetScreen({super.key});
@@ -14,14 +14,23 @@ class AddAssetScreen extends StatefulWidget {
 class _AddAssetScreenState extends State<AddAssetScreen> {
   final _tickerController = TextEditingController();
   final _nameController = TextEditingController();
-  final _quoteService = YahooQuoteService();
+  final _dispatcher = QuoteDispatcher();
   final _repository = PortfolioRepository();
 
   AssetClass _assetClass = AssetClass.acaoBr;
-  String _currency = 'BRL';
+  String _currency = AssetClass.acaoBr.defaultCurrency;
+  String? _externalId;
   bool _searching = false;
   bool _saving = false;
   String? _error;
+
+  void _onAssetClassChanged(AssetClass value) {
+    setState(() {
+      _assetClass = value;
+      _currency = value.defaultCurrency;
+      _externalId = null;
+    });
+  }
 
   Future<void> _search() async {
     final ticker = _tickerController.text.trim().toUpperCase();
@@ -30,16 +39,19 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
     setState(() {
       _searching = true;
       _error = null;
+      _externalId = null;
     });
 
     try {
-      final quote = await _quoteService.fetchQuote(ticker);
+      final quote = await _dispatcher.fetchQuoteForTicker(ticker, _assetClass);
       setState(() {
         _nameController.text = quote.name ?? ticker;
-        _currency = quote.currency ?? 'BRL';
+        _currency = quote.currency ?? _assetClass.defaultCurrency;
+        _externalId = quote.externalId;
       });
     } catch (_) {
-      setState(() => _error = 'Não foi possível buscar $ticker.SA — confira o ticker.');
+      setState(() =>
+          _error = 'Não foi possível buscar $ticker (${_assetClass.label}) — confira o ticker.');
     } finally {
       setState(() => _searching = false);
     }
@@ -58,6 +70,7 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
       assetClass: _assetClass,
       currency: _currency,
       createdAt: DateTime.now(),
+      externalId: _externalId,
     ));
 
     if (mounted) Navigator.of(context).pop(true);
@@ -85,9 +98,9 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
                   child: TextField(
                     controller: _tickerController,
                     textCapitalization: TextCapitalization.characters,
-                    decoration: const InputDecoration(
-                      labelText: 'Ticker (B3)',
-                      hintText: 'PETR4',
+                    decoration: InputDecoration(
+                      labelText: 'Ticker (${_assetClass.label})',
+                      hintText: _assetClass.tickerHint,
                     ),
                   ),
                 ),
@@ -115,7 +128,7 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
                   .map((c) => DropdownMenuItem(value: c, child: Text(c.label)))
                   .toList(),
               onChanged: (value) {
-                if (value != null) setState(() => _assetClass = value);
+                if (value != null) _onAssetClassChanged(value);
               },
             ),
             const SizedBox(height: 24),

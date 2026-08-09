@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../models/asset.dart';
 import '../models/quote.dart';
-import '../services/yahoo_quote_service.dart';
+import '../services/quote_dispatcher.dart';
 
 class QuoteSearchScreen extends StatefulWidget {
   const QuoteSearchScreen({super.key});
@@ -12,8 +13,9 @@ class QuoteSearchScreen extends StatefulWidget {
 
 class _QuoteSearchScreenState extends State<QuoteSearchScreen> {
   final _tickerController = TextEditingController();
-  final _quoteService = YahooQuoteService();
+  final _dispatcher = QuoteDispatcher();
 
+  AssetClass _assetClass = AssetClass.acaoBr;
   bool _loading = false;
   String? _error;
   Quote? _quote;
@@ -29,10 +31,11 @@ class _QuoteSearchScreenState extends State<QuoteSearchScreen> {
     });
 
     try {
-      final quote = await _quoteService.fetchQuote(ticker);
+      final quote = await _dispatcher.fetchQuoteForTicker(ticker, _assetClass);
       setState(() => _quote = quote);
     } catch (_) {
-      setState(() => _error = 'Não foi possível buscar a cotação de $ticker.SA');
+      setState(() =>
+          _error = 'Não foi possível buscar a cotação de $ticker (${_assetClass.label})');
     } finally {
       setState(() => _loading = false);
     }
@@ -53,15 +56,26 @@ class _QuoteSearchScreenState extends State<QuoteSearchScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            DropdownButtonFormField<AssetClass>(
+              initialValue: _assetClass,
+              decoration: const InputDecoration(labelText: 'Classe'),
+              items: AssetClass.values
+                  .map((c) => DropdownMenuItem(value: c, child: Text(c.label)))
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) setState(() => _assetClass = value);
+              },
+            ),
+            const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: _tickerController,
                     textCapitalization: TextCapitalization.characters,
-                    decoration: const InputDecoration(
-                      labelText: 'Ticker (B3)',
-                      hintText: 'PETR4',
+                    decoration: InputDecoration(
+                      labelText: 'Ticker (${_assetClass.label})',
+                      hintText: _assetClass.tickerHint,
                     ),
                     onSubmitted: (_) => _search(),
                   ),
