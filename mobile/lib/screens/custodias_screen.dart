@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import '../models/custodia.dart';
 import '../services/portfolio_repository.dart';
 
-/// CRUD simples — sem edição, só criar/listar/excluir, mesmo nível de
-/// simplicidade de `desktop/src-tauri/src/commands/custodia.rs`.
+/// CRUD de custódias: criar/listar/editar/excluir. O desktop
+/// (`desktop/src-tauri/src/commands/custodia.rs`) não tem edição — isso é
+/// uma melhoria só do mobile.
 class CustodiasScreen extends StatefulWidget {
   const CustodiasScreen({super.key});
 
@@ -53,6 +54,61 @@ class _CustodiasScreenState extends State<CustodiasScreen> {
     _instituicaoController.clear();
     _titularController.clear();
     setState(() => _saving = false);
+    await _load();
+  }
+
+  Future<void> _edit(Custodia custodia) async {
+    final instituicaoController = TextEditingController(
+      text: custodia.instituicao,
+    );
+    final titularController = TextEditingController(text: custodia.titular);
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Editar custódia'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: instituicaoController,
+              decoration: const InputDecoration(labelText: 'Instituição'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: titularController,
+              decoration: const InputDecoration(labelText: 'Titular'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+
+    final instituicao = instituicaoController.text.trim();
+    final titular = titularController.text.trim();
+    instituicaoController.dispose();
+    titularController.dispose();
+
+    if (saved != true || instituicao.isEmpty || titular.isEmpty) return;
+
+    await _repository.updateCustodia(
+      Custodia(
+        id: custodia.id,
+        instituicao: instituicao,
+        titular: titular,
+        createdAt: custodia.createdAt,
+      ),
+    );
     await _load();
   }
 
@@ -119,9 +175,19 @@ class _CustodiasScreenState extends State<CustodiasScreen> {
                           child: ListTile(
                             title: Text(custodia.instituicao),
                             subtitle: Text(custodia.titular),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete_outline),
-                              onPressed: () => _delete(custodia.id!),
+                            onTap: () => _edit(custodia),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit_outlined),
+                                  onPressed: () => _edit(custodia),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline),
+                                  onPressed: () => _delete(custodia.id!),
+                                ),
+                              ],
                             ),
                           ),
                         );

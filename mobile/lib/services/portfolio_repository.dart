@@ -111,6 +111,16 @@ class PortfolioRepository {
     return rows.map(Custodia.fromMap).toList();
   }
 
+  Future<void> updateCustodia(Custodia custodia) async {
+    final db = await AppDatabase.instance();
+    await db.update(
+      'custodias',
+      custodia.toMap()..remove('id'),
+      where: 'id = ?',
+      whereArgs: [custodia.id],
+    );
+  }
+
   Future<void> deleteCustodia(int id) async {
     final db = await AppDatabase.instance();
     await db.delete('custodias', where: 'id = ?', whereArgs: [id]);
