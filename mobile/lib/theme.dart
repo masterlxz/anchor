@@ -26,10 +26,7 @@ ThemeData buildAnchorTheme() {
       foregroundColor: Colors.white,
       elevation: 0,
     ),
-    cardTheme: const CardThemeData(
-      color: anchorSurface,
-      elevation: 0,
-    ),
+    cardTheme: const CardThemeData(color: anchorSurface, elevation: 0),
     inputDecorationTheme: const InputDecorationTheme(
       filled: true,
       fillColor: anchorSurface,

@@ -49,20 +49,23 @@ void main() {
     expect(positions.first.averageBuyPrice, 30);
   });
 
-  test('venda parcial reduz quantidade líquida mas não mexe no preço médio', () {
-    final positions = PortfolioRepository.computePositions(
-      [asset],
-      [
-        tx(type: TransactionType.compra, quantity: 100, unitPrice: 30),
-        tx(type: TransactionType.venda, quantity: 40, unitPrice: 35),
-      ],
-    );
+  test(
+    'venda parcial reduz quantidade líquida mas não mexe no preço médio',
+    () {
+      final positions = PortfolioRepository.computePositions(
+        [asset],
+        [
+          tx(type: TransactionType.compra, quantity: 100, unitPrice: 30),
+          tx(type: TransactionType.venda, quantity: 40, unitPrice: 35),
+        ],
+      );
 
-    expect(positions.first.netQuantity, 60);
-    // Preço médio continua 30 — venda não reduz a base de custo, mesma
-    // simplificação deliberada do desktop (não é FIFO/custo médio real).
-    expect(positions.first.averageBuyPrice, 30);
-  });
+      expect(positions.first.netQuantity, 60);
+      // Preço médio continua 30 — venda não reduz a base de custo, mesma
+      // simplificação deliberada do desktop (não é FIFO/custo médio real).
+      expect(positions.first.averageBuyPrice, 30);
+    },
+  );
 
   test('duas compras em preços diferentes geram média ponderada', () {
     final positions = PortfolioRepository.computePositions(
@@ -122,8 +125,18 @@ void main() {
     final positions = PortfolioRepository.computePositions(
       [asset],
       [
-        tx(type: TransactionType.compra, quantity: 60, unitPrice: 30, custodiaId: 1),
-        tx(type: TransactionType.compra, quantity: 40, unitPrice: 30, custodiaId: 2),
+        tx(
+          type: TransactionType.compra,
+          quantity: 60,
+          unitPrice: 30,
+          custodiaId: 1,
+        ),
+        tx(
+          type: TransactionType.compra,
+          quantity: 40,
+          unitPrice: 30,
+          custodiaId: 2,
+        ),
       ],
     );
 
@@ -137,7 +150,12 @@ void main() {
     final positions = PortfolioRepository.computePositions(
       [asset],
       [
-        tx(type: TransactionType.compra, quantity: 100, unitPrice: 30, custodiaId: 1),
+        tx(
+          type: TransactionType.compra,
+          quantity: 100,
+          unitPrice: 30,
+          custodiaId: 1,
+        ),
         PortfolioTransaction(
           assetId: 1,
           type: TransactionType.transferencia,

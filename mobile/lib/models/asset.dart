@@ -5,8 +5,13 @@
 /// `.SA`, mesmo endpoint — REIT é o equivalente americano do FII, ETF US é
 /// ETF listado nos EUA tipo SPY), `metal` (Yahoo sem `.SA`, ticker de
 /// contrato futuro por trás) e `cripto` (CoinGecko, por `coin_id` em vez de
-/// ticker) — ver `QuoteDispatcher`. Valores string iguais ao desktop
-/// (`desktop/src/portfolio/types.ts`).
+/// ticker) — ver `QuoteDispatcher`. Mais 4 classes **sem** cotação
+/// automática (`hasAutoQuote == false`, espelha `ASSET_CLASSES_WITH_AUTO_QUOTE`
+/// do desktop): `tesouroDireto`/`rendaFixa` (renda fixa, ganham campos
+/// `fi_*` na transação de compra — ver `PortfolioTransaction`) e
+/// `imovel`/`empresaNaoListada` (cadastro manual, histórico de avaliação em
+/// `asset_valuations` — ver `ManualAssetDetailsScreen`). Valores string
+/// iguais ao desktop (`desktop/src/portfolio/types.ts`).
 enum AssetClass {
   acaoBr('acao_br', 'Ação BR'),
   fii('fii', 'FII'),
@@ -16,7 +21,11 @@ enum AssetClass {
   reit('reit', 'REIT'),
   etfUs('etf_us', 'ETF US'),
   cripto('cripto', 'Cripto'),
-  metal('metal', 'Metal');
+  metal('metal', 'Metal'),
+  tesouroDireto('tesouro_direto', 'Tesouro Direto'),
+  rendaFixa('renda_fixa', 'Renda Fixa'),
+  imovel('imovel', 'Imóvel'),
+  empresaNaoListada('empresa_nao_listada', 'Empresa não listada');
 
   final String value;
   final String label;
@@ -51,6 +60,14 @@ extension AssetClassMeta on AssetClass {
         return 'ETH';
       case AssetClass.metal:
         return 'XAU';
+      case AssetClass.tesouroDireto:
+        return 'Tesouro Selic 2029';
+      case AssetClass.rendaFixa:
+        return 'CDB Banco X';
+      case AssetClass.imovel:
+        return 'Apto Centro';
+      case AssetClass.empresaNaoListada:
+        return 'Empresa XYZ';
     }
   }
 
@@ -60,6 +77,10 @@ extension AssetClassMeta on AssetClass {
       case AssetClass.fii:
       case AssetClass.etfBr:
       case AssetClass.bdr:
+      case AssetClass.tesouroDireto:
+      case AssetClass.rendaFixa:
+      case AssetClass.imovel:
+      case AssetClass.empresaNaoListada:
         return 'BRL';
       case AssetClass.acaoInternacional:
       case AssetClass.reit:
@@ -69,6 +90,33 @@ extension AssetClassMeta on AssetClass {
         return 'USD';
     }
   }
+
+  /// Espelha `ASSET_CLASSES_WITH_AUTO_QUOTE`
+  /// (`desktop/src/portfolio/types.ts:116-126`) — só as 9 classes de
+  /// mercado têm fonte automática; renda fixa e os 2 cadastros manuais não
+  /// têm cotação nenhuma (nem no desktop).
+  bool get hasAutoQuote {
+    switch (this) {
+      case AssetClass.tesouroDireto:
+      case AssetClass.rendaFixa:
+      case AssetClass.imovel:
+      case AssetClass.empresaNaoListada:
+        return false;
+      default:
+        return true;
+    }
+  }
+
+  /// Espelha `FIXED_INCOME_CLASSES` do desktop — só essas 2 ganham o bloco
+  /// de campos `fi_*` na transação de compra.
+  bool get isFixedIncome =>
+      this == AssetClass.tesouroDireto || this == AssetClass.rendaFixa;
+
+  /// As 2 classes de cadastro 100% manual (`ManualAssetDetails.tsx` no
+  /// desktop) — ganham histórico de avaliação e, no caso de
+  /// `empresaNaoListada`, os campos de participação societária.
+  bool get isManualAsset =>
+      this == AssetClass.imovel || this == AssetClass.empresaNaoListada;
 }
 
 class Asset {
@@ -84,6 +132,15 @@ class Asset {
   /// Portfolio. `null` pras outras classes.
   final String? externalId;
 
+  /// Participação societária — só usados por `empresaNaoListada`. Nunca
+  /// digitado direto: `equityPercentual`/`equityParticipationValue` abaixo
+  /// são sempre calculados a partir destes 3, mesma regra de
+  /// `ManualAssetDetails.tsx` no desktop ("percentage is always calculated
+  /// from shares owned / total company shares").
+  final double? equitySharesOwned;
+  final double? equityTotalShares;
+  final double? equityCompanyValuation;
+
   const Asset({
     this.id,
     required this.ticker,
@@ -92,7 +149,24 @@ class Asset {
     required this.currency,
     required this.createdAt,
     this.externalId,
+    this.equitySharesOwned,
+    this.equityTotalShares,
+    this.equityCompanyValuation,
   });
+
+  double? get equityPercentual {
+    final owned = equitySharesOwned;
+    final total = equityTotalShares;
+    if (owned == null || total == null || total <= 0) return null;
+    return owned / total;
+  }
+
+  double? get equityParticipationValue {
+    final percentual = equityPercentual;
+    final valuation = equityCompanyValuation;
+    if (percentual == null || valuation == null) return null;
+    return percentual * valuation;
+  }
 
   Map<String, Object?> toMap() {
     return {
@@ -103,6 +177,9 @@ class Asset {
       'currency': currency,
       'created_at': createdAt.toIso8601String(),
       'external_id': externalId,
+      'equity_shares_owned': equitySharesOwned,
+      'equity_total_shares': equityTotalShares,
+      'equity_company_valuation': equityCompanyValuation,
     };
   }
 
@@ -115,6 +192,9 @@ class Asset {
       currency: map['currency'] as String,
       createdAt: DateTime.parse(map['created_at'] as String),
       externalId: map['external_id'] as String?,
+      equitySharesOwned: map['equity_shares_owned'] as double?,
+      equityTotalShares: map['equity_total_shares'] as double?,
+      equityCompanyValuation: map['equity_company_valuation'] as double?,
     );
   }
 }

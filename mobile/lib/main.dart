@@ -32,10 +32,7 @@ class AnchorHome extends StatefulWidget {
 class _AnchorHomeState extends State<AnchorHome> {
   int _tabIndex = 0;
 
-  static const _screens = [
-    QuoteSearchScreen(),
-    PortfolioScreen(),
-  ];
+  static const _screens = [QuoteSearchScreen(), PortfolioScreen()];
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +43,10 @@ class _AnchorHomeState extends State<AnchorHome> {
         onDestinationSelected: (index) => setState(() => _tabIndex = index),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.search), label: 'Cotação'),
-          NavigationDestination(icon: Icon(Icons.pie_chart), label: 'Portfolio'),
+          NavigationDestination(
+            icon: Icon(Icons.pie_chart),
+            label: 'Portfolio',
+          ),
         ],
       ),
     );

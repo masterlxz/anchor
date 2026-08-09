@@ -33,15 +33,13 @@ class YahooQuoteService {
   /// `suffix: ''`, mesmo parâmetro que
   /// `data-collector/sources/acoes_yahoo.py::fetch_quotes` já usa.
   Future<Quote> fetchQuote(String ticker, {String suffix = '.SA'}) async {
-    final uri = Uri.parse('$_chartUrl/$ticker$suffix').replace(queryParameters: {
-      'range': '5d',
-      'interval': '1d',
-    });
+    final uri = Uri.parse(
+      '$_chartUrl/$ticker$suffix',
+    ).replace(queryParameters: {'range': '5d', 'interval': '1d'});
 
-    final response = await http.get(
-      uri,
-      headers: {'User-Agent': 'Mozilla/5.0'},
-    ).timeout(const Duration(seconds: 15));
+    final response = await http
+        .get(uri, headers: {'User-Agent': 'Mozilla/5.0'})
+        .timeout(const Duration(seconds: 15));
 
     if (response.statusCode != 200) {
       throw QuoteNotFoundException(ticker);
@@ -49,7 +47,8 @@ class YahooQuoteService {
 
     try {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
-      final result = (body['chart']['result'] as List).first as Map<String, dynamic>;
+      final result =
+          (body['chart']['result'] as List).first as Map<String, dynamic>;
       final meta = result['meta'] as Map<String, dynamic>;
       return Quote.fromYahooMeta(ticker, meta);
     } catch (_) {

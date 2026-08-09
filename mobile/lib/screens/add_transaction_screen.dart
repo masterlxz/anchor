@@ -17,6 +17,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   final _quantityController = TextEditingController();
   final _unitPriceController = TextEditingController();
   final _totalValueController = TextEditingController();
+  final _fiEmissorController = TextEditingController();
+  final _fiTaxaController = TextEditingController();
 
   List<Asset> _assets = [];
   List<Custodia> _custodias = [];
@@ -25,6 +27,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   Custodia? _transferToCustodia;
   TransactionType _type = TransactionType.compra;
   DateTime _date = DateTime.now();
+  String _fiIndexador = fiIndexadores.first;
+  String _fiLiquidez = fiLiquidezOptions.first;
+  DateTime? _fiDataVencimento;
   bool _loading = true;
   bool _saving = false;
 
@@ -47,11 +52,21 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     });
   }
 
-  double get _quantity => double.tryParse(_quantityController.text.replaceAll(',', '.')) ?? 0;
-  double get _unitPrice => double.tryParse(_unitPriceController.text.replaceAll(',', '.')) ?? 0;
+  double get _quantity =>
+      double.tryParse(_quantityController.text.replaceAll(',', '.')) ?? 0;
+  double get _unitPrice =>
+      double.tryParse(_unitPriceController.text.replaceAll(',', '.')) ?? 0;
   double get _computedTotal => _quantity * _unitPrice;
   double get _manualTotal =>
       double.tryParse(_totalValueController.text.replaceAll(',', '.')) ?? 0;
+
+  /// Mesma regra do `showFixedIncomeFields` do desktop
+  /// (`TransactionSection.tsx:131-134`): só faz sentido registrar
+  /// emissor/indexador/taxa/vencimento/liquidez numa compra de ativo de
+  /// renda fixa.
+  bool get _showFixedIncomeFields =>
+      _type == TransactionType.compra &&
+      (_selectedAsset?.assetClass.isFixedIncome ?? false);
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -61,6 +76,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       lastDate: DateTime.now(),
     );
     if (picked != null) setState(() => _date = picked);
+  }
+
+  Future<void> _pickFiDataVencimento() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _fiDataVencimento ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) setState(() => _fiDataVencimento = picked);
   }
 
   Future<void> _save() async {
@@ -88,19 +113,35 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     if (needsUnitPrice && unitPrice! <= 0) return;
     if (totalValue <= 0) return;
 
+    final showFixedIncomeFields = _showFixedIncomeFields;
+
     setState(() => _saving = true);
 
-    await _repository.insertTransaction(PortfolioTransaction(
-      assetId: needsAsset ? asset!.id : null,
-      type: _type,
-      quantity: quantity,
-      unitPrice: unitPrice,
-      totalValue: totalValue,
-      custodiaId: _custodia?.id,
-      transferToCustodiaId: _type.needsTransferDestination ? _transferToCustodia?.id : null,
-      date: _date,
-      createdAt: DateTime.now(),
-    ));
+    await _repository.insertTransaction(
+      PortfolioTransaction(
+        assetId: needsAsset ? asset!.id : null,
+        type: _type,
+        quantity: quantity,
+        unitPrice: unitPrice,
+        totalValue: totalValue,
+        custodiaId: _custodia?.id,
+        transferToCustodiaId: _type.needsTransferDestination
+            ? _transferToCustodia?.id
+            : null,
+        date: _date,
+        createdAt: DateTime.now(),
+        fiEmissor:
+            showFixedIncomeFields && _fiEmissorController.text.trim().isNotEmpty
+            ? _fiEmissorController.text.trim()
+            : null,
+        fiIndexador: showFixedIncomeFields ? _fiIndexador : null,
+        fiTaxaPercentual: showFixedIncomeFields
+            ? double.tryParse(_fiTaxaController.text.replaceAll(',', '.'))
+            : null,
+        fiDataVencimento: showFixedIncomeFields ? _fiDataVencimento : null,
+        fiLiquidez: showFixedIncomeFields ? _fiLiquidez : null,
+      ),
+    );
 
     if (mounted) Navigator.of(context).pop(true);
   }
@@ -110,6 +151,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     _quantityController.dispose();
     _unitPriceController.dispose();
     _totalValueController.dispose();
+    _fiEmissorController.dispose();
+    _fiTaxaController.dispose();
     super.dispose();
   }
 
@@ -152,16 +195,76 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   initialValue: _selectedAsset,
                   decoration: const InputDecoration(labelText: 'Ativo'),
                   items: _assets
-                      .map((a) => DropdownMenuItem(value: a, child: Text('${a.ticker} — ${a.name}')))
+                      .map(
+                        (a) => DropdownMenuItem(
+                          value: a,
+                          child: Text('${a.ticker} — ${a.name}'),
+                        ),
+                      )
                       .toList(),
                   onChanged: (value) => setState(() => _selectedAsset = value),
+                ),
+                const SizedBox(height: 16),
+              ],
+              if (_showFixedIncomeFields) ...[
+                TextField(
+                  controller: _fiEmissorController,
+                  decoration: const InputDecoration(
+                    labelText: 'Emissor (opcional)',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: _fiIndexador,
+                  decoration: const InputDecoration(labelText: 'Indexador'),
+                  items: fiIndexadores
+                      .map((i) => DropdownMenuItem(value: i, child: Text(i)))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) setState(() => _fiIndexador = value);
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _fiTaxaController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Taxa contratada (%)',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    _fiDataVencimento != null
+                        ? 'Vencimento: ${_fiDataVencimento!.day.toString().padLeft(2, '0')}/'
+                              '${_fiDataVencimento!.month.toString().padLeft(2, '0')}/${_fiDataVencimento!.year}'
+                        : 'Vencimento (opcional)',
+                  ),
+                  trailing: const Icon(Icons.calendar_today),
+                  onTap: _pickFiDataVencimento,
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: _fiLiquidez,
+                  decoration: const InputDecoration(labelText: 'Liquidez'),
+                  items: fiLiquidezOptions
+                      .map((l) => DropdownMenuItem(value: l, child: Text(l)))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) setState(() => _fiLiquidez = value);
+                  },
                 ),
                 const SizedBox(height: 16),
               ],
               if (needsQuantity) ...[
                 TextField(
                   controller: _quantityController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   decoration: const InputDecoration(labelText: 'Quantidade'),
                 ),
                 const SizedBox(height: 16),
@@ -169,8 +272,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               if (needsUnitPrice) ...[
                 TextField(
                   controller: _unitPriceController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'Preço unitário'),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Preço unitário',
+                  ),
                 ),
                 const SizedBox(height: 16),
               ],
@@ -179,19 +286,28 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               else
                 TextField(
                   controller: _totalValueController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   decoration: const InputDecoration(labelText: 'Valor'),
                 ),
               const SizedBox(height: 16),
               DropdownButtonFormField<Custodia?>(
                 initialValue: _custodia,
                 decoration: InputDecoration(
-                  labelText: needsTransferDestination ? 'Custódia (origem)' : 'Custódia (opcional)',
+                  labelText: needsTransferDestination
+                      ? 'Custódia (origem)'
+                      : 'Custódia (opcional)',
                 ),
                 items: [
                   if (!needsTransferDestination)
-                    const DropdownMenuItem<Custodia?>(value: null, child: Text('Nenhuma')),
-                  ..._custodias.map((c) => DropdownMenuItem(value: c, child: Text(c.label))),
+                    const DropdownMenuItem<Custodia?>(
+                      value: null,
+                      child: Text('Nenhuma'),
+                    ),
+                  ..._custodias.map(
+                    (c) => DropdownMenuItem(value: c, child: Text(c.label)),
+                  ),
                 ],
                 onChanged: (value) => setState(() => _custodia = value),
               ),
@@ -199,16 +315,25 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 const SizedBox(height: 16),
                 DropdownButtonFormField<Custodia?>(
                   initialValue: _transferToCustodia,
-                  decoration: const InputDecoration(labelText: 'Custódia (destino)'),
-                  items: _custodias.map((c) => DropdownMenuItem(value: c, child: Text(c.label))).toList(),
-                  onChanged: (value) => setState(() => _transferToCustodia = value),
+                  decoration: const InputDecoration(
+                    labelText: 'Custódia (destino)',
+                  ),
+                  items: _custodias
+                      .map(
+                        (c) => DropdownMenuItem(value: c, child: Text(c.label)),
+                      )
+                      .toList(),
+                  onChanged: (value) =>
+                      setState(() => _transferToCustodia = value),
                 ),
               ],
               const SizedBox(height: 16),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text('Data: ${_date.day.toString().padLeft(2, '0')}/'
-                    '${_date.month.toString().padLeft(2, '0')}/${_date.year}'),
+                title: Text(
+                  'Data: ${_date.day.toString().padLeft(2, '0')}/'
+                  '${_date.month.toString().padLeft(2, '0')}/${_date.year}',
+                ),
                 trailing: const Icon(Icons.calendar_today),
                 onTap: _pickDate,
               ),

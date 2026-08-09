@@ -1,14 +1,14 @@
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
-/// Banco local do portfolio — 9 classes de ativo (Ação BR/FII/ETF BR/BDR via
-/// `YahooQuoteService` com sufixo `.SA`, Ação internacional/REIT/ETF US/Metal
-/// via Yahoo sem sufixo, Cripto via CoinGecko — ver `QuoteDispatcher`), 6
-/// tipos de transação (compra/venda/aporte/retirada/provento/transferencia —
-/// ver `TransactionTypeMeta`) e custódia (conta/corretora, sem
-/// `workspace_id` — diferente do desktop, o mobile não tem Workspace). Sem
-/// renda fixa/campos manuais ainda (ver `project/PHASE.md`, Fase 11 item
-/// 11.2).
+/// Banco local do portfolio — 13 classes de ativo (as 9 com cotação
+/// automática via `QuoteDispatcher`, mais Tesouro Direto/Renda Fixa — sem
+/// cotação, só campos `fi_*` na transação de compra — e Imóvel/Empresa não
+/// listada — cadastro manual, histórico de avaliação em `asset_valuations`,
+/// ver `AssetClassMeta`), 6 tipos de transação
+/// (compra/venda/aporte/retirada/provento/transferencia — ver
+/// `TransactionTypeMeta`) e custódia (conta/corretora, sem `workspace_id` —
+/// diferente do desktop, o mobile não tem Workspace).
 ///
 /// Ao contrário do desktop (que exige `sea-orm-cli migrate up` manual), as
 /// tabelas nascem sozinhas no `onCreate`, na primeira abertura — não existe
@@ -26,7 +26,7 @@ class AppDatabase {
     final path = join(await getDatabasesPath(), 'anchor_mobile.db');
     return openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE assets (
@@ -36,7 +36,10 @@ class AppDatabase {
             asset_class TEXT NOT NULL,
             currency TEXT NOT NULL,
             created_at TEXT NOT NULL,
-            external_id TEXT
+            external_id TEXT,
+            equity_shares_owned REAL,
+            equity_total_shares REAL,
+            equity_company_valuation REAL
           )
         ''');
         await db.execute('''
@@ -58,6 +61,22 @@ class AppDatabase {
             unit_price REAL,
             total_value REAL NOT NULL,
             transaction_date TEXT NOT NULL,
+            notes TEXT,
+            created_at TEXT NOT NULL,
+            fi_emissor TEXT,
+            fi_indexador TEXT,
+            fi_taxa_percentual REAL,
+            fi_data_vencimento TEXT,
+            fi_liquidez TEXT
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE asset_valuations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+            valuation_date TEXT NOT NULL,
+            value REAL NOT NULL,
+            origin TEXT NOT NULL,
             notes TEXT,
             created_at TEXT NOT NULL
           )
@@ -93,7 +112,8 @@ class AppDatabase {
           ''');
           await db.execute('DROP TABLE portfolio_transactions');
           await db.execute(
-              'ALTER TABLE portfolio_transactions_new RENAME TO portfolio_transactions');
+            'ALTER TABLE portfolio_transactions_new RENAME TO portfolio_transactions',
+          );
         }
         if (oldVersion < 4) {
           await db.execute('''
@@ -105,9 +125,48 @@ class AppDatabase {
             )
           ''');
           await db.execute(
-              'ALTER TABLE portfolio_transactions ADD COLUMN custodia_id INTEGER REFERENCES custodias(id)');
+            'ALTER TABLE portfolio_transactions ADD COLUMN custodia_id INTEGER REFERENCES custodias(id)',
+          );
           await db.execute(
-              'ALTER TABLE portfolio_transactions ADD COLUMN transfer_to_custodia_id INTEGER REFERENCES custodias(id)');
+            'ALTER TABLE portfolio_transactions ADD COLUMN transfer_to_custodia_id INTEGER REFERENCES custodias(id)',
+          );
+        }
+        if (oldVersion < 5) {
+          await db.execute(
+            'ALTER TABLE assets ADD COLUMN equity_shares_owned REAL',
+          );
+          await db.execute(
+            'ALTER TABLE assets ADD COLUMN equity_total_shares REAL',
+          );
+          await db.execute(
+            'ALTER TABLE assets ADD COLUMN equity_company_valuation REAL',
+          );
+          await db.execute(
+            'ALTER TABLE portfolio_transactions ADD COLUMN fi_emissor TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE portfolio_transactions ADD COLUMN fi_indexador TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE portfolio_transactions ADD COLUMN fi_taxa_percentual REAL',
+          );
+          await db.execute(
+            'ALTER TABLE portfolio_transactions ADD COLUMN fi_data_vencimento TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE portfolio_transactions ADD COLUMN fi_liquidez TEXT',
+          );
+          await db.execute('''
+            CREATE TABLE asset_valuations (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+              valuation_date TEXT NOT NULL,
+              value REAL NOT NULL,
+              origin TEXT NOT NULL,
+              notes TEXT,
+              created_at TEXT NOT NULL
+            )
+          ''');
         }
       },
     );

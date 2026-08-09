@@ -1,6 +1,7 @@
 import '../models/asset.dart';
 import '../models/quote.dart';
 import 'coingecko_quote_service.dart';
+import 'quote_exceptions.dart';
 import 'yahoo_quote_service.dart';
 
 /// Único lugar que decide a fonte de cotação por classe de ativo — os 3
@@ -12,8 +13,8 @@ class QuoteDispatcher {
   final CoinGeckoQuoteService _coingecko;
 
   QuoteDispatcher({YahooQuoteService? yahoo, CoinGeckoQuoteService? coingecko})
-      : _yahoo = yahoo ?? YahooQuoteService(),
-        _coingecko = coingecko ?? CoinGeckoQuoteService();
+    : _yahoo = yahoo ?? YahooQuoteService(),
+      _coingecko = coingecko ?? CoinGeckoQuoteService();
 
   /// Ticker digitado, ainda sem `Asset` salvo (busca livre / formulário de
   /// cadastro antes de salvar).
@@ -32,6 +33,15 @@ class QuoteDispatcher {
         return _yahoo.fetchMetalQuote(ticker);
       case AssetClass.cripto:
         return _coingecko.fetchQuote(ticker);
+      case AssetClass.tesouroDireto:
+      case AssetClass.rendaFixa:
+      case AssetClass.imovel:
+      case AssetClass.empresaNaoListada:
+        // Sem fonte automática — nem o desktop tem cotação pra essas 4
+        // classes (`AssetClassMeta.hasAutoQuote`). Quem quiser "preço
+        // atual" de `imovel` usa `PortfolioRepository.getLatestValuation`
+        // direto, fora do dispatcher.
+        throw QuoteNotFoundException(ticker);
     }
   }
 

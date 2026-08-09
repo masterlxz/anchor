@@ -26,17 +26,25 @@ enum TransactionType {
 /// `transferencia` tem quantidade mas não preço unitário (não tem "preço",
 /// só move o que já existe) e exige custódia de origem e destino.
 extension TransactionTypeMeta on TransactionType {
-  bool get needsAsset => this != TransactionType.aporte && this != TransactionType.retirada;
+  bool get needsAsset =>
+      this != TransactionType.aporte && this != TransactionType.retirada;
 
   bool get needsQuantity =>
       this == TransactionType.compra ||
       this == TransactionType.venda ||
       this == TransactionType.transferencia;
 
-  bool get needsUnitPrice => this == TransactionType.compra || this == TransactionType.venda;
+  bool get needsUnitPrice =>
+      this == TransactionType.compra || this == TransactionType.venda;
 
   bool get needsTransferDestination => this == TransactionType.transferencia;
 }
+
+/// Mesmos valores de `FI_INDEXADORES`/`FI_LIQUIDEZ_OPTIONS`
+/// (`desktop/src/portfolio/types.ts:242-243`) — usados no bloco de campos
+/// `fi_*` da transação de compra de renda fixa (`AssetClassMeta.isFixedIncome`).
+const fiIndexadores = ['CDI', 'IPCA', 'SELIC', 'PREFIXADO', 'OUTRO'];
+const fiLiquidezOptions = ['diaria', 'no_vencimento', 'outro'];
 
 class PortfolioTransaction {
   final int? id;
@@ -62,6 +70,15 @@ class PortfolioTransaction {
   final String? notes;
   final DateTime createdAt;
 
+  /// Campos de renda fixa (`showFixedIncomeFields` no desktop) — só
+  /// preenchidos numa `compra` de ativo `tesouroDireto`/`rendaFixa`, `null`
+  /// em qualquer outro caso.
+  final String? fiEmissor;
+  final String? fiIndexador;
+  final double? fiTaxaPercentual;
+  final DateTime? fiDataVencimento;
+  final String? fiLiquidez;
+
   const PortfolioTransaction({
     this.id,
     this.assetId,
@@ -74,6 +91,11 @@ class PortfolioTransaction {
     required this.date,
     this.notes,
     required this.createdAt,
+    this.fiEmissor,
+    this.fiIndexador,
+    this.fiTaxaPercentual,
+    this.fiDataVencimento,
+    this.fiLiquidez,
   });
 
   Map<String, Object?> toMap() {
@@ -89,6 +111,11 @@ class PortfolioTransaction {
       'transaction_date': date.toIso8601String(),
       'notes': notes,
       'created_at': createdAt.toIso8601String(),
+      'fi_emissor': fiEmissor,
+      'fi_indexador': fiIndexador,
+      'fi_taxa_percentual': fiTaxaPercentual,
+      'fi_data_vencimento': fiDataVencimento?.toIso8601String(),
+      'fi_liquidez': fiLiquidez,
     };
   }
 
@@ -105,6 +132,13 @@ class PortfolioTransaction {
       date: DateTime.parse(map['transaction_date'] as String),
       notes: map['notes'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),
+      fiEmissor: map['fi_emissor'] as String?,
+      fiIndexador: map['fi_indexador'] as String?,
+      fiTaxaPercentual: map['fi_taxa_percentual'] as double?,
+      fiDataVencimento: map['fi_data_vencimento'] != null
+          ? DateTime.parse(map['fi_data_vencimento'] as String)
+          : null,
+      fiLiquidez: map['fi_liquidez'] as String?,
     );
   }
 }

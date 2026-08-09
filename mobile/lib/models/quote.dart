@@ -28,8 +28,7 @@ class Quote {
       ticker: ticker,
       price: (meta['regularMarketPrice'] as num).toDouble(),
       name: (meta['longName'] ?? meta['shortName']) as String?,
-      exchange:
-          (meta['fullExchangeName'] ?? meta['exchangeName']) as String?,
+      exchange: (meta['fullExchangeName'] ?? meta['exchangeName']) as String?,
       currency: meta['currency'] as String?,
     );
   }

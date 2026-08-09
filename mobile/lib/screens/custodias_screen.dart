@@ -42,11 +42,13 @@ class _CustodiasScreenState extends State<CustodiasScreen> {
 
     setState(() => _saving = true);
 
-    await _repository.insertCustodia(Custodia(
-      instituicao: instituicao,
-      titular: titular,
-      createdAt: DateTime.now(),
-    ));
+    await _repository.insertCustodia(
+      Custodia(
+        instituicao: instituicao,
+        titular: titular,
+        createdAt: DateTime.now(),
+      ),
+    );
 
     _instituicaoController.clear();
     _titularController.clear();
@@ -80,7 +82,10 @@ class _CustodiasScreenState extends State<CustodiasScreen> {
                 Expanded(
                   child: TextField(
                     controller: _instituicaoController,
-                    decoration: const InputDecoration(labelText: 'Instituição', hintText: 'XP'),
+                    decoration: const InputDecoration(
+                      labelText: 'Instituição',
+                      hintText: 'XP',
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -102,24 +107,26 @@ class _CustodiasScreenState extends State<CustodiasScreen> {
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : _custodias.isEmpty
-                      ? const Center(child: Text('Nenhuma custódia cadastrada ainda.'))
-                      : ListView.builder(
-                          itemCount: _custodias.length,
-                          itemBuilder: (context, index) {
-                            final custodia = _custodias[index];
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              child: ListTile(
-                                title: Text(custodia.instituicao),
-                                subtitle: Text(custodia.titular),
-                                trailing: IconButton(
-                                  icon: const Icon(Icons.delete_outline),
-                                  onPressed: () => _delete(custodia.id!),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
+                  ? const Center(
+                      child: Text('Nenhuma custódia cadastrada ainda.'),
+                    )
+                  : ListView.builder(
+                      itemCount: _custodias.length,
+                      itemBuilder: (context, index) {
+                        final custodia = _custodias[index];
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: ListTile(
+                            title: Text(custodia.instituicao),
+                            subtitle: Text(custodia.titular),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete_outline),
+                              onPressed: () => _delete(custodia.id!),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),

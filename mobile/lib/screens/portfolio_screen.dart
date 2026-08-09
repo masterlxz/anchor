@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/asset.dart';
 import '../models/custodia.dart';
 import '../models/position.dart';
 import '../services/portfolio_repository.dart';
@@ -7,6 +8,7 @@ import '../services/quote_dispatcher.dart';
 import 'add_asset_screen.dart';
 import 'add_transaction_screen.dart';
 import 'custodias_screen.dart';
+import 'manual_asset_details_screen.dart';
 import 'transaction_history_screen.dart';
 
 class PortfolioScreen extends StatefulWidget {
@@ -42,14 +44,36 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
 
     final positions = await _repository.getPositions();
     final custodias = await _repository.listCustodias();
-    final rows = await Future.wait(positions.map((position) async {
-      try {
-        final quote = await _dispatcher.fetchQuoteForAsset(position.asset);
-        return _PositionRow(position, quote.price);
-      } catch (_) {
-        return _PositionRow(position, null);
-      }
-    }));
+    final rows = await Future.wait(
+      positions.map((position) async {
+        final assetClass = position.asset.assetClass;
+
+        // `imovel`: quantidade é sempre 1, então a última avaliação manual
+        // serve direto como "preço atual" (sem chamar o dispatcher — não tem
+        // fonte automática nenhuma pra essa classe).
+        if (assetClass == AssetClass.imovel) {
+          final latest = await _repository.getLatestValuation(
+            position.asset.id!,
+          );
+          return _PositionRow(position, latest?.value);
+        }
+
+        // `empresaNaoListada`: o valor de participação já é o total da
+        // posição (percentual × valuation da empresa), não um preço por
+        // unidade — não entra na conta quantidade×preço, aparece como linha
+        // separada no card.
+        if (assetClass == AssetClass.empresaNaoListada) {
+          return _PositionRow(position, null);
+        }
+
+        try {
+          final quote = await _dispatcher.fetchQuoteForAsset(position.asset);
+          return _PositionRow(position, quote.price);
+        } catch (_) {
+          return _PositionRow(position, null);
+        }
+      }),
+    );
 
     if (mounted) {
       setState(() {
@@ -61,9 +85,9 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
   }
 
   Future<void> _openAddAsset() async {
-    final saved = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => const AddAssetScreen()),
-    );
+    final saved = await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => const AddAssetScreen()));
     if (saved == true) _load();
   }
 
@@ -75,15 +99,15 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
   }
 
   void _openHistory() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const TransactionHistoryScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const TransactionHistoryScreen()));
   }
 
   Future<void> _openCustodias() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const CustodiasScreen()),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const CustodiasScreen()));
     _load();
   }
 
@@ -113,16 +137,18 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _rows.isEmpty
-              ? _EmptyState(onAddAsset: _openAddAsset)
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _rows.length,
-                    itemBuilder: (context, index) =>
-                        _PositionCard(row: _rows[index], custodiasById: _custodiasById),
-                  ),
+          ? _EmptyState(onAddAsset: _openAddAsset)
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: _rows.length,
+                itemBuilder: (context, index) => _PositionCard(
+                  row: _rows[index],
+                  custodiasById: _custodiasById,
                 ),
+              ),
+            ),
       floatingActionButton: _rows.isEmpty
           ? null
           : FloatingActionButton(
@@ -148,7 +174,10 @@ class _EmptyState extends StatelessWidget {
           children: [
             const Text('Nenhum ativo cadastrado ainda.'),
             const SizedBox(height: 16),
-            FilledButton(onPressed: onAddAsset, child: const Text('Adicionar ativo')),
+            FilledButton(
+              onPressed: onAddAsset,
+              child: const Text('Adicionar ativo'),
+            ),
           ],
         ),
       ),
@@ -171,7 +200,9 @@ class _PositionCard extends StatelessWidget {
 
     final currentValue = livePrice != null ? quantity * livePrice : null;
     final costBasis = avgPrice != null ? quantity * avgPrice : null;
-    final pnl = (currentValue != null && costBasis != null) ? currentValue - costBasis : null;
+    final pnl = (currentValue != null && costBasis != null)
+        ? currentValue - costBasis
+        : null;
     final pnlPercent = (pnl != null && costBasis != null && costBasis != 0)
         ? (pnl / costBasis) * 100
         : null;
@@ -183,64 +214,94 @@ class _PositionCard extends StatelessWidget {
     final showCustodiaBreakdown =
         byCustodia.length > 1 || byCustodia.any((b) => b.custodiaId != null);
 
+    final isManualAsset = position.asset.assetClass.isManualAsset;
+    final participationValue = position.asset.equityParticipationValue;
+    final participationPercentual = position.asset.equityPercentual;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(position.asset.ticker,
-                        style: Theme.of(context).textTheme.titleMedium),
-                    Text(position.asset.name, style: Theme.of(context).textTheme.bodySmall),
-                  ],
+      child: InkWell(
+        onTap: isManualAsset
+            ? () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      ManualAssetDetailsScreen(asset: position.asset),
                 ),
-                Text('${quantity.toStringAsFixed(quantity == quantity.roundToDouble() ? 0 : 2)} un.'),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Preço médio: ${avgPrice?.toStringAsFixed(2) ?? '—'}'),
-                Text('Preço atual: ${livePrice?.toStringAsFixed(2) ?? '—'}'),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Valor: ${currentValue?.toStringAsFixed(2) ?? '—'}'),
-                if (pnl != null && pnlPercent != null)
+              )
+            : null,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        position.asset.ticker,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      Text(
+                        position.asset.name,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
                   Text(
-                    '${pnl >= 0 ? '+' : ''}${pnl.toStringAsFixed(2)} '
-                    '(${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toStringAsFixed(1)}%)',
-                    style: TextStyle(
-                      color: pnl >= 0 ? positiveColor : negativeColor,
-                      fontWeight: FontWeight.bold,
+                    '${quantity.toStringAsFixed(quantity == quantity.roundToDouble() ? 0 : 2)} un.',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Preço médio: ${avgPrice?.toStringAsFixed(2) ?? '—'}'),
+                  Text('Preço atual: ${livePrice?.toStringAsFixed(2) ?? '—'}'),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Valor: ${currentValue?.toStringAsFixed(2) ?? '—'}'),
+                  if (pnl != null && pnlPercent != null)
+                    Text(
+                      '${pnl >= 0 ? '+' : ''}${pnl.toStringAsFixed(2)} '
+                      '(${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toStringAsFixed(1)}%)',
+                      style: TextStyle(
+                        color: pnl >= 0 ? positiveColor : negativeColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                ],
+              ),
+              if (showCustodiaBreakdown) ...[
+                const Divider(height: 20),
+                for (final breakdown in byCustodia)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Text(
+                      '${custodiasById[breakdown.custodiaId]?.label ?? '—'}: '
+                      '${breakdown.quantity.toStringAsFixed(breakdown.quantity == breakdown.quantity.roundToDouble() ? 0 : 2)} un.',
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ),
               ],
-            ),
-            if (showCustodiaBreakdown) ...[
-              const Divider(height: 20),
-              for (final breakdown in byCustodia)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 2),
-                  child: Text(
-                    '${custodiasById[breakdown.custodiaId]?.label ?? '—'}: '
-                    '${breakdown.quantity.toStringAsFixed(breakdown.quantity == breakdown.quantity.roundToDouble() ? 0 : 2)} un.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
+              if (participationValue != null &&
+                  participationPercentual != null) ...[
+                const Divider(height: 20),
+                Text(
+                  'Participação: ${(participationPercentual * 100).toStringAsFixed(2)}% — '
+                  '${participationValue.toStringAsFixed(2)}',
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

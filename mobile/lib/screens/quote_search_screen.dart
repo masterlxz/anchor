@@ -34,8 +34,10 @@ class _QuoteSearchScreenState extends State<QuoteSearchScreen> {
       final quote = await _dispatcher.fetchQuoteForTicker(ticker, _assetClass);
       setState(() => _quote = quote);
     } catch (_) {
-      setState(() =>
-          _error = 'Não foi possível buscar a cotação de $ticker (${_assetClass.label})');
+      setState(
+        () => _error =
+            'Não foi possível buscar a cotação de $ticker (${_assetClass.label})',
+      );
     } finally {
       setState(() => _loading = false);
     }
@@ -59,7 +61,10 @@ class _QuoteSearchScreenState extends State<QuoteSearchScreen> {
             DropdownButtonFormField<AssetClass>(
               initialValue: _assetClass,
               decoration: const InputDecoration(labelText: 'Classe'),
+              // Renda fixa e os cadastros manuais não têm cotação nenhuma
+              // (nem no desktop) — não fazem sentido numa tela de busca.
               items: AssetClass.values
+                  .where((c) => c.hasAutoQuote)
                   .map((c) => DropdownMenuItem(value: c, child: Text(c.label)))
                   .toList(),
               onChanged: (value) {
@@ -90,7 +95,10 @@ class _QuoteSearchScreenState extends State<QuoteSearchScreen> {
             const SizedBox(height: 24),
             if (_loading) const Center(child: CircularProgressIndicator()),
             if (_error != null)
-              Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
             if (_quote != null) _QuoteCard(quote: _quote!),
           ],
         ),
@@ -125,9 +133,9 @@ class _QuoteCard extends StatelessWidget {
             Text(
               '${quote.currency ?? ''} ${quote.price.toStringAsFixed(2)}',
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.primary,
-                    fontWeight: FontWeight.bold,
-                  ),
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ],
         ),

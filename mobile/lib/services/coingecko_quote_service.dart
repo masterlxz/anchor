@@ -21,14 +21,21 @@ class CoinGeckoQuoteService {
   /// símbolo, nunca fuzzy; entre matches exatos, o menor `market_cap_rank`
   /// vence (o ativo mais conhecido daquele símbolo).
   Future<Map<String, dynamic>?> _resolveCoinId(String symbol) async {
-    final uri = Uri.parse('$_baseUrl/search').replace(queryParameters: {'query': symbol});
+    final uri = Uri.parse(
+      '$_baseUrl/search',
+    ).replace(queryParameters: {'query': symbol});
     final response = await http.get(uri).timeout(const Duration(seconds: 15));
     if (response.statusCode != 200) return null;
 
-    final coins = ((jsonDecode(response.body) as Map<String, dynamic>)['coins'] as List)
-        .cast<Map<String, dynamic>>();
+    final coins =
+        ((jsonDecode(response.body) as Map<String, dynamic>)['coins'] as List)
+            .cast<Map<String, dynamic>>();
     final exactMatches = coins
-        .where((c) => (c['symbol'] as String? ?? '').toLowerCase() == symbol.toLowerCase())
+        .where(
+          (c) =>
+              (c['symbol'] as String? ?? '').toLowerCase() ==
+              symbol.toLowerCase(),
+        )
         .toList();
     if (exactMatches.isEmpty) return null;
 
@@ -41,10 +48,9 @@ class CoinGeckoQuoteService {
   }
 
   Future<double> _fetchPriceById(String coinId) async {
-    final uri = Uri.parse('$_baseUrl/simple/price').replace(queryParameters: {
-      'ids': coinId,
-      'vs_currencies': 'usd',
-    });
+    final uri = Uri.parse(
+      '$_baseUrl/simple/price',
+    ).replace(queryParameters: {'ids': coinId, 'vs_currencies': 'usd'});
     final response = await http.get(uri).timeout(const Duration(seconds: 15));
     if (response.statusCode != 200) throw QuoteNotFoundException(coinId);
 

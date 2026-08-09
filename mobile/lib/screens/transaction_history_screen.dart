@@ -12,7 +12,8 @@ class TransactionHistoryScreen extends StatefulWidget {
   const TransactionHistoryScreen({super.key});
 
   @override
-  State<TransactionHistoryScreen> createState() => _TransactionHistoryScreenState();
+  State<TransactionHistoryScreen> createState() =>
+      _TransactionHistoryScreenState();
 }
 
 class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
@@ -53,23 +54,25 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _transactions.isEmpty
-              ? const Center(child: Text('Nenhuma transação lançada ainda.'))
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _transactions.length,
-                    itemBuilder: (context, index) {
-                      final tx = _transactions[index];
-                      final ticker = tx.assetId != null ? _assetsById[tx.assetId]?.ticker : null;
-                      return _TransactionTile(
-                        transaction: tx,
-                        ticker: ticker,
-                        custodiasById: _custodiasById,
-                      );
-                    },
-                  ),
-                ),
+          ? const Center(child: Text('Nenhuma transação lançada ainda.'))
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: _transactions.length,
+                itemBuilder: (context, index) {
+                  final tx = _transactions[index];
+                  final ticker = tx.assetId != null
+                      ? _assetsById[tx.assetId]?.ticker
+                      : null;
+                  return _TransactionTile(
+                    transaction: tx,
+                    ticker: ticker,
+                    custodiasById: _custodiasById,
+                  );
+                },
+              ),
+            ),
     );
   }
 }
@@ -96,7 +99,8 @@ class _TransactionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final date = transaction.date;
-    final dateLabel = '${date.day.toString().padLeft(2, '0')}/'
+    final dateLabel =
+        '${date.day.toString().padLeft(2, '0')}/'
         '${date.month.toString().padLeft(2, '0')}/${date.year}';
     final quantity = transaction.quantity;
     final custodiaLabel = _custodiaLabel;
