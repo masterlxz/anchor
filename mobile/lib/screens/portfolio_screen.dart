@@ -5,6 +5,7 @@ import '../services/portfolio_repository.dart';
 import '../services/quote_dispatcher.dart';
 import 'add_asset_screen.dart';
 import 'add_transaction_screen.dart';
+import 'transaction_history_screen.dart';
 
 class PortfolioScreen extends StatefulWidget {
   const PortfolioScreen({super.key});
@@ -68,12 +69,23 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
     if (saved == true) _load();
   }
 
+  void _openHistory() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const TransactionHistoryScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Portfolio'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.receipt_long),
+            tooltip: 'Histórico',
+            onPressed: _openHistory,
+          ),
           IconButton(
             icon: const Icon(Icons.add_chart),
             tooltip: 'Adicionar ativo',

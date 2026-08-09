@@ -74,4 +74,45 @@ void main() {
     expect(positions.first.netQuantity, 200);
     expect(positions.first.averageBuyPrice, 30);
   });
+
+  test('aporte/retirada não aparecem em nenhuma posição', () {
+    final cashFlow = [
+      PortfolioTransaction(
+        type: TransactionType.aporte,
+        totalValue: 1000,
+        date: DateTime(2026, 1, 1),
+        createdAt: DateTime(2026, 1, 1),
+      ),
+      PortfolioTransaction(
+        type: TransactionType.retirada,
+        totalValue: 200,
+        date: DateTime(2026, 1, 2),
+        createdAt: DateTime(2026, 1, 2),
+      ),
+    ];
+
+    final positions = PortfolioRepository.computePositions([asset], cashFlow);
+
+    expect(positions.first.netQuantity, 0);
+    expect(positions.first.averageBuyPrice, isNull);
+  });
+
+  test('provento não altera quantidade nem preço médio do ativo', () {
+    final positions = PortfolioRepository.computePositions(
+      [asset],
+      [
+        tx(type: TransactionType.compra, quantity: 100, unitPrice: 30),
+        PortfolioTransaction(
+          assetId: 1,
+          type: TransactionType.provento,
+          totalValue: 50,
+          date: DateTime(2026, 2, 1),
+          createdAt: DateTime(2026, 2, 1),
+        ),
+      ],
+    );
+
+    expect(positions.first.netQuantity, 100);
+    expect(positions.first.averageBuyPrice, 30);
+  });
 }

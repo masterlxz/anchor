@@ -40,7 +40,7 @@ class PortfolioRepository {
 
   Future<List<PortfolioTransaction>> listAllTransactions() async {
     final db = await AppDatabase.instance();
-    final rows = await db.query('portfolio_transactions');
+    final rows = await db.query('portfolio_transactions', orderBy: 'transaction_date DESC');
     return rows.map(PortfolioTransaction.fromMap).toList();
   }
 
@@ -75,11 +75,18 @@ class PortfolioRepository {
       for (final tx in transactions.where((t) => t.assetId == asset.id)) {
         switch (tx.type) {
           case TransactionType.compra:
-            netQuantity += tx.quantity;
-            buyQuantitySum += tx.quantity;
+            netQuantity += tx.quantity!;
+            buyQuantitySum += tx.quantity!;
             buyValueSum += tx.totalValue;
           case TransactionType.venda:
-            netQuantity -= tx.quantity;
+            netQuantity -= tx.quantity!;
+          case TransactionType.aporte:
+          case TransactionType.retirada:
+          case TransactionType.provento:
+            // Fluxo de caixa (aporte/retirada) ou dividendo (provento) —
+            // nenhum dos 3 move quantidade nem entra no preço médio, mesma
+            // regra do desktop (`get_portfolio_positions`).
+            break;
         }
       }
 
