@@ -1,0 +1,219 @@
+import { useState, type FormEvent } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { AppError } from "../types";
+import type { BankAccountView } from "./types";
+import Field from "../components/Field";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+type CreateBankAccountRequest = {
+  workspace_id: number;
+  nome: string;
+  titular: string;
+};
+
+type UpdateBankAccountRequest = {
+  bank_account_id: number;
+  nome: string;
+  titular: string;
+};
+
+function BankAccountSection({ workspaceId }: { workspaceId: number }) {
+  const [nome, setNome] = useState("");
+  const [titular, setTitular] = useState("");
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editNome, setEditNome] = useState("");
+  const [editTitular, setEditTitular] = useState("");
+
+  const queryClient = useQueryClient();
+
+  const accountsQuery = useQuery<BankAccountView[], AppError>({
+    queryKey: ["bank-accounts", workspaceId],
+    queryFn: () => invoke("list_bank_accounts", { workspaceId }),
+  });
+
+  function invalidate() {
+    queryClient.invalidateQueries({ queryKey: ["bank-accounts", workspaceId] });
+  }
+
+  const createMutation = useMutation<BankAccountView, AppError, CreateBankAccountRequest>({
+    mutationFn: (request) => invoke("create_bank_account", { request }),
+    onSuccess: () => {
+      invalidate();
+      setNome("");
+      setTitular("");
+    },
+  });
+
+  const updateMutation = useMutation<BankAccountView, AppError, UpdateBankAccountRequest>({
+    mutationFn: (request) => invoke("update_bank_account", { request }),
+    onSuccess: () => {
+      invalidate();
+      setEditingId(null);
+    },
+  });
+
+  const deleteMutation = useMutation<void, AppError, number>({
+    mutationFn: (bankAccountId) => invoke("delete_bank_account", { bankAccountId }),
+    onSuccess: () => {
+      invalidate();
+      setConfirmingDeleteId(null);
+    },
+  });
+
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    createMutation.mutate({ workspace_id: workspaceId, nome, titular });
+  }
+
+  function handleDeleteClick(id: number) {
+    if (confirmingDeleteId === id) {
+      deleteMutation.mutate(id);
+    } else {
+      setConfirmingDeleteId(id);
+    }
+  }
+
+  function startEditing(account: BankAccountView) {
+    setEditingId(account.id);
+    setEditNome(account.nome);
+    setEditTitular(account.titular);
+  }
+
+  function handleSaveEdit() {
+    if (editingId === null) return;
+    updateMutation.mutate({ bank_account_id: editingId, nome: editNome, titular: editTitular });
+  }
+
+  const accounts = accountsQuery.data ?? [];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Bank accounts</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Accounts used to organize general cash flow (income/expenses). Balance is always
+          derived from the transactions below — never entered directly.
+        </p>
+        <form onSubmit={handleSubmit} className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <Field label="Name" className="sm:col-span-1">
+            <Input
+              required
+              placeholder="e.g.: Nubank PJ"
+              value={nome}
+              onChange={(e) => setNome(e.currentTarget.value)}
+            />
+          </Field>
+          <Field label="Holder" className="sm:col-span-1">
+            <Input
+              required
+              placeholder="e.g.: CPF/CNPJ"
+              value={titular}
+              onChange={(e) => setTitular(e.currentTarget.value)}
+            />
+          </Field>
+          <div className="flex items-end">
+            <Button type="submit" disabled={createMutation.isPending} className="w-fit">
+              {createMutation.isPending ? "Adding..." : "Add account"}
+            </Button>
+          </div>
+        </form>
+
+        {createMutation.isError && (
+          <p className="mb-3 text-red-600">{createMutation.error.message}</p>
+        )}
+        {accountsQuery.isError && (
+          <p className="mb-3 text-red-600">{accountsQuery.error.message}</p>
+        )}
+
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Holder</TableHead>
+              <TableHead>Balance</TableHead>
+              <TableHead>Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {accounts.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={4} className="text-center text-muted-foreground">
+                  No bank account registered yet.
+                </TableCell>
+              </TableRow>
+            )}
+            {accounts.map((account) => {
+              const isConfirming = confirmingDeleteId === account.id;
+              const isEditing = editingId === account.id;
+              return (
+                <TableRow key={account.id}>
+                  {isEditing ? (
+                    <>
+                      <TableCell>
+                        <Input value={editNome} onChange={(e) => setEditNome(e.currentTarget.value)} />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          value={editTitular}
+                          onChange={(e) => setEditTitular(e.currentTarget.value)}
+                        />
+                      </TableCell>
+                      <TableCell>{account.balance.toFixed(2)}</TableCell>
+                      <TableCell className="flex gap-2">
+                        <Button size="sm" onClick={handleSaveEdit} disabled={updateMutation.isPending}>
+                          Save
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>
+                          Cancel
+                        </Button>
+                      </TableCell>
+                    </>
+                  ) : (
+                    <>
+                      <TableCell>{account.nome}</TableCell>
+                      <TableCell>{account.titular}</TableCell>
+                      <TableCell>{account.balance.toFixed(2)}</TableCell>
+                      <TableCell className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={() => startEditing(account)}>
+                          Edit
+                        </Button>
+                        <Button
+                          variant={isConfirming ? "destructive" : "outline"}
+                          size="sm"
+                          onClick={() => handleDeleteClick(account.id)}
+                        >
+                          {isConfirming ? "Confirm?" : "Delete"}
+                        </Button>
+                      </TableCell>
+                    </>
+                  )}
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default BankAccountSection;

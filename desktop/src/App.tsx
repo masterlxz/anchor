@@ -2,6 +2,7 @@ import { useState } from "react";
 import StockLookupPanel from "./stock-lookup/StockLookupPanel";
 import AlertsPanel from "./alerts/AlertsPanel";
 import PortfolioPanel from "./portfolio/PortfolioPanel";
+import FinancesPanel from "./finances/FinancesPanel";
 import WorkspaceGate from "./workspace/WorkspaceGate";
 import ChatPanel from "./chat/ChatPanel";
 import ChatToggleButton from "./chat/ChatToggleButton";
@@ -29,6 +30,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 const SECTIONS = {
   lookup: "Research",
   portfolio: "Portfolio",
+  finances: "General Finances",
   alerts: "Alerts",
 } as const;
 
@@ -122,6 +124,10 @@ function App() {
 
           <TabsContent value="portfolio">
             <PortfolioPanel workspaceId={workspaceId} />
+          </TabsContent>
+
+          <TabsContent value="finances">
+            <FinancesPanel workspaceId={workspaceId} />
           </TabsContent>
 
           <TabsContent value="alerts">
