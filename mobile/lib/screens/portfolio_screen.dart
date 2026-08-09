@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../models/custodia.dart';
 import '../models/position.dart';
 import '../services/portfolio_repository.dart';
 import '../services/quote_dispatcher.dart';
 import 'add_asset_screen.dart';
 import 'add_transaction_screen.dart';
+import 'custodias_screen.dart';
 import 'transaction_history_screen.dart';
 
 class PortfolioScreen extends StatefulWidget {
@@ -27,6 +29,7 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
 
   bool _loading = true;
   List<_PositionRow> _rows = [];
+  Map<int, Custodia> _custodiasById = {};
 
   @override
   void initState() {
@@ -38,6 +41,7 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
     setState(() => _loading = true);
 
     final positions = await _repository.getPositions();
+    final custodias = await _repository.listCustodias();
     final rows = await Future.wait(positions.map((position) async {
       try {
         final quote = await _dispatcher.fetchQuoteForAsset(position.asset);
@@ -50,6 +54,7 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
     if (mounted) {
       setState(() {
         _rows = rows;
+        _custodiasById = {for (final c in custodias) c.id!: c};
         _loading = false;
       });
     }
@@ -75,12 +80,24 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
     );
   }
 
+  Future<void> _openCustodias() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const CustodiasScreen()),
+    );
+    _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Portfolio'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.account_balance),
+            tooltip: 'Custódias',
+            onPressed: _openCustodias,
+          ),
           IconButton(
             icon: const Icon(Icons.receipt_long),
             tooltip: 'Histórico',
@@ -102,7 +119,8 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
                   child: ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: _rows.length,
-                    itemBuilder: (context, index) => _PositionCard(row: _rows[index]),
+                    itemBuilder: (context, index) =>
+                        _PositionCard(row: _rows[index], custodiasById: _custodiasById),
                   ),
                 ),
       floatingActionButton: _rows.isEmpty
@@ -140,8 +158,9 @@ class _EmptyState extends StatelessWidget {
 
 class _PositionCard extends StatelessWidget {
   final _PositionRow row;
+  final Map<int, Custodia> custodiasById;
 
-  const _PositionCard({required this.row});
+  const _PositionCard({required this.row, required this.custodiasById});
 
   @override
   Widget build(BuildContext context) {
@@ -159,6 +178,10 @@ class _PositionCard extends StatelessWidget {
 
     final positiveColor = Theme.of(context).colorScheme.primary;
     final negativeColor = Theme.of(context).colorScheme.error;
+
+    final byCustodia = position.byCustodia;
+    final showCustodiaBreakdown =
+        byCustodia.length > 1 || byCustodia.any((b) => b.custodiaId != null);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -205,6 +228,18 @@ class _PositionCard extends StatelessWidget {
                   ),
               ],
             ),
+            if (showCustodiaBreakdown) ...[
+              const Divider(height: 20),
+              for (final breakdown in byCustodia)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Text(
+                    '${custodiasById[breakdown.custodiaId]?.label ?? '—'}: '
+                    '${breakdown.quantity.toStringAsFixed(breakdown.quantity == breakdown.quantity.roundToDouble() ? 0 : 2)} un.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+            ],
           ],
         ),
       ),

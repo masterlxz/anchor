@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/asset.dart';
+import '../models/custodia.dart';
 import '../models/portfolio_transaction.dart';
 import '../services/portfolio_repository.dart';
 
@@ -18,7 +19,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   final _totalValueController = TextEditingController();
 
   List<Asset> _assets = [];
+  List<Custodia> _custodias = [];
   Asset? _selectedAsset;
+  Custodia? _custodia;
+  Custodia? _transferToCustodia;
   TransactionType _type = TransactionType.compra;
   DateTime _date = DateTime.now();
   bool _loading = true;
@@ -27,15 +31,17 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   @override
   void initState() {
     super.initState();
-    _loadAssets();
+    _loadData();
     _quantityController.addListener(() => setState(() {}));
     _unitPriceController.addListener(() => setState(() {}));
   }
 
-  Future<void> _loadAssets() async {
+  Future<void> _loadData() async {
     final assets = await _repository.listAssets();
+    final custodias = await _repository.listCustodias();
     setState(() {
       _assets = assets;
+      _custodias = custodias;
       _selectedAsset = assets.isNotEmpty ? assets.first : null;
       _loading = false;
     });
@@ -62,12 +68,25 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final asset = _selectedAsset;
     if (needsAsset && asset?.id == null) return;
 
-    final needsAmount = _type.needsQuantity && _type.needsUnitPrice;
-    final quantity = needsAmount ? _quantity : null;
-    final unitPrice = needsAmount ? _unitPrice : null;
-    final totalValue = needsAmount ? _computedTotal : _manualTotal;
-    if (needsAmount && (quantity! <= 0 || unitPrice! <= 0)) return;
-    if (!needsAmount && totalValue <= 0) return;
+    if (_type.needsTransferDestination) {
+      if (_custodia?.id == null ||
+          _transferToCustodia?.id == null ||
+          _custodia!.id == _transferToCustodia!.id) {
+        return;
+      }
+    }
+
+    final needsQuantity = _type.needsQuantity;
+    final needsUnitPrice = _type.needsUnitPrice;
+    final autoTotal = needsQuantity && needsUnitPrice;
+
+    final quantity = needsQuantity ? _quantity : null;
+    final unitPrice = needsUnitPrice ? _unitPrice : null;
+    final totalValue = autoTotal ? _computedTotal : _manualTotal;
+
+    if (needsQuantity && quantity! <= 0) return;
+    if (needsUnitPrice && unitPrice! <= 0) return;
+    if (totalValue <= 0) return;
 
     setState(() => _saving = true);
 
@@ -77,6 +96,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       quantity: quantity,
       unitPrice: unitPrice,
       totalValue: totalValue,
+      custodiaId: _custodia?.id,
+      transferToCustodiaId: _type.needsTransferDestination ? _transferToCustodia?.id : null,
       date: _date,
       createdAt: DateTime.now(),
     ));
@@ -99,7 +120,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     }
 
     final needsAsset = _type.needsAsset;
-    final needsAmount = _type.needsQuantity && _type.needsUnitPrice;
+    final needsQuantity = _type.needsQuantity;
+    final needsUnitPrice = _type.needsUnitPrice;
+    final needsTransferDestination = _type.needsTransferDestination;
+    final autoTotal = needsQuantity && needsUnitPrice;
     final blockedByMissingAsset = needsAsset && _assets.isEmpty;
 
     return Scaffold(
@@ -134,26 +158,52 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 ),
                 const SizedBox(height: 16),
               ],
-              if (needsAmount) ...[
+              if (needsQuantity) ...[
                 TextField(
                   controller: _quantityController,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: const InputDecoration(labelText: 'Quantidade'),
                 ),
                 const SizedBox(height: 16),
+              ],
+              if (needsUnitPrice) ...[
                 TextField(
                   controller: _unitPriceController,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: const InputDecoration(labelText: 'Preço unitário'),
                 ),
                 const SizedBox(height: 16),
-                Text('Total: ${_computedTotal.toStringAsFixed(2)}'),
-              ] else
+              ],
+              if (autoTotal)
+                Text('Total: ${_computedTotal.toStringAsFixed(2)}')
+              else
                 TextField(
                   controller: _totalValueController,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: const InputDecoration(labelText: 'Valor'),
                 ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<Custodia?>(
+                initialValue: _custodia,
+                decoration: InputDecoration(
+                  labelText: needsTransferDestination ? 'Custódia (origem)' : 'Custódia (opcional)',
+                ),
+                items: [
+                  if (!needsTransferDestination)
+                    const DropdownMenuItem<Custodia?>(value: null, child: Text('Nenhuma')),
+                  ..._custodias.map((c) => DropdownMenuItem(value: c, child: Text(c.label))),
+                ],
+                onChanged: (value) => setState(() => _custodia = value),
+              ),
+              if (needsTransferDestination) ...[
+                const SizedBox(height: 16),
+                DropdownButtonFormField<Custodia?>(
+                  initialValue: _transferToCustodia,
+                  decoration: const InputDecoration(labelText: 'Custódia (destino)'),
+                  items: _custodias.map((c) => DropdownMenuItem(value: c, child: Text(c.label))).toList(),
+                  onChanged: (value) => setState(() => _transferToCustodia = value),
+                ),
+              ],
               const SizedBox(height: 16),
               ListTile(
                 contentPadding: EdgeInsets.zero,

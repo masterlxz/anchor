@@ -18,6 +18,7 @@ void main() {
     required TransactionType type,
     required double quantity,
     required double unitPrice,
+    int? custodiaId,
   }) {
     return PortfolioTransaction(
       assetId: 1,
@@ -25,6 +26,7 @@ void main() {
       quantity: quantity,
       unitPrice: unitPrice,
       totalValue: quantity * unitPrice,
+      custodiaId: custodiaId,
       date: DateTime(2026, 1, 1),
       createdAt: DateTime(2026, 1, 1),
     );
@@ -114,5 +116,47 @@ void main() {
 
     expect(positions.first.netQuantity, 100);
     expect(positions.first.averageBuyPrice, 30);
+  });
+
+  test('compras em custódias diferentes aparecem separadas em byCustodia', () {
+    final positions = PortfolioRepository.computePositions(
+      [asset],
+      [
+        tx(type: TransactionType.compra, quantity: 60, unitPrice: 30, custodiaId: 1),
+        tx(type: TransactionType.compra, quantity: 40, unitPrice: 30, custodiaId: 2),
+      ],
+    );
+
+    final byCustodia = {
+      for (final b in positions.first.byCustodia) b.custodiaId: b.quantity,
+    };
+    expect(byCustodia, {1: 60.0, 2: 40.0});
+  });
+
+  test('transferencia move quantidade entre custódias sem alterar posição', () {
+    final positions = PortfolioRepository.computePositions(
+      [asset],
+      [
+        tx(type: TransactionType.compra, quantity: 100, unitPrice: 30, custodiaId: 1),
+        PortfolioTransaction(
+          assetId: 1,
+          type: TransactionType.transferencia,
+          quantity: 30,
+          totalValue: 30 * 30,
+          custodiaId: 1,
+          transferToCustodiaId: 2,
+          date: DateTime(2026, 2, 1),
+          createdAt: DateTime(2026, 2, 1),
+        ),
+      ],
+    );
+
+    expect(positions.first.netQuantity, 100);
+    expect(positions.first.averageBuyPrice, 30);
+
+    final byCustodia = {
+      for (final b in positions.first.byCustodia) b.custodiaId: b.quantity,
+    };
+    expect(byCustodia, {1: 70.0, 2: 30.0});
   });
 }

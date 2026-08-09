@@ -3,9 +3,10 @@ import 'package:sqflite/sqflite.dart';
 
 /// Banco local do portfolio — 7 classes de ativo (Ação BR/FII/ETF BR/BDR via
 /// `YahooQuoteService` com sufixo `.SA`, Ação internacional/Metal via Yahoo
-/// sem sufixo, Cripto via CoinGecko — ver `QuoteDispatcher`) e 5 tipos de
-/// transação (compra/venda/aporte/retirada/provento — ver
-/// `TransactionTypeMeta`). Sem custódia/`transferencia`/renda fixa/campos
+/// sem sufixo, Cripto via CoinGecko — ver `QuoteDispatcher`), 6 tipos de
+/// transação (compra/venda/aporte/retirada/provento/transferencia — ver
+/// `TransactionTypeMeta`) e custódia (conta/corretora, sem `workspace_id` —
+/// diferente do desktop, o mobile não tem Workspace). Sem renda fixa/campos
 /// manuais ainda (ver `project/PHASE.md`, Fase 11 item 11.2).
 ///
 /// Ao contrário do desktop (que exige `sea-orm-cli migrate up` manual), as
@@ -24,7 +25,7 @@ class AppDatabase {
     final path = join(await getDatabasesPath(), 'anchor_mobile.db');
     return openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE assets (
@@ -38,9 +39,19 @@ class AppDatabase {
           )
         ''');
         await db.execute('''
+          CREATE TABLE custodias (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            instituicao TEXT NOT NULL,
+            titular TEXT NOT NULL,
+            created_at TEXT NOT NULL
+          )
+        ''');
+        await db.execute('''
           CREATE TABLE portfolio_transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             asset_id INTEGER REFERENCES assets(id) ON DELETE CASCADE,
+            custodia_id INTEGER REFERENCES custodias(id),
+            transfer_to_custodia_id INTEGER REFERENCES custodias(id),
             transaction_type TEXT NOT NULL,
             quantity REAL,
             unit_price REAL,
@@ -82,6 +93,20 @@ class AppDatabase {
           await db.execute('DROP TABLE portfolio_transactions');
           await db.execute(
               'ALTER TABLE portfolio_transactions_new RENAME TO portfolio_transactions');
+        }
+        if (oldVersion < 4) {
+          await db.execute('''
+            CREATE TABLE custodias (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              instituicao TEXT NOT NULL,
+              titular TEXT NOT NULL,
+              created_at TEXT NOT NULL
+            )
+          ''');
+          await db.execute(
+              'ALTER TABLE portfolio_transactions ADD COLUMN custodia_id INTEGER REFERENCES custodias(id)');
+          await db.execute(
+              'ALTER TABLE portfolio_transactions ADD COLUMN transfer_to_custodia_id INTEGER REFERENCES custodias(id)');
         }
       },
     );

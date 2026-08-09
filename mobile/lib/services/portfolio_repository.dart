@@ -1,5 +1,6 @@
 import '../data/db.dart';
 import '../models/asset.dart';
+import '../models/custodia.dart';
 import '../models/portfolio_transaction.dart';
 import '../models/position.dart';
 
@@ -19,6 +20,23 @@ class PortfolioRepository {
   Future<void> deleteAsset(int id) async {
     final db = await AppDatabase.instance();
     await db.delete('assets', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> insertCustodia(Custodia custodia) async {
+    final db = await AppDatabase.instance();
+    final map = custodia.toMap()..remove('id');
+    return db.insert('custodias', map);
+  }
+
+  Future<List<Custodia>> listCustodias() async {
+    final db = await AppDatabase.instance();
+    final rows = await db.query('custodias', orderBy: 'instituicao');
+    return rows.map(Custodia.fromMap).toList();
+  }
+
+  Future<void> deleteCustodia(int id) async {
+    final db = await AppDatabase.instance();
+    await db.delete('custodias', where: 'id = ?', whereArgs: [id]);
   }
 
   Future<int> insertTransaction(PortfolioTransaction transaction) async {
@@ -71,6 +89,7 @@ class PortfolioRepository {
       var netQuantity = 0.0;
       var buyQuantitySum = 0.0;
       var buyValueSum = 0.0;
+      final custodiaQty = <int?, double>{};
 
       for (final tx in transactions.where((t) => t.assetId == asset.id)) {
         switch (tx.type) {
@@ -78,8 +97,14 @@ class PortfolioRepository {
             netQuantity += tx.quantity!;
             buyQuantitySum += tx.quantity!;
             buyValueSum += tx.totalValue;
+            custodiaQty[tx.custodiaId] = (custodiaQty[tx.custodiaId] ?? 0) + tx.quantity!;
           case TransactionType.venda:
             netQuantity -= tx.quantity!;
+            custodiaQty[tx.custodiaId] = (custodiaQty[tx.custodiaId] ?? 0) - tx.quantity!;
+          case TransactionType.transferencia:
+            custodiaQty[tx.custodiaId] = (custodiaQty[tx.custodiaId] ?? 0) - tx.quantity!;
+            custodiaQty[tx.transferToCustodiaId] =
+                (custodiaQty[tx.transferToCustodiaId] ?? 0) + tx.quantity!;
           case TransactionType.aporte:
           case TransactionType.retirada:
           case TransactionType.provento:
@@ -94,6 +119,9 @@ class PortfolioRepository {
         asset: asset,
         netQuantity: netQuantity,
         averageBuyPrice: buyQuantitySum > 0 ? buyValueSum / buyQuantitySum : null,
+        byCustodia: custodiaQty.entries
+            .map((e) => CustodiaBreakdown(custodiaId: e.key, quantity: e.value))
+            .toList(),
       ));
     }
 

@@ -1,13 +1,12 @@
-/// 5 dos 6 tipos do desktop — `transferencia` fica de fora (depende de
-/// custódia, que o mobile ainda não tem, ver `project/PHASE.md` Fase 10
-/// item 9). Valores string iguais ao desktop
+/// Os 6 tipos do desktop. Valores string iguais ao desktop
 /// (`desktop/src/portfolio/types.ts`).
 enum TransactionType {
   compra('compra', 'Compra'),
   venda('venda', 'Venda'),
   aporte('aporte', 'Aporte'),
   retirada('retirada', 'Retirada'),
-  provento('provento', 'Provento');
+  provento('provento', 'Provento'),
+  transferencia('transferencia', 'Transferência');
 
   final String value;
   final String label;
@@ -20,16 +19,23 @@ enum TransactionType {
 }
 
 /// Quais campos cada tipo exige — espelha `needsAsset`/`needsQuantity`/
-/// `needsUnitPrice` de `desktop/src/portfolio/TransactionSection.tsx`
-/// (sem a parte de `transferencia`). `aporte`/`retirada` são fluxo de caixa
-/// puro (sem ativo); `provento` tem ativo (qual pagou) mas não quantidade/
-/// preço unitário, só um valor total digitado direto.
+/// `needsUnitPrice`/`needsTransferDestination` de
+/// `desktop/src/portfolio/TransactionSection.tsx:65-79`. `aporte`/`retirada`
+/// são fluxo de caixa puro (sem ativo); `provento` tem ativo (qual pagou)
+/// mas não quantidade/preço unitário, só um valor total digitado direto;
+/// `transferencia` tem quantidade mas não preço unitário (não tem "preço",
+/// só move o que já existe) e exige custódia de origem e destino.
 extension TransactionTypeMeta on TransactionType {
   bool get needsAsset => this != TransactionType.aporte && this != TransactionType.retirada;
 
-  bool get needsQuantity => this == TransactionType.compra || this == TransactionType.venda;
+  bool get needsQuantity =>
+      this == TransactionType.compra ||
+      this == TransactionType.venda ||
+      this == TransactionType.transferencia;
 
   bool get needsUnitPrice => this == TransactionType.compra || this == TransactionType.venda;
+
+  bool get needsTransferDestination => this == TransactionType.transferencia;
 }
 
 class PortfolioTransaction {
@@ -45,6 +51,13 @@ class PortfolioTransaction {
   /// `null` pra tipos que não usam preço unitário (ver `TransactionTypeMeta`).
   final double? unitPrice;
   final double totalValue;
+
+  /// Custódia da transação — opcional em todos os tipos. Pra
+  /// `transferencia` é a origem.
+  final int? custodiaId;
+
+  /// Só preenchido em `transferencia` (destino) — `null` nos outros tipos.
+  final int? transferToCustodiaId;
   final DateTime date;
   final String? notes;
   final DateTime createdAt;
@@ -56,6 +69,8 @@ class PortfolioTransaction {
     this.quantity,
     this.unitPrice,
     required this.totalValue,
+    this.custodiaId,
+    this.transferToCustodiaId,
     required this.date,
     this.notes,
     required this.createdAt,
@@ -69,6 +84,8 @@ class PortfolioTransaction {
       'quantity': quantity,
       'unit_price': unitPrice,
       'total_value': totalValue,
+      'custodia_id': custodiaId,
+      'transfer_to_custodia_id': transferToCustodiaId,
       'transaction_date': date.toIso8601String(),
       'notes': notes,
       'created_at': createdAt.toIso8601String(),
@@ -83,6 +100,8 @@ class PortfolioTransaction {
       quantity: map['quantity'] as double?,
       unitPrice: map['unit_price'] as double?,
       totalValue: map['total_value'] as double,
+      custodiaId: map['custodia_id'] as int?,
+      transferToCustodiaId: map['transfer_to_custodia_id'] as int?,
       date: DateTime.parse(map['transaction_date'] as String),
       notes: map['notes'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),

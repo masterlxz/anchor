@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/asset.dart';
+import '../models/custodia.dart';
 import '../models/portfolio_transaction.dart';
 import '../services/portfolio_repository.dart';
 
@@ -20,6 +21,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   bool _loading = true;
   List<PortfolioTransaction> _transactions = [];
   Map<int, Asset> _assetsById = {};
+  Map<int, Custodia> _custodiasById = {};
 
   @override
   void initState() {
@@ -32,11 +34,13 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
 
     final transactions = await _repository.listAllTransactions();
     final assets = await _repository.listAssets();
+    final custodias = await _repository.listCustodias();
 
     if (mounted) {
       setState(() {
         _transactions = transactions;
         _assetsById = {for (final a in assets) a.id!: a};
+        _custodiasById = {for (final c in custodias) c.id!: c};
         _loading = false;
       });
     }
@@ -58,7 +62,11 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                     itemBuilder: (context, index) {
                       final tx = _transactions[index];
                       final ticker = tx.assetId != null ? _assetsById[tx.assetId]?.ticker : null;
-                      return _TransactionTile(transaction: tx, ticker: ticker);
+                      return _TransactionTile(
+                        transaction: tx,
+                        ticker: ticker,
+                        custodiasById: _custodiasById,
+                      );
                     },
                   ),
                 ),
@@ -69,8 +77,21 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
 class _TransactionTile extends StatelessWidget {
   final PortfolioTransaction transaction;
   final String? ticker;
+  final Map<int, Custodia> custodiasById;
 
-  const _TransactionTile({required this.transaction, required this.ticker});
+  const _TransactionTile({
+    required this.transaction,
+    required this.ticker,
+    required this.custodiasById,
+  });
+
+  String? get _custodiaLabel {
+    final origin = custodiasById[transaction.custodiaId]?.label;
+    if (!transaction.type.needsTransferDestination) return origin;
+
+    final destination = custodiasById[transaction.transferToCustodiaId]?.label;
+    return '${origin ?? '—'} → ${destination ?? '—'}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -78,13 +99,16 @@ class _TransactionTile extends StatelessWidget {
     final dateLabel = '${date.day.toString().padLeft(2, '0')}/'
         '${date.month.toString().padLeft(2, '0')}/${date.year}';
     final quantity = transaction.quantity;
+    final custodiaLabel = _custodiaLabel;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         title: Text('${transaction.type.label} — ${ticker ?? '—'}'),
         subtitle: Text(
-          '$dateLabel${quantity != null ? ' · ${quantity.toStringAsFixed(quantity == quantity.roundToDouble() ? 0 : 2)} un.' : ''}',
+          '$dateLabel'
+          '${quantity != null ? ' · ${quantity.toStringAsFixed(quantity == quantity.roundToDouble() ? 0 : 2)} un.' : ''}'
+          '${custodiaLabel != null ? ' · $custodiaLabel' : ''}',
         ),
         trailing: Text(transaction.totalValue.toStringAsFixed(2)),
       ),
