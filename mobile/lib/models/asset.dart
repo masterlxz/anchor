@@ -1,16 +1,20 @@
 /// 4 classes resolvidas pelo mesmo endpoint Yahoo `.SA` já usado por
 /// `YahooQuoteService` (confirmado no desktop, Sessões 41/63: FII/ETF
-/// BR/BDR devolvem o mesmo formato de `meta` que uma ação), mais 3 classes
-/// com fonte própria — `acaoInternacional` (Yahoo sem `.SA`), `metal`
-/// (Yahoo sem `.SA`, ticker de contrato futuro por trás) e `cripto`
-/// (CoinGecko, por `coin_id` em vez de ticker) — ver `QuoteDispatcher`.
-/// Valores string iguais ao desktop (`desktop/src/portfolio/types.ts`).
+/// BR/BDR devolvem o mesmo formato de `meta` que uma ação), mais 5 classes
+/// com fonte própria — `acaoInternacional`/`reit`/`etfUs` (todas Yahoo sem
+/// `.SA`, mesmo endpoint — REIT é o equivalente americano do FII, ETF US é
+/// ETF listado nos EUA tipo SPY), `metal` (Yahoo sem `.SA`, ticker de
+/// contrato futuro por trás) e `cripto` (CoinGecko, por `coin_id` em vez de
+/// ticker) — ver `QuoteDispatcher`. Valores string iguais ao desktop
+/// (`desktop/src/portfolio/types.ts`).
 enum AssetClass {
   acaoBr('acao_br', 'Ação BR'),
   fii('fii', 'FII'),
   etfBr('etf_br', 'ETF BR'),
   bdr('bdr', 'BDR'),
   acaoInternacional('acao_internacional', 'Ação internacional'),
+  reit('reit', 'REIT'),
+  etfUs('etf_us', 'ETF US'),
   cripto('cripto', 'Cripto'),
   metal('metal', 'Metal');
 
@@ -39,6 +43,10 @@ extension AssetClassMeta on AssetClass {
         return 'AAPL34';
       case AssetClass.acaoInternacional:
         return 'AAPL';
+      case AssetClass.reit:
+        return 'O';
+      case AssetClass.etfUs:
+        return 'SPY';
       case AssetClass.cripto:
         return 'ETH';
       case AssetClass.metal:
@@ -54,6 +62,8 @@ extension AssetClassMeta on AssetClass {
       case AssetClass.bdr:
         return 'BRL';
       case AssetClass.acaoInternacional:
+      case AssetClass.reit:
+      case AssetClass.etfUs:
       case AssetClass.cripto:
       case AssetClass.metal:
         return 'USD';
@@ -71,7 +81,7 @@ class Asset {
 
   /// `coin_id` do CoinGecko (ex: `ethereum`), resolvido e salvo no cadastro
   /// de um ativo `cripto` — evita rebuscar por texto a cada refresh do
-  /// Portfolio. `null` pras outras 6 classes.
+  /// Portfolio. `null` pras outras classes.
   final String? externalId;
 
   const Asset({

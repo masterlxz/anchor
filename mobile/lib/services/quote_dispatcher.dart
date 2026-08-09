@@ -25,6 +25,8 @@ class QuoteDispatcher {
       case AssetClass.bdr:
         return _yahoo.fetchQuote(ticker);
       case AssetClass.acaoInternacional:
+      case AssetClass.reit:
+      case AssetClass.etfUs:
         return _yahoo.fetchQuote(ticker, suffix: '');
       case AssetClass.metal:
         return _yahoo.fetchMetalQuote(ticker);

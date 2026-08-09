@@ -1,13 +1,14 @@
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
-/// Banco local do portfolio — 7 classes de ativo (Ação BR/FII/ETF BR/BDR via
-/// `YahooQuoteService` com sufixo `.SA`, Ação internacional/Metal via Yahoo
-/// sem sufixo, Cripto via CoinGecko — ver `QuoteDispatcher`), 6 tipos de
-/// transação (compra/venda/aporte/retirada/provento/transferencia — ver
-/// `TransactionTypeMeta`) e custódia (conta/corretora, sem `workspace_id` —
-/// diferente do desktop, o mobile não tem Workspace). Sem renda fixa/campos
-/// manuais ainda (ver `project/PHASE.md`, Fase 11 item 11.2).
+/// Banco local do portfolio — 9 classes de ativo (Ação BR/FII/ETF BR/BDR via
+/// `YahooQuoteService` com sufixo `.SA`, Ação internacional/REIT/ETF US/Metal
+/// via Yahoo sem sufixo, Cripto via CoinGecko — ver `QuoteDispatcher`), 6
+/// tipos de transação (compra/venda/aporte/retirada/provento/transferencia —
+/// ver `TransactionTypeMeta`) e custódia (conta/corretora, sem
+/// `workspace_id` — diferente do desktop, o mobile não tem Workspace). Sem
+/// renda fixa/campos manuais ainda (ver `project/PHASE.md`, Fase 11 item
+/// 11.2).
 ///
 /// Ao contrário do desktop (que exige `sea-orm-cli migrate up` manual), as
 /// tabelas nascem sozinhas no `onCreate`, na primeira abertura — não existe
