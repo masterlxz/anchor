@@ -4,6 +4,7 @@ import '../models/asset.dart';
 import '../models/custodia.dart';
 import '../models/portfolio_transaction.dart';
 import '../services/portfolio_repository.dart';
+import 'add_transaction_screen.dart';
 
 /// Somente leitura — `aporte`/`retirada`/`provento` não aparecem em nenhuma
 /// posição calculada (ver `PortfolioRepository.computePositions`), então
@@ -47,6 +48,18 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     }
   }
 
+  Future<void> _edit(PortfolioTransaction tx) async {
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => AddTransactionScreen(transaction: tx)),
+    );
+    if (saved == true) _load();
+  }
+
+  Future<void> _delete(int id) async {
+    await _repository.deleteTransaction(id);
+    await _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -69,6 +82,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                     transaction: tx,
                     ticker: ticker,
                     custodiasById: _custodiasById,
+                    onTap: () => _edit(tx),
+                    onDelete: () => _delete(tx.id!),
                   );
                 },
               ),
@@ -81,11 +96,15 @@ class _TransactionTile extends StatelessWidget {
   final PortfolioTransaction transaction;
   final String? ticker;
   final Map<int, Custodia> custodiasById;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
 
   const _TransactionTile({
     required this.transaction,
     required this.ticker,
     required this.custodiasById,
+    required this.onTap,
+    required this.onDelete,
   });
 
   String? get _custodiaLabel {
@@ -112,9 +131,20 @@ class _TransactionTile extends StatelessWidget {
         subtitle: Text(
           '$dateLabel'
           '${quantity != null ? ' · ${quantity.toStringAsFixed(quantity == quantity.roundToDouble() ? 0 : 2)} un.' : ''}'
-          '${custodiaLabel != null ? ' · $custodiaLabel' : ''}',
+          '${custodiaLabel != null ? ' · $custodiaLabel' : ''}'
+          ' · ${transaction.totalValue.toStringAsFixed(2)}',
         ),
-        trailing: Text(transaction.totalValue.toStringAsFixed(2)),
+        onTap: onTap,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(icon: const Icon(Icons.edit_outlined), onPressed: onTap),
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              onPressed: onDelete,
+            ),
+          ],
+        ),
       ),
     );
   }

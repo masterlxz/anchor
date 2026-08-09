@@ -98,10 +98,11 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
     if (saved == true) _load();
   }
 
-  void _openHistory() {
-    Navigator.of(
+  Future<void> _openHistory() async {
+    await Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => const TransactionHistoryScreen()));
+    _load();
   }
 
   Future<void> _openCustodias() async {

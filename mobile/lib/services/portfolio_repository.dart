@@ -154,6 +154,16 @@ class PortfolioRepository {
     return rows.map(PortfolioTransaction.fromMap).toList();
   }
 
+  Future<void> updateTransaction(PortfolioTransaction transaction) async {
+    final db = await AppDatabase.instance();
+    await db.update(
+      'portfolio_transactions',
+      transaction.toMap()..remove('id'),
+      where: 'id = ?',
+      whereArgs: [transaction.id],
+    );
+  }
+
   Future<void> deleteTransaction(int id) async {
     final db = await AppDatabase.instance();
     await db.delete('portfolio_transactions', where: 'id = ?', whereArgs: [id]);

@@ -6,7 +6,9 @@ import '../models/portfolio_transaction.dart';
 import '../services/portfolio_repository.dart';
 
 class AddTransactionScreen extends StatefulWidget {
-  const AddTransactionScreen({super.key});
+  final PortfolioTransaction? transaction;
+
+  const AddTransactionScreen({super.key, this.transaction});
 
   @override
   State<AddTransactionScreen> createState() => _AddTransactionScreenState();
@@ -41,15 +43,49 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     _unitPriceController.addListener(() => setState(() {}));
   }
 
+  bool get _editing => widget.transaction != null;
+
   Future<void> _loadData() async {
     final assets = await _repository.listAssets();
     final custodias = await _repository.listCustodias();
+    final tx = widget.transaction;
+
     setState(() {
       _assets = assets;
       _custodias = custodias;
-      _selectedAsset = assets.isNotEmpty ? assets.first : null;
+
+      if (tx != null) {
+        _type = tx.type;
+        _selectedAsset = _findById(assets, (a) => a.id, tx.assetId);
+        _custodia = _findById(custodias, (c) => c.id, tx.custodiaId);
+        _transferToCustodia = _findById(
+          custodias,
+          (c) => c.id,
+          tx.transferToCustodiaId,
+        );
+        _date = tx.date;
+        _quantityController.text = tx.quantity?.toString() ?? '';
+        _unitPriceController.text = tx.unitPrice?.toString() ?? '';
+        _totalValueController.text = tx.totalValue.toString();
+        _fiEmissorController.text = tx.fiEmissor ?? '';
+        _fiIndexador = tx.fiIndexador ?? fiIndexadores.first;
+        _fiTaxaController.text = tx.fiTaxaPercentual?.toString() ?? '';
+        _fiDataVencimento = tx.fiDataVencimento;
+        _fiLiquidez = tx.fiLiquidez ?? fiLiquidezOptions.first;
+      } else {
+        _selectedAsset = assets.isNotEmpty ? assets.first : null;
+      }
+
       _loading = false;
     });
+  }
+
+  T? _findById<T>(List<T> items, int? Function(T) idOf, int? id) {
+    if (id == null) return null;
+    for (final item in items) {
+      if (idOf(item) == id) return item;
+    }
+    return null;
   }
 
   double get _quantity =>
@@ -117,31 +153,37 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
     setState(() => _saving = true);
 
-    await _repository.insertTransaction(
-      PortfolioTransaction(
-        assetId: needsAsset ? asset!.id : null,
-        type: _type,
-        quantity: quantity,
-        unitPrice: unitPrice,
-        totalValue: totalValue,
-        custodiaId: _custodia?.id,
-        transferToCustodiaId: _type.needsTransferDestination
-            ? _transferToCustodia?.id
-            : null,
-        date: _date,
-        createdAt: DateTime.now(),
-        fiEmissor:
-            showFixedIncomeFields && _fiEmissorController.text.trim().isNotEmpty
-            ? _fiEmissorController.text.trim()
-            : null,
-        fiIndexador: showFixedIncomeFields ? _fiIndexador : null,
-        fiTaxaPercentual: showFixedIncomeFields
-            ? double.tryParse(_fiTaxaController.text.replaceAll(',', '.'))
-            : null,
-        fiDataVencimento: showFixedIncomeFields ? _fiDataVencimento : null,
-        fiLiquidez: showFixedIncomeFields ? _fiLiquidez : null,
-      ),
+    final transaction = PortfolioTransaction(
+      id: widget.transaction?.id,
+      assetId: needsAsset ? asset!.id : null,
+      type: _type,
+      quantity: quantity,
+      unitPrice: unitPrice,
+      totalValue: totalValue,
+      custodiaId: _custodia?.id,
+      transferToCustodiaId: _type.needsTransferDestination
+          ? _transferToCustodia?.id
+          : null,
+      date: _date,
+      notes: widget.transaction?.notes,
+      createdAt: widget.transaction?.createdAt ?? DateTime.now(),
+      fiEmissor:
+          showFixedIncomeFields && _fiEmissorController.text.trim().isNotEmpty
+          ? _fiEmissorController.text.trim()
+          : null,
+      fiIndexador: showFixedIncomeFields ? _fiIndexador : null,
+      fiTaxaPercentual: showFixedIncomeFields
+          ? double.tryParse(_fiTaxaController.text.replaceAll(',', '.'))
+          : null,
+      fiDataVencimento: showFixedIncomeFields ? _fiDataVencimento : null,
+      fiLiquidez: showFixedIncomeFields ? _fiLiquidez : null,
     );
+
+    if (_editing) {
+      await _repository.updateTransaction(transaction);
+    } else {
+      await _repository.insertTransaction(transaction);
+    }
 
     if (mounted) Navigator.of(context).pop(true);
   }
@@ -170,7 +212,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final blockedByMissingAsset = needsAsset && _assets.isEmpty;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Lançar transação')),
+      appBar: AppBar(
+        title: Text(_editing ? 'Editar transação' : 'Lançar transação'),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
