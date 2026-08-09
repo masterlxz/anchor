@@ -13,9 +13,11 @@ const FINANCES_SECTIONS: Record<FinancesSection, string> = {
 // Fase 12 — núcleo de Finanças Gerais (BankAccount + GeneralTransaction
 // manual). Módulo irmão de Portfolio (Fase 10), não sub-aba dele — o
 // rascunho trata "Finanças Gerais" como parte separada da carteira de
-// ativos (ver PHASE.md, Fase 12). Sem Liability/dívida, Category com limite
-// de orçamento, Attachment+Vault, IA de extração ou reconciliação nesta
-// fatia.
+// ativos (ver PHASE.md, Fase 12). Categorias não têm aba própria — pedido
+// explícito do dono do projeto (Sessão 71): gerenciadas via popup
+// (`CategoryManagerDialog`) a partir da aba Transactions, junto do botão
+// "New transaction". Sem Liability/dívida, Category com limite de
+// orçamento, Attachment+Vault, IA de extração ou reconciliação nesta fatia.
 function FinancesPanel({ workspaceId }: { workspaceId: number }) {
   const [section, setSection] = useState<FinancesSection>("accounts");
 

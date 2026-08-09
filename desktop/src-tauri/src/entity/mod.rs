@@ -24,6 +24,7 @@ pub mod fii_cnpj_cache;
 pub mod fii_cvm_monthly;
 pub mod fii_cvm_properties;
 pub mod general_transaction;
+pub mod general_transaction_category;
 pub mod gordon_inputs;
 pub mod graham_inputs;
 pub mod indicator_thresholds;

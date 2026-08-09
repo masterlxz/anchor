@@ -15,6 +15,7 @@ pub mod dcf;
 pub mod document_extraction;
 pub mod fii;
 pub mod general_transaction;
+pub mod general_transaction_category;
 pub mod gordon;
 pub mod graham;
 pub mod portfolio;

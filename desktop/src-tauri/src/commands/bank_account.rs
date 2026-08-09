@@ -143,7 +143,7 @@ mod tests {
             workspace_id: 1,
             bank_account_id,
             transaction_type: transaction_type.to_string(),
-            categoria: None,
+            category_id: None,
             valor,
             transaction_date: "2026-08-09".to_string(),
             notes: None,

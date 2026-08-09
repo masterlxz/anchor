@@ -11,7 +11,7 @@ pub struct Model {
     pub workspace_id: i32,
     pub bank_account_id: i32,
     pub transaction_type: String,
-    pub categoria: Option<String>,
+    pub category_id: Option<i32>,
     #[sea_orm(column_type = "Double")]
     pub valor: f64,
     pub transaction_date: String,
@@ -30,6 +30,14 @@ pub enum Relation {
     )]
     BankAccount,
     #[sea_orm(
+        belongs_to = "super::general_transaction_category::Entity",
+        from = "Column::CategoryId",
+        to = "super::general_transaction_category::Column::Id",
+        on_update = "NoAction",
+        on_delete = "NoAction"
+    )]
+    GeneralTransactionCategory,
+    #[sea_orm(
         belongs_to = "super::workspace::Entity",
         from = "Column::WorkspaceId",
         to = "super::workspace::Column::Id",
@@ -42,6 +50,12 @@ pub enum Relation {
 impl Related<super::bank_account::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::BankAccount.def()
+    }
+}
+
+impl Related<super::general_transaction_category::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::GeneralTransactionCategory.def()
     }
 }
 

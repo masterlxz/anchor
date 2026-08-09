@@ -22,6 +22,7 @@ pub use super::fii_cnpj_cache::Entity as FiiCnpjCache;
 pub use super::fii_cvm_monthly::Entity as FiiCvmMonthly;
 pub use super::fii_cvm_properties::Entity as FiiCvmProperties;
 pub use super::general_transaction::Entity as GeneralTransaction;
+pub use super::general_transaction_category::Entity as GeneralTransactionCategory;
 pub use super::gordon_inputs::Entity as GordonInputs;
 pub use super::graham_inputs::Entity as GrahamInputs;
 pub use super::indicator_thresholds::Entity as IndicatorThresholds;

@@ -43,6 +43,7 @@ mod m20260808_100000_create_asset_valuations_and_attachments;
 mod m20260808_150000_add_equity_fields_to_assets;
 mod m20260809_150000_create_bank_accounts;
 mod m20260809_150100_create_general_transactions;
+mod m20260809_160000_create_general_transaction_categories;
 
 pub struct Migrator;
 
@@ -93,6 +94,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260808_150000_add_equity_fields_to_assets::Migration),
             Box::new(m20260809_150000_create_bank_accounts::Migration),
             Box::new(m20260809_150100_create_general_transactions::Migration),
+            Box::new(m20260809_160000_create_general_transaction_categories::Migration),
         ]
     }
 }

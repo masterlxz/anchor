@@ -7,12 +7,19 @@ export type BankAccountView = {
   balance: number;
 };
 
+export type GeneralTransactionCategory = {
+  id: number;
+  workspace_id: number;
+  nome: string;
+  created_at: string;
+};
+
 export type GeneralTransaction = {
   id: number;
   workspace_id: number;
   bank_account_id: number;
   transaction_type: string;
-  categoria: string | null;
+  category_id: number | null;
   valor: number;
   transaction_date: string;
   notes: string | null;
