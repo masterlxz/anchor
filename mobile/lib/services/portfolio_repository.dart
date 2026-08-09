@@ -1,9 +1,30 @@
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+
 import '../data/db.dart';
 import '../models/asset.dart';
+import '../models/asset_attachment.dart';
 import '../models/asset_valuation.dart';
 import '../models/custodia.dart';
 import '../models/portfolio_transaction.dart';
 import '../models/position.dart';
+
+const _attachmentContentTypeByExtension = {
+  '.pdf': 'application/pdf',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.xls': 'application/vnd.ms-excel',
+  '.csv': 'text/csv',
+};
+
+String _sanitizeAttachmentFileName(String name) =>
+    name.replaceAll('/', '_').replaceAll('\\', '_');
 
 class PortfolioRepository {
   Future<int> insertAsset(Asset asset) async {
@@ -97,6 +118,101 @@ class PortfolioRepository {
   Future<void> deleteAssetValuation(int id) async {
     final db = await AppDatabase.instance();
     await db.delete('asset_valuations', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<List<AssetAttachment>> listAssetAttachments(int assetId) async {
+    final db = await AppDatabase.instance();
+    final rows = await db.query(
+      'asset_attachments',
+      where: 'asset_id = ?',
+      whereArgs: [assetId],
+      orderBy: 'created_at',
+    );
+    return rows.map(AssetAttachment.fromMap).toList();
+  }
+
+  /// Copia o arquivo escolhido (`sourcePath`, vindo de `file_picker`) pro
+  /// diretório de documentos do app — mesmo espírito do `add_asset_attachment`
+  /// do desktop, que copia pro `app_data_dir()`. O mobile não guarda
+  /// referência ao caminho original (galeria/Downloads podem apagá-lo a
+  /// qualquer momento), só a cópia própria.
+  Future<AssetAttachment> addAssetAttachment({
+    required int assetId,
+    required String sourcePath,
+    String? documentType,
+  }) async {
+    final originalFileName = p.basename(sourcePath);
+    final documentsDir = await getApplicationDocumentsDirectory();
+    final dir = Directory(
+      p.join(documentsDir.path, 'asset_attachments', assetId.toString()),
+    );
+    await dir.create(recursive: true);
+
+    final storedName =
+        '${DateTime.now().millisecondsSinceEpoch}_${_sanitizeAttachmentFileName(originalFileName)}';
+    final destFile = File(p.join(dir.path, storedName));
+    await File(sourcePath).copy(destFile.path);
+    final fileSizeBytes = await destFile.length();
+    final storedRelativePath = p.join(
+      'asset_attachments',
+      assetId.toString(),
+      storedName,
+    );
+
+    final db = await AppDatabase.instance();
+    final id = await db.insert(
+      'asset_attachments',
+      AssetAttachment(
+        assetId: assetId,
+        originalFileName: originalFileName,
+        storedRelativePath: storedRelativePath,
+        fileSizeBytes: fileSizeBytes,
+        contentType:
+            _attachmentContentTypeByExtension[p
+                .extension(originalFileName)
+                .toLowerCase()],
+        documentType: documentType,
+        createdAt: DateTime.now(),
+      ).toMap()..remove('id'),
+    );
+
+    return AssetAttachment(
+      id: id,
+      assetId: assetId,
+      originalFileName: originalFileName,
+      storedRelativePath: storedRelativePath,
+      fileSizeBytes: fileSizeBytes,
+      contentType:
+          _attachmentContentTypeByExtension[p
+              .extension(originalFileName)
+              .toLowerCase()],
+      documentType: documentType,
+      createdAt: DateTime.now(),
+    );
+  }
+
+  /// Caminho absoluto de um anexo em disco — usado por `open_filex` pra
+  /// abrir com o app padrão do sistema.
+  Future<String> resolveAssetAttachmentPath(String storedRelativePath) async {
+    final documentsDir = await getApplicationDocumentsDirectory();
+    return p.join(documentsDir.path, storedRelativePath);
+  }
+
+  Future<void> deleteAssetAttachment(AssetAttachment attachment) async {
+    final absolutePath = await resolveAssetAttachmentPath(
+      attachment.storedRelativePath,
+    );
+    final file = File(absolutePath);
+    if (await file.exists()) {
+      await file.delete();
+    }
+
+    final db = await AppDatabase.instance();
+    await db.delete(
+      'asset_attachments',
+      where: 'id = ?',
+      whereArgs: [attachment.id],
+    );
   }
 
   Future<int> insertCustodia(Custodia custodia) async {

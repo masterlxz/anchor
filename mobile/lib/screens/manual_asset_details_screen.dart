@@ -1,13 +1,25 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:open_filex/open_filex.dart';
 
 import '../models/asset.dart';
+import '../models/asset_attachment.dart';
 import '../models/asset_valuation.dart';
 import '../services/portfolio_repository.dart';
 
-/// Mirror de `ManualAssetDetails.tsx` do desktop, sem anexos (exigem
-/// file-picker + storage em disco, que o mobile não tem). `empresaNaoListada`
-/// ganha o bloco de participação societária que `imovel` não tem — ambas
-/// compartilham o histórico de avaliação.
+String _formatBytes(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+  return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+}
+
+/// Mirror de `ManualAssetDetails.tsx` do desktop — histórico de avaliação +
+/// anexos (escritura, ITBI, cap table). Anexo em disco vive no diretório de
+/// documentos do app (`PortfolioRepository.addAssetAttachment`), mesmo
+/// espírito do `app_data_dir()` do desktop; abrir usa `open_filex` (app
+/// padrão do sistema) em vez do preview inline do desktop.
+/// `empresaNaoListada` ganha o bloco de participação societária que `imovel`
+/// não tem — ambas compartilham histórico de avaliação e anexos.
 class ManualAssetDetailsScreen extends StatefulWidget {
   final Asset asset;
 
@@ -30,10 +42,14 @@ class _ManualAssetDetailsScreenState extends State<ManualAssetDetailsScreen> {
   final _valuationNotesController = TextEditingController();
   DateTime? _valuationDate;
 
+  final _documentTypeController = TextEditingController();
+
   bool _loading = true;
   bool _savingEquity = false;
   bool _savingValuation = false;
+  bool _addingAttachment = false;
   List<AssetValuation> _valuations = [];
+  List<AssetAttachment> _attachments = [];
 
   bool get _isEmpresaNaoListada =>
       _asset.assetClass == AssetClass.empresaNaoListada;
@@ -63,9 +79,11 @@ class _ManualAssetDetailsScreenState extends State<ManualAssetDetailsScreen> {
 
   Future<void> _load() async {
     final valuations = await _repository.listAssetValuations(_asset.id!);
+    final attachments = await _repository.listAssetAttachments(_asset.id!);
     if (mounted) {
       setState(() {
         _valuations = valuations;
+        _attachments = attachments;
         _loading = false;
       });
     }
@@ -142,6 +160,41 @@ class _ManualAssetDetailsScreenState extends State<ManualAssetDetailsScreen> {
     await _load();
   }
 
+  Future<void> _pickAndAddAttachment() async {
+    final result = await FilePicker.platform.pickFiles();
+    final path = result?.files.single.path;
+    if (path == null) return;
+
+    setState(() => _addingAttachment = true);
+    await _repository.addAssetAttachment(
+      assetId: _asset.id!,
+      sourcePath: path,
+      documentType: _documentTypeController.text.trim().isEmpty
+          ? null
+          : _documentTypeController.text.trim(),
+    );
+    _documentTypeController.clear();
+    setState(() => _addingAttachment = false);
+    await _load();
+  }
+
+  Future<void> _openAttachment(AssetAttachment attachment) async {
+    final path = await _repository.resolveAssetAttachmentPath(
+      attachment.storedRelativePath,
+    );
+    final result = await OpenFilex.open(path);
+    if (result.type != ResultType.done && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(result.message)));
+    }
+  }
+
+  Future<void> _deleteAttachment(AssetAttachment attachment) async {
+    await _repository.deleteAssetAttachment(attachment);
+    await _load();
+  }
+
   @override
   void dispose() {
     _sharesOwnedController.dispose();
@@ -149,6 +202,7 @@ class _ManualAssetDetailsScreenState extends State<ManualAssetDetailsScreen> {
     _companyValuationController.dispose();
     _valuationValueController.dispose();
     _valuationNotesController.dispose();
+    _documentTypeController.dispose();
     super.dispose();
   }
 
@@ -289,6 +343,45 @@ class _ManualAssetDetailsScreenState extends State<ManualAssetDetailsScreen> {
                 FilledButton(
                   onPressed: _savingValuation ? null : _addValuation,
                   child: const Text('Adicionar avaliação'),
+                ),
+                const Divider(height: 32),
+                Text(
+                  'Anexos',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 12),
+                if (_attachments.isEmpty)
+                  const Text('Nenhum anexo ainda.')
+                else
+                  for (final attachment in _attachments)
+                    Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        onTap: () => _openAttachment(attachment),
+                        title: Text(attachment.originalFileName),
+                        subtitle: Text(
+                          '${attachment.documentType ?? "—"} · '
+                          '${_formatBytes(attachment.fileSizeBytes)}',
+                        ),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: () => _deleteAttachment(attachment),
+                        ),
+                      ),
+                    ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _documentTypeController,
+                  decoration: const InputDecoration(
+                    labelText: 'Tipo de documento (opcional)',
+                    hintText: 'Escritura, ITBI, cap table...',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: _addingAttachment ? null : _pickAndAddAttachment,
+                  icon: const Icon(Icons.attach_file),
+                  label: const Text('Adicionar anexo'),
                 ),
               ],
             ),

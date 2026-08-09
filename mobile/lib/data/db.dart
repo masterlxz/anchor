@@ -26,7 +26,7 @@ class AppDatabase {
     final path = join(await getDatabasesPath(), 'anchor_mobile.db');
     return openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE assets (
@@ -78,6 +78,18 @@ class AppDatabase {
             value REAL NOT NULL,
             origin TEXT NOT NULL,
             notes TEXT,
+            created_at TEXT NOT NULL
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE asset_attachments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+            original_file_name TEXT NOT NULL,
+            stored_relative_path TEXT NOT NULL,
+            file_size_bytes INTEGER NOT NULL,
+            content_type TEXT,
+            document_type TEXT,
             created_at TEXT NOT NULL
           )
         ''');
@@ -164,6 +176,20 @@ class AppDatabase {
               value REAL NOT NULL,
               origin TEXT NOT NULL,
               notes TEXT,
+              created_at TEXT NOT NULL
+            )
+          ''');
+        }
+        if (oldVersion < 6) {
+          await db.execute('''
+            CREATE TABLE asset_attachments (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+              original_file_name TEXT NOT NULL,
+              stored_relative_path TEXT NOT NULL,
+              file_size_bytes INTEGER NOT NULL,
+              content_type TEXT,
+              document_type TEXT,
               created_at TEXT NOT NULL
             )
           ''');
