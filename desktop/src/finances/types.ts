@@ -11,7 +11,9 @@ export type GeneralTransactionCategory = {
   id: number;
   workspace_id: number;
   nome: string;
+  limite_mensal: number | null;
   created_at: string;
+  spent_this_month: number;
 };
 
 export type GeneralTransaction = {

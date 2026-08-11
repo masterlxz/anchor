@@ -134,6 +134,7 @@ pub fn run() {
             commands::general_transaction::delete_general_transaction,
             commands::general_transaction_category::list_general_transaction_categories,
             commands::general_transaction_category::create_general_transaction_category,
+            commands::general_transaction_category::update_general_transaction_category,
             commands::general_transaction_category::delete_general_transaction_category,
             commands::liability::create_liability,
             commands::liability::list_liabilities,

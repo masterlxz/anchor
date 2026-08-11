@@ -5,13 +5,14 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "general_transaction_categories")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
     pub workspace_id: i32,
     pub nome: String,
+    pub limite_mensal: Option<f64>,
     pub created_at: String,
 }
 

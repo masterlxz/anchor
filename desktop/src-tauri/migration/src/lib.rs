@@ -46,6 +46,7 @@ mod m20260809_150100_create_general_transactions;
 mod m20260809_160000_create_general_transaction_categories;
 mod m20260809_170000_create_liabilities;
 mod m20260811_190000_translate_valuation_verdict_to_english;
+mod m20260811_200000_add_budget_limit_to_general_transaction_categories;
 
 pub struct Migrator;
 
@@ -99,6 +100,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260809_160000_create_general_transaction_categories::Migration),
             Box::new(m20260809_170000_create_liabilities::Migration),
             Box::new(m20260811_190000_translate_valuation_verdict_to_english::Migration),
+            Box::new(m20260811_200000_add_budget_limit_to_general_transaction_categories::Migration),
         ]
     }
 }
