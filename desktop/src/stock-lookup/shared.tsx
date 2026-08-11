@@ -32,6 +32,22 @@ export function formatRatio(value: number | null): string {
   return value == null ? "—" : value.toFixed(2);
 }
 
+// Same formula every valuation model's `domain::*::calculate` uses in the
+// Rust backend (`(fair_price - current_price) / fair_price`) — reproduced
+// here so a saved valuation's fair price can be compared against the *live*
+// quote price on the Analysis screen. A saved valuation's own
+// `safety_margin`/`verdict` are a snapshot frozen at calculation time (the
+// price the user typed or fetched into the form back then), so they go
+// stale as soon as the quote moves — "Refresh data" updates the quote but
+// was never wired to recompute existing saved valuations.
+export function computeSafetyMargin(fairPrice: number, currentPrice: number): number {
+  return (fairPrice - currentPrice) / fairPrice;
+}
+
+export function computeVerdict(fairPrice: number, currentPrice: number): "CHEAP" | "EXPENSIVE" {
+  return computeSafetyMargin(fairPrice, currentPrice) > 0 ? "CHEAP" : "EXPENSIVE";
+}
+
 // Free public icon CDN (`icons.brapi.dev`, part of the brapi.dev project,
 // CORS-enabled) keyed by ticker — no API call needed, just a predictable
 // image URL. 404s for tickers without a logo, so `onError` hides it instead

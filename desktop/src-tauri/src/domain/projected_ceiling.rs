@@ -10,15 +10,15 @@ pub struct ProjectedCeilingInputs {
 }
 
 pub enum Verdict {
-    Barato,
-    Caro,
+    Cheap,
+    Expensive,
 }
 
 impl Verdict {
     pub fn as_str(&self) -> &'static str {
         match self {
-            Verdict::Barato => "BARATO",
-            Verdict::Caro => "CARO",
+            Verdict::Cheap => "CHEAP",
+            Verdict::Expensive => "EXPENSIVE",
         }
     }
 }
@@ -49,9 +49,9 @@ pub fn calculate(
 
     let safety_margin = (fair_price - current_price) / fair_price;
     let verdict = if safety_margin > 0.0 {
-        Verdict::Barato
+        Verdict::Cheap
     } else {
-        Verdict::Caro
+        Verdict::Expensive
     };
 
     Ok(ValuationOutcome {
@@ -66,7 +66,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn barato_when_fair_price_above_current_price() {
+    fn cheap_when_fair_price_above_current_price() {
         let inputs = ProjectedCeilingInputs {
             current_dividend: 3.0,
             expected_growth: 0.05,
@@ -79,11 +79,11 @@ mod tests {
 
         assert!(outcome.fair_price > 0.0);
         assert!(outcome.safety_margin > 0.0);
-        assert_eq!(outcome.verdict.as_str(), "BARATO");
+        assert_eq!(outcome.verdict.as_str(), "CHEAP");
     }
 
     #[test]
-    fn caro_when_fair_price_below_current_price() {
+    fn expensive_when_fair_price_below_current_price() {
         let inputs = ProjectedCeilingInputs {
             current_dividend: 3.0,
             expected_growth: 0.05,
@@ -95,7 +95,7 @@ mod tests {
         let outcome = calculate(&inputs, 100.0).unwrap();
 
         assert!(outcome.safety_margin < 0.0);
-        assert_eq!(outcome.verdict.as_str(), "CARO");
+        assert_eq!(outcome.verdict.as_str(), "EXPENSIVE");
     }
 
     #[test]

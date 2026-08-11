@@ -18,15 +18,15 @@ pub struct DcfInputs {
 }
 
 pub enum Verdict {
-    Barato,
-    Caro,
+    Cheap,
+    Expensive,
 }
 
 impl Verdict {
     pub fn as_str(&self) -> &'static str {
         match self {
-            Verdict::Barato => "BARATO",
-            Verdict::Caro => "CARO",
+            Verdict::Cheap => "CHEAP",
+            Verdict::Expensive => "EXPENSIVE",
         }
     }
 }
@@ -65,9 +65,9 @@ pub fn calculate(inputs: &DcfInputs, current_price: f64) -> Result<ValuationOutc
 
     let safety_margin = (fair_price - current_price) / fair_price;
     let verdict = if safety_margin > 0.0 {
-        Verdict::Barato
+        Verdict::Cheap
     } else {
-        Verdict::Caro
+        Verdict::Expensive
     };
 
     Ok(ValuationOutcome {
@@ -100,20 +100,20 @@ mod tests {
     }
 
     #[test]
-    fn barato_when_fair_price_above_current_price() {
+    fn cheap_when_fair_price_above_current_price() {
         let outcome = calculate(&base_inputs(), 10.0).unwrap();
 
         assert!(outcome.fair_price > 0.0);
         assert!(outcome.safety_margin > 0.0);
-        assert_eq!(outcome.verdict.as_str(), "BARATO");
+        assert_eq!(outcome.verdict.as_str(), "CHEAP");
     }
 
     #[test]
-    fn caro_when_fair_price_below_current_price() {
+    fn expensive_when_fair_price_below_current_price() {
         let outcome = calculate(&base_inputs(), 200.0).unwrap();
 
         assert!(outcome.safety_margin < 0.0);
-        assert_eq!(outcome.verdict.as_str(), "CARO");
+        assert_eq!(outcome.verdict.as_str(), "EXPENSIVE");
     }
 
     #[test]

@@ -45,6 +45,7 @@ mod m20260809_150000_create_bank_accounts;
 mod m20260809_150100_create_general_transactions;
 mod m20260809_160000_create_general_transaction_categories;
 mod m20260809_170000_create_liabilities;
+mod m20260811_190000_translate_valuation_verdict_to_english;
 
 pub struct Migrator;
 
@@ -97,6 +98,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260809_150100_create_general_transactions::Migration),
             Box::new(m20260809_160000_create_general_transaction_categories::Migration),
             Box::new(m20260809_170000_create_liabilities::Migration),
+            Box::new(m20260811_190000_translate_valuation_verdict_to_english::Migration),
         ]
     }
 }

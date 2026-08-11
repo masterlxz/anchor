@@ -23,7 +23,10 @@ import {
   AddToAssetsButton,
   CompanyLogo,
   StatTile,
+  computeSafetyMargin,
+  computeVerdict,
   formatCurrency,
+  formatFractionAsPercent,
   formatPercent,
   formatRatio,
   type StockNote,
@@ -328,9 +331,33 @@ function StockAnalysisSection({
                 <p className="mt-1 text-2xl font-semibold">
                   {formatCurrency(latestValuation.fair_price)}
                 </p>
-                <div className="mt-2">
-                  <VerdictBadge verdict={latestValuation.verdict} />
-                </div>
+                {(() => {
+                  // Compare against the live quote price, not the price
+                  // frozen in the valuation at calculation time — otherwise
+                  // this card keeps showing yesterday's verdict after the
+                  // stock moves and "Refresh data" only updates the quote
+                  // above, never this card.
+                  const livePrice = price;
+                  const fairPrice = latestValuation.fair_price;
+                  const liveMargin =
+                    livePrice != null && fairPrice != null
+                      ? computeSafetyMargin(fairPrice, livePrice)
+                      : null;
+                  const liveVerdict =
+                    livePrice != null && fairPrice != null
+                      ? computeVerdict(fairPrice, livePrice)
+                      : latestValuation.verdict;
+                  return (
+                    <>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Safety margin: {formatFractionAsPercent(liveMargin)}
+                      </p>
+                      <div className="mt-2">
+                        <VerdictBadge verdict={liveVerdict} />
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             ) : (
               <p className="text-muted-foreground">No saved valuation for {ticker} yet.</p>

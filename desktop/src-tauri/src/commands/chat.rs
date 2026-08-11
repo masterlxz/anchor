@@ -12,7 +12,7 @@ use crate::error::AppError;
 const SYSTEM_REPERTOIRE: &str = "\
 Você é o assistente de IA embutido no Anchor, um app de desktop pessoal pra acompanhar teses de investimento em ações da B3 e em cripto (Ethereum). Você tem acesso só de leitura ao banco do usuário (nunca cria, edita ou apaga nada) — os dados relevantes (valuations salvas e eventos de alerta recentes) vêm anexados depois deste texto.
 
-Regra geral de todo modelo de ação: margem_seguranca = (preco_justo - preco_atual) / preco_justo; veredito é BARATO se margem_seguranca > 0, senão CARO.
+Regra geral de todo modelo de ação: margem_seguranca = (preco_justo - preco_atual) / preco_justo; veredito é CHEAP se margem_seguranca > 0, senão EXPENSIVE.
 
 Os 8 modelos de valuation de ação disponíveis (campo `model` na valuation salva):
 1. dcf (DCF/FCFF) — empresas 'normais' (varejo, indústria, tech, utilities), não serve pra banco/incorporadora. FCFF = EBIT×(1-IR) + D&A - Capex - ΔNWC; desconta a WACC, cresce a taxa g na perpetuidade.
@@ -707,7 +707,7 @@ mod tests {
             model: "bazin".to_string(),
             fair_price: Some(30.0),
             safety_margin: Some(0.1667),
-            verdict: Some("BARATO".to_string()),
+            verdict: Some("CHEAP".to_string()),
             updated_at: "2026-07-12T10:00:00-03:00".to_string(),
         }
     }
@@ -736,7 +736,7 @@ mod tests {
         assert!(text.contains("BBAS3 (bazin, ano-ref 2025"));
         assert!(text.contains("preço justo R$ 30.00"));
         assert!(text.contains("margem de segurança 16.7%"));
-        assert!(text.contains("veredito BARATO"));
+        assert!(text.contains("veredito CHEAP"));
         assert!(text.contains("now crosses fair price 30.00"));
         assert!(text.contains("(disparado: sim)"));
     }
