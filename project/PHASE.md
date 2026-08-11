@@ -259,6 +259,8 @@ Preco_Justo       = VPA0 + Σ VP(LucroResid_t)
 ```
 **Guarda**: `N >= 1`.
 
+**Nominal, não real**: o modelo não faz nenhum ajuste/desconto de inflação em nenhum ponto (sem IPCA, sem deflator) — VPA e ROE de entrada são valores nominais correntes (contábeis/mercado), e o desconto usa `(1+Ke)^t` direto sobre esses fluxos nominais. Por isso o **Ke informado precisa ser nominal**; um Ke real infla artificialmente o preço justo. Aviso adicionado no formulário (`RimForm.tsx`, Sessão 74) porque o código não valida isso.
+
 #### 7. Incorporadoras (RNAV)
 
 **Quando usar**: construtoras/incorporadoras — o "estoque" é imóvel, não dá pra projetar FCFF de forma suave trimestre a trimestre.

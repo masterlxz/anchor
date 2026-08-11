@@ -200,6 +200,11 @@ function RimForm({ ticker: initialTicker, assetClass }: { ticker?: string; asset
               value={ke}
               onChange={(e) => setKe(e.currentTarget.value)}
             />
+            <p className="text-xs text-muted-foreground">
+              Use a nominal Ke — the model discounts nominal book value/ROE
+              flows with no inflation adjustment, so a real Ke would inflate
+              the fair price.
+            </p>
           </Field>
 
           <Field label="Fade years — N (ROE converges to Ke)">
