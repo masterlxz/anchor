@@ -473,7 +473,10 @@ def fetch_dcf_fundamentals(ticker_cvm_codes: dict[str, str]) -> list[dict]:
                         _find_exact(company_bpp, "2.01.04")
                         + _find_exact(company_bpp, "2.02.01")
                     ),
-                    "cash": _find_exact(company_bpa, "1.01.01"),
+                    "cash": (
+                        _find_exact(company_bpa, "1.01.01")
+                        + _find_exact(company_bpa, "1.01.02")
+                    ),
                     "revenue": _find_exact(company_dre, "3.01"),
                     "inventory": _find_exact(company_bpa, "1.01.04"),
                 }
