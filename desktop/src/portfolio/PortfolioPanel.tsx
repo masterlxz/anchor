@@ -7,6 +7,7 @@ import CustodiaSection from "./CustodiaSection";
 import AssetSection from "./AssetSection";
 import TransactionSection from "./TransactionSection";
 import ProfitabilitySection from "./ProfitabilitySection";
+import DividendSuggestionsSection from "./DividendSuggestionsSection";
 import WatchlistSection from "./WatchlistSection";
 import ThesisSection from "./ThesisSection";
 import Field from "../components/Field";
@@ -24,6 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 type PortfolioSection =
   | "transactions"
   | "profitability"
+  | "dividends"
   | "assets"
   | "custodias"
   | "watchlists"
@@ -32,6 +34,7 @@ type PortfolioSection =
 const PORTFOLIO_SECTIONS: Record<PortfolioSection, string> = {
   transactions: "Transactions & Positions",
   profitability: "Profitability",
+  dividends: "Dividend suggestions",
   assets: "Assets",
   custodias: "Custodies",
   watchlists: "Watchlists",
@@ -207,6 +210,9 @@ function PortfolioPanel({ workspaceId }: { workspaceId: number }) {
           </TabsContent>
           <TabsContent value="profitability">
             <ProfitabilitySection portfolioId={selectedPortfolioId} />
+          </TabsContent>
+          <TabsContent value="dividends">
+            <DividendSuggestionsSection portfolioId={selectedPortfolioId} />
           </TabsContent>
           <TabsContent value="assets">
             <AssetSection workspaceId={workspaceId} />

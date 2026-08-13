@@ -12,6 +12,7 @@ pub mod conversation;
 pub mod crypto_indicator;
 pub mod custodia;
 pub mod dcf;
+pub mod dividend_suggestion;
 pub mod document_extraction;
 pub mod fii;
 pub mod general_transaction;

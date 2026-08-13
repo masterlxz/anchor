@@ -294,6 +294,28 @@ export type PositionView = {
   by_custodia: CustodiaBreakdown[];
 };
 
+// Fase 13.6 — sugestão de lançamento de provento gerada a partir de fonte
+// externa (primeira versão: `stock_dividend_payments`, histórico do Yahoo).
+// `status`: `pending` | `confirmed` | `discarded`. `com_date` (Data Com) é
+// campo manual preenchido na confirmação (nenhuma fonte gratuita validada
+// devolve isso com confiança, decisão da Sessão 76).
+export type DividendSuggestionView = {
+  id: number;
+  asset_id: number;
+  ticker: string;
+  name: string;
+  asset_class: string;
+  currency: string;
+  payment_date: string;
+  amount: number;
+  quantity: number;
+  total: number;
+  status: string;
+  com_date: string | null;
+  source: string;
+  created_at: string;
+};
+
 // Fase 10.4 — listas nomeadas de ativos (preço-alvo/notas) e favoritos
 // rápidos (estrela), dois mecanismos separados por pedido explícito do dono
 // do projeto.

@@ -4,6 +4,7 @@ pub mod bazin;
 pub mod chat_provider;
 pub mod crypto_score;
 pub mod dcf;
+pub mod dividend_suggestion;
 pub mod gordon;
 pub mod graham;
 pub mod liability;
