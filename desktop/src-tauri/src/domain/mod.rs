@@ -8,6 +8,7 @@ pub mod dividend_suggestion;
 pub mod gordon;
 pub mod graham;
 pub mod liability;
+pub mod position_pricing;
 pub mod projected_ceiling;
 pub mod rim;
 pub mod rnav;

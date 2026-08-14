@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AppError } from "../types";
 import type { Portfolio } from "./types";
+import SummarySection from "./SummarySection";
 import CustodiaSection from "./CustodiaSection";
 import AssetSection from "./AssetSection";
 import TransactionSection from "./TransactionSection";
@@ -23,6 +24,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type PortfolioSection =
+  | "summary"
   | "transactions"
   | "profitability"
   | "dividends"
@@ -32,6 +34,7 @@ type PortfolioSection =
   | "theses";
 
 const PORTFOLIO_SECTIONS: Record<PortfolioSection, string> = {
+  summary: "Resumo",
   transactions: "Transactions & Positions",
   profitability: "Profitability",
   dividends: "Dividend suggestions",
@@ -60,7 +63,7 @@ type RenamePortfolioRequest = {
 // `WorkspaceGate.tsx`) — não é mais buscado aqui.
 function PortfolioPanel({ workspaceId }: { workspaceId: number }) {
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
-  const [section, setSection] = useState<PortfolioSection>("transactions");
+  const [section, setSection] = useState<PortfolioSection>("summary");
   const [newPortfolioName, setNewPortfolioName] = useState("");
   const [showNewPortfolioForm, setShowNewPortfolioForm] = useState(false);
   const [renamingPortfolio, setRenamingPortfolio] = useState(false);
@@ -205,6 +208,9 @@ function PortfolioPanel({ workspaceId }: { workspaceId: number }) {
             ))}
           </TabsList>
 
+          <TabsContent value="summary">
+            <SummarySection portfolioId={selectedPortfolioId} />
+          </TabsContent>
           <TabsContent value="transactions">
             <TransactionSection workspaceId={workspaceId} portfolioId={selectedPortfolioId} />
           </TabsContent>

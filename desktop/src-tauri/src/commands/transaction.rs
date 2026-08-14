@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set};
 use serde::{Deserialize, Serialize};
 
-use crate::entity::{assets, custodia, transactions};
+use crate::domain::position_pricing::{self, PricingResult};
+use crate::entity::{asset_valuations, assets, custodia, stock_price_history, transactions};
 use crate::error::AppError;
 
 const BUY: &str = "compra";
@@ -278,6 +279,15 @@ pub struct PositionView {
     pub quantity: f64,
     pub average_buy_price: Option<f64>,
     pub by_custodia: Vec<CustodiaBreakdown>,
+    // Fase 13.1 — preço/valor de mercado calculado por
+    // `domain::position_pricing::price_position`, ver ali as regras por
+    // classe de ativo (cotação automática / reavaliação manual / fallback
+    // pro preço médio de compra).
+    pub current_price: Option<f64>,
+    pub market_value: Option<f64>,
+    pub unrealized_pl: Option<f64>,
+    pub unrealized_pl_pct: Option<f64>,
+    pub price_source: String,
 }
 
 #[tauri::command]
@@ -285,9 +295,19 @@ pub async fn get_portfolio_positions(
     db: tauri::State<'_, DatabaseConnection>,
     portfolio_id: i32,
 ) -> Result<Vec<PositionView>, AppError> {
+    compute_positions(db.inner(), portfolio_id).await
+}
+
+// Extraída de `get_portfolio_positions` (comando Tauri) pra ser reaproveitada
+// por `commands::portfolio_summary::get_portfolio_summary` (Fase 13.1) sem
+// duplicar a reconstrução de posição.
+pub async fn compute_positions(
+    db: &DatabaseConnection,
+    portfolio_id: i32,
+) -> Result<Vec<PositionView>, AppError> {
     let txs = transactions::Entity::find()
         .filter(transactions::Column::PortfolioId.eq(portfolio_id))
-        .all(db.inner())
+        .all(db)
         .await?;
 
     let mut by_asset: HashMap<i32, Vec<&transactions::Model>> = HashMap::new();
@@ -303,8 +323,8 @@ pub async fn get_portfolio_positions(
 
     let asset_ids: Vec<i32> = by_asset.keys().copied().collect();
     let assets_map: HashMap<i32, assets::Model> = assets::Entity::find()
-        .filter(assets::Column::Id.is_in(asset_ids))
-        .all(db.inner())
+        .filter(assets::Column::Id.is_in(asset_ids.clone()))
+        .all(db)
         .await?
         .into_iter()
         .map(|a| (a.id, a))
@@ -320,11 +340,52 @@ pub async fn get_portfolio_positions(
     } else {
         custodia::Entity::find()
             .filter(custodia::Column::Id.is_in(custodia_ids))
-            .all(db.inner())
+            .all(db)
             .await?
             .into_iter()
             .map(|c| (c.id, c))
             .collect()
+    };
+
+    // Fase 13.1 — preço mais recente por ticker (`MAX(price_date)`, mesma
+    // tabela que `commands/profitability.rs::closest_price` já usa) e última
+    // reavaliação manual por ativo (`asset_valuations`), pra alimentar
+    // `domain::position_pricing::price_position` linha a linha abaixo.
+    let tickers: Vec<String> = assets_map.values().map(|a| a.ticker.clone()).collect();
+    let latest_ticker_price: HashMap<String, f64> = if tickers.is_empty() {
+        HashMap::new()
+    } else {
+        let mut by_ticker: HashMap<String, (String, f64)> = HashMap::new();
+        for row in stock_price_history::Entity::find()
+            .filter(stock_price_history::Column::Ticker.is_in(tickers))
+            .all(db)
+            .await?
+        {
+            let entry = by_ticker
+                .entry(row.ticker.clone())
+                .or_insert((row.price_date.clone(), row.close_price));
+            if row.price_date > entry.0 {
+                *entry = (row.price_date, row.close_price);
+            }
+        }
+        by_ticker.into_iter().map(|(k, (_, price))| (k, price)).collect()
+    };
+
+    let latest_manual_valuation: HashMap<i32, f64> = {
+        let mut by_asset_id: HashMap<i32, (String, f64)> = HashMap::new();
+        for row in asset_valuations::Entity::find()
+            .filter(asset_valuations::Column::AssetId.is_in(asset_ids))
+            .all(db)
+            .await?
+        {
+            let entry = by_asset_id
+                .entry(row.asset_id)
+                .or_insert((row.valuation_date.clone(), row.value));
+            if row.valuation_date > entry.0 {
+                *entry = (row.valuation_date, row.value);
+            }
+        }
+        by_asset_id.into_iter().map(|(k, (_, value))| (k, value)).collect()
     };
 
     let mut positions = Vec::new();
@@ -372,6 +433,20 @@ pub async fn get_portfolio_positions(
             })
             .collect();
 
+        let PricingResult {
+            current_price,
+            market_value,
+            unrealized_pl,
+            unrealized_pl_pct,
+            price_source,
+        } = position_pricing::price_position(
+            &asset.asset_class,
+            net_qty,
+            average_buy_price,
+            latest_ticker_price.get(&asset.ticker).copied(),
+            latest_manual_valuation.get(&asset_id).copied(),
+        );
+
         positions.push(PositionView {
             asset_id,
             ticker: asset.ticker.clone(),
@@ -381,6 +456,11 @@ pub async fn get_portfolio_positions(
             quantity: net_qty,
             average_buy_price,
             by_custodia,
+            current_price,
+            market_value,
+            unrealized_pl,
+            unrealized_pl_pct,
+            price_source,
         });
     }
 

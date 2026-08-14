@@ -123,6 +123,7 @@ pub fn run() {
             commands::transaction::delete_transaction,
             commands::transaction::list_transactions,
             commands::transaction::get_portfolio_positions,
+            commands::portfolio_summary::get_portfolio_summary,
             commands::dividend_suggestion::generate_dividend_suggestions,
             commands::dividend_suggestion::create_expected_dividend,
             commands::dividend_suggestion::list_dividend_suggestions,

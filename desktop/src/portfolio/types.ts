@@ -283,6 +283,11 @@ export type MonthlyReturn = {
   r_cumulative_pct: number;
 };
 
+// Fase 13.1 — `current_price`/`market_value`/`unrealized_pl*` vêm de
+// `domain::position_pricing::price_position` (Rust). `price_source`:
+// "market" (cotação automática), "manual_valuation" (imóvel/empresa não
+// listada, `asset_valuations`), "avg_buy_price" (sem cotação ao vivo,
+// fallback pro preço médio de compra) ou "none" (nenhuma fonte disponível).
 export type PositionView = {
   asset_id: number;
   ticker: string;
@@ -292,6 +297,28 @@ export type PositionView = {
   quantity: number;
   average_buy_price: number | null;
   by_custodia: CustodiaBreakdown[];
+  current_price: number | null;
+  market_value: number | null;
+  unrealized_pl: number | null;
+  unrealized_pl_pct: number | null;
+  price_source: "market" | "manual_valuation" | "avg_buy_price" | "none";
+};
+
+// Fase 13.1 — agregados pra tela Resumo (`commands/portfolio_summary.rs`).
+export type ClassAllocation = {
+  asset_class: string;
+  market_value: number;
+  pct: number;
+};
+
+export type PortfolioSummary = {
+  total_market_value: number;
+  total_cost_basis: number;
+  unrealized_pl: number;
+  unrealized_pl_pct: number | null;
+  dividends_received_12m: number;
+  allocation_by_class: ClassAllocation[];
+  positions_missing_price: number;
 };
 
 // Fase 13.6 — sugestão de lançamento de provento gerada a partir de fonte

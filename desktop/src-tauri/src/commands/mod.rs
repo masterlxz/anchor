@@ -21,6 +21,7 @@ pub mod gordon;
 pub mod graham;
 pub mod liability;
 pub mod portfolio;
+pub mod portfolio_summary;
 pub mod profitability;
 pub mod projected_ceiling;
 pub mod property;
