@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AppError } from "../types";
 import type { Portfolio } from "./types";
 import SummarySection from "./SummarySection";
+import PositionsSection from "./PositionsSection";
 import LedgerSection from "./LedgerSection";
 import CustodiaSection from "./CustodiaSection";
 import AssetSection from "./AssetSection";
@@ -26,6 +27,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type PortfolioSection =
   | "summary"
+  | "positions"
   | "ledger"
   | "transactions"
   | "profitability"
@@ -37,6 +39,7 @@ type PortfolioSection =
 
 const PORTFOLIO_SECTIONS: Record<PortfolioSection, string> = {
   summary: "Summary",
+  positions: "Positions",
   ledger: "Ledger",
   transactions: "Transactions & Positions",
   profitability: "Profitability",
@@ -213,6 +216,9 @@ function PortfolioPanel({ workspaceId }: { workspaceId: number }) {
 
           <TabsContent value="summary">
             <SummarySection portfolioId={selectedPortfolioId} />
+          </TabsContent>
+          <TabsContent value="positions">
+            <PositionsSection portfolioId={selectedPortfolioId} />
           </TabsContent>
           <TabsContent value="ledger">
             <LedgerSection portfolioId={selectedPortfolioId} />

@@ -10,7 +10,6 @@ import {
   TRANSACTION_TYPE_LABELS,
   type Asset,
   type Custodia,
-  type PositionView,
   type TransactionType,
   type TransactionView,
 } from "./types";
@@ -30,14 +29,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 
 type CreateTransactionRequest = {
   portfolio_id: number;
@@ -111,11 +102,6 @@ function TransactionSection({
     queryKey: ["custodias", workspaceId],
     queryFn: () => invoke("list_custodias", { workspaceId }),
   });
-  const positionsQuery = useQuery<PositionView[], AppError>({
-    queryKey: ["positions", portfolioId],
-    queryFn: () => invoke("get_portfolio_positions", { portfolioId }),
-  });
-
   const assets = assetsQuery.data ?? [];
   const custodias = custodiasQuery.data ?? [];
   const selectedAsset = assets.find((a) => a.id === Number(assetId));
@@ -175,8 +161,6 @@ function TransactionSection({
     (!needsUnitPrice(transactionType) || unitPrice !== "") &&
     (!needsTransferDestination(transactionType) ||
       (custodiaId !== "" && transferToCustodiaId !== "" && custodiaId !== transferToCustodiaId));
-
-  const positions = positionsQuery.data ?? [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -371,58 +355,6 @@ function TransactionSection({
               {createMutation.isPending ? "Logging..." : "Log transaction"}
             </Button>
           </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Consolidated positions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="mb-4 text-sm text-muted-foreground">
-            Net quantity and average buy price (simple average of purchases, not reduced by
-            sells — real average-cost/FIFO is left for Fase 10.3).
-          </p>
-          {positionsQuery.isError && (
-            <p className="mb-3 text-red-600">{positionsQuery.error.message}</p>
-          )}
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Ticker</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Quantity</TableHead>
-                <TableHead>Avg. price (buy)</TableHead>
-                <TableHead>By custody</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {positions.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground">
-                    No positions yet — log a purchase above.
-                  </TableCell>
-                </TableRow>
-              )}
-              {positions.map((position) => (
-                <TableRow key={position.asset_id}>
-                  <TableCell>{position.ticker}</TableCell>
-                  <TableCell>{position.name}</TableCell>
-                  <TableCell>{position.quantity}</TableCell>
-                  <TableCell>
-                    {position.average_buy_price !== null
-                      ? `${position.currency} ${position.average_buy_price.toFixed(2)}`
-                      : "—"}
-                  </TableCell>
-                  <TableCell>
-                    {position.by_custodia
-                      .map((c) => `${c.custodia_label ?? "no custody"}: ${c.quantity}`)
-                      .join(" · ")}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
         </CardContent>
       </Card>
     </div>
