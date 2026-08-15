@@ -4,6 +4,7 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Qu
 use serde::{Deserialize, Serialize};
 
 use crate::domain::position_pricing::{self, PricingResult};
+use crate::domain::transaction_ledger::{self, LedgerEntry};
 use crate::entity::{asset_valuations, assets, custodia, stock_price_history, transactions};
 use crate::error::AppError;
 
@@ -167,6 +168,7 @@ pub struct TransactionView {
     pub id: i32,
     pub asset_id: Option<i32>,
     pub ticker: Option<String>,
+    pub asset_class: Option<String>,
     pub custodia_id: Option<i32>,
     pub custodia_label: Option<String>,
     pub transfer_to_custodia_id: Option<i32>,
@@ -184,6 +186,10 @@ pub struct TransactionView {
     pub fi_data_vencimento: Option<String>,
     pub fi_liquidez: Option<String>,
     pub created_at: String,
+    // Fase 13.2 — quantidade líquida do ativo imediatamente após este
+    // lançamento (`domain::transaction_ledger::running_quantities`). `None`
+    // pra lançamentos sem `asset_id` (aporte/retirada).
+    pub running_quantity: Option<f64>,
 }
 
 #[tauri::command]
@@ -227,12 +233,28 @@ pub async fn list_transactions(
             .collect()
     };
 
+    let ledger_entries: Vec<LedgerEntry> = txs
+        .iter()
+        .filter_map(|tx| {
+            tx.asset_id.map(|asset_id| LedgerEntry {
+                id: tx.id,
+                asset_id,
+                transaction_type: tx.transaction_type.clone(),
+                quantity: tx.quantity.unwrap_or(0.0),
+                transaction_date: tx.transaction_date.clone(),
+            })
+        })
+        .collect();
+    let running_quantities = transaction_ledger::running_quantities(&ledger_entries);
+
     let views = txs
         .into_iter()
         .map(|tx| TransactionView {
             ticker: tx.asset_id.and_then(|id| assets_map.get(&id)).map(|a| a.ticker.clone()),
+            asset_class: tx.asset_id.and_then(|id| assets_map.get(&id)).map(|a| a.asset_class.clone()),
             custodia_label: custodia_label(&custodias_map, tx.custodia_id),
             transfer_to_custodia_label: custodia_label(&custodias_map, tx.transfer_to_custodia_id),
+            running_quantity: running_quantities.get(&tx.id).copied(),
             id: tx.id,
             asset_id: tx.asset_id,
             custodia_id: tx.custodia_id,

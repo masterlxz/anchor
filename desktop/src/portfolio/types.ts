@@ -246,6 +246,7 @@ export type TransactionView = {
   id: number;
   asset_id: number | null;
   ticker: string | null;
+  asset_class: string | null;
   custodia_id: number | null;
   custodia_label: string | null;
   transfer_to_custodia_id: number | null;
@@ -263,6 +264,10 @@ export type TransactionView = {
   fi_data_vencimento: string | null;
   fi_liquidez: string | null;
   created_at: string;
+  // Fase 13.2 — quantidade líquida do ativo logo após este lançamento
+  // (`domain::transaction_ledger::running_quantities`, Rust). `null` pra
+  // lançamentos sem asset_id (aporte/retirada).
+  running_quantity: number | null;
 };
 
 export type CustodiaBreakdown = {

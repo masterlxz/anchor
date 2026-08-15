@@ -78,10 +78,6 @@ function needsTransferDestination(type: TransactionType): boolean {
   return type === "transferencia";
 }
 
-function formatQuantity(value: number | null): string {
-  return value === null ? "—" : value.toString();
-}
-
 function TransactionSection({
   workspaceId,
   portfolioId,
@@ -104,7 +100,6 @@ function TransactionSection({
   const [fiTaxaPercentual, setFiTaxaPercentual] = useState("");
   const [fiDataVencimento, setFiDataVencimento] = useState("");
   const [fiLiquidez, setFiLiquidez] = useState<string>(FI_LIQUIDEZ_OPTIONS[0]);
-  const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null);
 
   const queryClient = useQueryClient();
 
@@ -115,10 +110,6 @@ function TransactionSection({
   const custodiasQuery = useQuery<Custodia[], AppError>({
     queryKey: ["custodias", workspaceId],
     queryFn: () => invoke("list_custodias", { workspaceId }),
-  });
-  const transactionsQuery = useQuery<TransactionView[], AppError>({
-    queryKey: ["transactions", portfolioId],
-    queryFn: () => invoke("list_transactions", { portfolioId }),
   });
   const positionsQuery = useQuery<PositionView[], AppError>({
     queryKey: ["positions", portfolioId],
@@ -151,22 +142,6 @@ function TransactionSection({
       setFiDataVencimento("");
     },
   });
-
-  const deleteMutation = useMutation<void, AppError, number>({
-    mutationFn: (transactionId) => invoke("delete_transaction", { transactionId }),
-    onSuccess: () => {
-      invalidateAfterWrite();
-      setConfirmingDeleteId(null);
-    },
-  });
-
-  function handleDeleteClick(id: number) {
-    if (confirmingDeleteId === id) {
-      deleteMutation.mutate(id);
-    } else {
-      setConfirmingDeleteId(id);
-    }
-  }
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -202,7 +177,6 @@ function TransactionSection({
       (custodiaId !== "" && transferToCustodiaId !== "" && custodiaId !== transferToCustodiaId));
 
   const positions = positionsQuery.data ?? [];
-  const transactions = transactionsQuery.data ?? [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -447,69 +421,6 @@ function TransactionSection({
                   </TableCell>
                 </TableRow>
               ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Transaction history</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {transactionsQuery.isError && (
-            <p className="mb-3 text-red-600">{transactionsQuery.error.message}</p>
-          )}
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Asset</TableHead>
-                <TableHead>Quantity</TableHead>
-                <TableHead>Unit price</TableHead>
-                <TableHead>Total value</TableHead>
-                <TableHead>Custody</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {transactions.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground">
-                    No transactions yet.
-                  </TableCell>
-                </TableRow>
-              )}
-              {transactions.map((tx) => {
-                const isConfirming = confirmingDeleteId === tx.id;
-                return (
-                  <TableRow key={tx.id}>
-                    <TableCell>{tx.transaction_date}</TableCell>
-                    <TableCell>
-                      {TRANSACTION_TYPE_LABELS[tx.transaction_type as TransactionType] ??
-                        tx.transaction_type}
-                    </TableCell>
-                    <TableCell>{tx.ticker ?? "—"}</TableCell>
-                    <TableCell>{formatQuantity(tx.quantity)}</TableCell>
-                    <TableCell>{tx.unit_price?.toFixed(2) ?? "—"}</TableCell>
-                    <TableCell>{tx.total_value.toFixed(2)}</TableCell>
-                    <TableCell>
-                      {tx.custodia_label ?? "—"}
-                      {tx.transfer_to_custodia_label ? ` → ${tx.transfer_to_custodia_label}` : ""}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant={isConfirming ? "destructive" : "outline"}
-                        size="sm"
-                        onClick={() => handleDeleteClick(tx.id)}
-                      >
-                        {isConfirming ? "Confirm?" : "Delete"}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
             </TableBody>
           </Table>
         </CardContent>

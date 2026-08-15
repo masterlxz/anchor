@@ -117,11 +117,11 @@ function AllocationTooltip({
 function priceSourceHint(source: PositionView["price_source"]): string | null {
   switch (source) {
     case "avg_buy_price":
-      return "sem cotação ao vivo — usando preço médio de compra";
+      return "no live quote — using average buy price";
     case "manual_valuation":
-      return "reavaliação manual (asset_valuations), não é preço por unidade";
+      return "manual valuation (asset_valuations), not a per-unit price";
     case "none":
-      return "sem preço/avaliação cadastrada";
+      return "no price/valuation registered";
     default:
       return null;
   }
@@ -196,12 +196,12 @@ function SummarySection({ portfolioId }: { portfolioId: number }) {
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
-          title="Patrimônio total"
+          title="Total portfolio value"
           value={formatCurrency(summary.total_market_value)}
-          subtext={`Valor investido: ${formatCurrency(summary.total_cost_basis)}`}
+          subtext={`Invested: ${formatCurrency(summary.total_cost_basis)}`}
         />
         <KpiCard
-          title="Lucro"
+          title="Profit"
           value={formatCurrency(summary.unrealized_pl)}
           valueClassName={plColorClass(summary.unrealized_pl)}
           subtext={
@@ -211,37 +211,37 @@ function SummarySection({ portfolioId }: { portfolioId: number }) {
           }
         />
         <KpiCard
-          title="Proventos recebidos (12M)"
+          title="Dividends received (12M)"
           value={formatCurrency(summary.dividends_received_12m)}
         />
         <KpiCard
-          title="Rentabilidade"
+          title="Return"
           value={twelveMonthReturnPct != null ? formatPct(twelveMonthReturnPct) : "—"}
           valueClassName={plColorClass(twelveMonthReturnPct)}
           subtext={
             totalReturnPct != null
               ? `Total: ${formatPct(totalReturnPct)}`
-              : "Sem histórico de rentabilidade ainda"
+              : "No return history yet"
           }
         />
       </div>
 
       {summary.positions_missing_price > 0 && (
         <p className="text-sm text-muted-foreground">
-          {summary.positions_missing_price} posiç{summary.positions_missing_price === 1 ? "ão" : "ões"} sem
-          preço/avaliação cadastrada — os totais acima não incluem essas posições.
+          {summary.positions_missing_price} position{summary.positions_missing_price === 1 ? "" : "s"} without a
+          registered price/valuation — the totals above don't include {summary.positions_missing_price === 1 ? "it" : "them"}.
         </p>
       )}
 
       <Card>
         <CardHeader>
-          <CardTitle>Alocação por classe</CardTitle>
+          <CardTitle>Allocation by class</CardTitle>
         </CardHeader>
         <CardContent>
           {summary.allocation_by_class.length === 0 ? (
             <p className="text-muted-foreground">
-              Nenhuma posição precificada ainda — lance uma compra na aba "Transactions &
-              Positions" pra começar.
+              No priced positions yet — log a purchase in the "Transactions &
+              Positions" tab to get started.
             </p>
           ) : (
             <ResponsiveContainer width="100%" height={280}>
@@ -282,11 +282,11 @@ function SummarySection({ portfolioId }: { portfolioId: number }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Meus Ativos</CardTitle>
+          <CardTitle>My Assets</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {groups.length === 0 && (
-            <p className="text-muted-foreground">Nenhum ativo em carteira ainda.</p>
+            <p className="text-muted-foreground">No assets in the portfolio yet.</p>
           )}
           {groups.map((group) => {
             const isOpen = !collapsedClasses.has(group.assetClass);
@@ -311,13 +311,13 @@ function SummarySection({ portfolioId }: { portfolioId: number }) {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Ativo</TableHead>
-                        <TableHead>Quantidade</TableHead>
-                        <TableHead>Preço Médio</TableHead>
-                        <TableHead>Preço Atual</TableHead>
-                        <TableHead>Saldo</TableHead>
-                        <TableHead>Variação</TableHead>
-                        <TableHead>% Carteira</TableHead>
+                        <TableHead>Asset</TableHead>
+                        <TableHead>Quantity</TableHead>
+                        <TableHead>Avg. price</TableHead>
+                        <TableHead>Current price</TableHead>
+                        <TableHead>Market value</TableHead>
+                        <TableHead>P&L %</TableHead>
+                        <TableHead>% Portfolio</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>

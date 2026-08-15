@@ -168,7 +168,7 @@ function AboutCompanySection({
           <Textarea
             value={reason}
             onChange={(e) => setReason(e.currentTarget.value)}
-            placeholder="Por que você quer gerar de novo? (opcional, ajuda a IA a corrigir)"
+            placeholder="Why do you want to regenerate it? (optional, helps the AI correct it)"
             rows={3}
           />
           {generateMutation.isError && (
