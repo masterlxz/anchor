@@ -4,6 +4,7 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Qu
 use serde::{Deserialize, Serialize};
 
 use crate::domain::position_pricing::{self, PricingResult};
+use crate::domain::proventos::{PAYMENT_TYPE_DIVIDENDO, PAYMENT_TYPE_JSCP};
 use crate::domain::transaction_ledger::{self, LedgerEntry};
 use crate::entity::{asset_valuations, assets, custodia, stock_price_history, transactions};
 use crate::error::AppError;
@@ -23,6 +24,7 @@ pub struct CreateTransactionRequest {
     pub custodia_id: Option<i32>,
     pub transfer_to_custodia_id: Option<i32>,
     pub transaction_type: String,
+    pub payment_type: Option<String>,
     pub quantity: Option<f64>,
     pub unit_price: Option<f64>,
     pub total_value: f64,
@@ -77,6 +79,13 @@ fn validate(request: &CreateTransactionRequest) -> Result<(), AppError> {
                     "asset_id é obrigatório para 'provento' (qual ativo pagou)".to_string(),
                 ));
             }
+            if let Some(payment_type) = &request.payment_type {
+                if payment_type != PAYMENT_TYPE_DIVIDENDO && payment_type != PAYMENT_TYPE_JSCP {
+                    return Err(AppError::InvalidGuard(format!(
+                        "payment_type '{payment_type}' inválido (esperado '{PAYMENT_TYPE_DIVIDENDO}' ou '{PAYMENT_TYPE_JSCP}')"
+                    )));
+                }
+            }
         }
         TRANSFER => {
             if request.asset_id.is_none() || request.quantity.is_none() {
@@ -126,6 +135,7 @@ pub async fn create_transaction(
         custodia_id: Set(request.custodia_id),
         transfer_to_custodia_id: Set(request.transfer_to_custodia_id),
         transaction_type: Set(request.transaction_type),
+        payment_type: Set(request.payment_type),
         quantity: Set(request.quantity),
         unit_price: Set(request.unit_price),
         total_value: Set(request.total_value),

@@ -20,6 +20,7 @@ pub struct Model {
     pub status: String,
     pub com_date: Option<String>,
     pub source: String,
+    pub payment_type: String,
     pub created_at: String,
 }
 

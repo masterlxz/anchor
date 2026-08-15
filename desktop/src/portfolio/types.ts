@@ -239,6 +239,19 @@ export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
   transferencia: "Transfer between custodies",
 };
 
+// Fase 13.4 — Dividendo vs. JSCP (juros sobre capital próprio, retido 15% de
+// IR na fonte, ver `domain::proventos::net_total` no Rust). Yahoo não
+// distingue os dois, então sugestões automáticas sempre nascem "dividendo" —
+// editável nos diálogos de Confirmar/Registrar provento futuro
+// (DividendSuggestionsSection.tsx) e no lançamento manual de "provento"
+// (TransactionSection.tsx).
+export type PaymentType = "dividendo" | "jscp";
+export const PAYMENT_TYPES: PaymentType[] = ["dividendo", "jscp"];
+export const PAYMENT_TYPE_LABELS: Record<PaymentType, string> = {
+  dividendo: "Dividend",
+  jscp: "JSCP",
+};
+
 export const FI_INDEXADORES = ["CDI", "IPCA", "SELIC", "PREFIXADO", "OUTRO"] as const;
 export const FI_LIQUIDEZ_OPTIONS = ["diaria", "no_vencimento", "outro"] as const;
 
@@ -345,7 +358,49 @@ export type DividendSuggestionView = {
   status: string;
   com_date: string | null;
   source: string;
+  payment_type: string;
   created_at: string;
+};
+
+// Fase 13.4 — agregados pra tela dedicada "Dividends" (`commands/proventos.rs`).
+// "paid" vem de `transactions` (`transaction_type = "provento"`); "receivable"
+// vem de `suggested_dividends` ainda não confirmado/descartado
+// (`pending`/`matched`/`divergent`). `net_total` já desconta 15% de IR
+// quando `payment_type === "jscp"`.
+export type ProventoRow = {
+  asset_id: number;
+  ticker: string;
+  name: string;
+  asset_class: string;
+  status: "paid" | "receivable";
+  payment_type: string;
+  com_date: string | null;
+  payment_date: string;
+  quantity: number;
+  amount_per_share: number;
+  total_value: number;
+  net_total: number;
+};
+
+export type ProventosMonthlyBucket = {
+  year_month: string;
+  received: number;
+  expected: number;
+};
+
+export type ProventosAssetTotal = {
+  asset_id: number;
+  ticker: string;
+  total: number;
+};
+
+export type ProventosSummary = {
+  avg_monthly_12m: number;
+  total_12m: number;
+  total_all_time: number;
+  by_asset_12m: ProventosAssetTotal[];
+  monthly: ProventosMonthlyBucket[];
+  rows: ProventoRow[];
 };
 
 // Fase 10.4 — listas nomeadas de ativos (preço-alvo/notas) e favoritos

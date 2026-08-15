@@ -49,6 +49,8 @@ mod m20260811_190000_translate_valuation_verdict_to_english;
 mod m20260811_200000_add_budget_limit_to_general_transaction_categories;
 mod m20260812_100000_create_suggested_dividends;
 mod m20260812_110000_expected_dividends_and_source_index;
+mod m20260815_100000_add_payment_type_to_suggested_dividends;
+mod m20260815_110000_add_payment_type_to_transactions;
 
 pub struct Migrator;
 
@@ -105,6 +107,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20260811_200000_add_budget_limit_to_general_transaction_categories::Migration),
             Box::new(m20260812_100000_create_suggested_dividends::Migration),
             Box::new(m20260812_110000_expected_dividends_and_source_index::Migration),
+            Box::new(m20260815_100000_add_payment_type_to_suggested_dividends::Migration),
+            Box::new(m20260815_110000_add_payment_type_to_transactions::Migration),
         ]
     }
 }

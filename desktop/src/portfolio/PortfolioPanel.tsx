@@ -6,6 +6,7 @@ import type { Portfolio } from "./types";
 import SummarySection from "./SummarySection";
 import PositionsSection from "./PositionsSection";
 import LedgerSection from "./LedgerSection";
+import DividendsSummarySection from "./DividendsSummarySection";
 import CustodiaSection from "./CustodiaSection";
 import AssetSection from "./AssetSection";
 import TransactionSection from "./TransactionSection";
@@ -29,6 +30,7 @@ type PortfolioSection =
   | "summary"
   | "positions"
   | "ledger"
+  | "dividends_summary"
   | "transactions"
   | "profitability"
   | "dividends"
@@ -41,6 +43,7 @@ const PORTFOLIO_SECTIONS: Record<PortfolioSection, string> = {
   summary: "Summary",
   positions: "Positions",
   ledger: "Ledger",
+  dividends_summary: "Dividends",
   transactions: "Transactions & Positions",
   profitability: "Profitability",
   dividends: "Dividend suggestions",
@@ -222,6 +225,9 @@ function PortfolioPanel({ workspaceId }: { workspaceId: number }) {
           </TabsContent>
           <TabsContent value="ledger">
             <LedgerSection portfolioId={selectedPortfolioId} />
+          </TabsContent>
+          <TabsContent value="dividends_summary">
+            <DividendsSummarySection portfolioId={selectedPortfolioId} />
           </TabsContent>
           <TabsContent value="transactions">
             <TransactionSection workspaceId={workspaceId} portfolioId={selectedPortfolioId} />

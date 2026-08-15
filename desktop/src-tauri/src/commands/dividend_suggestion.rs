@@ -7,6 +7,7 @@ use sea_orm::{
 use serde::{Deserialize, Serialize};
 
 use crate::domain::dividend_suggestion::{quantity_held_by, within_tolerance, LedgerRow};
+use crate::domain::proventos::{PAYMENT_TYPE_DIVIDENDO, PAYMENT_TYPE_JSCP};
 use crate::entity::{
     assets, portfolio, stock_dividend_payments, suggested_dividends, transactions,
 };
@@ -26,6 +27,18 @@ const SOURCE_MANUAL: &str = "manual";
 // Tolerância relativa (±10%) pra considerar que o valor/cota que a fonte
 // trouxe "bateu" com o que o dono do projeto previu (decisão Sessão 77.2).
 const MATCH_TOLERANCE_PCT: f64 = 10.0;
+
+// Fase 13.4 — Dividendo vs. JSCP, ver `domain::proventos` pro cálculo de IR.
+fn validate_payment_type(payment_type: &Option<String>) -> Result<(), AppError> {
+    match payment_type {
+        Some(value) if value != PAYMENT_TYPE_DIVIDENDO && value != PAYMENT_TYPE_JSCP => {
+            Err(AppError::InvalidGuard(format!(
+                "payment_type '{value}' inválido (esperado '{PAYMENT_TYPE_DIVIDENDO}' ou '{PAYMENT_TYPE_JSCP}')"
+            )))
+        }
+        _ => Ok(()),
+    }
+}
 
 // Fase 13.6 — parte "passado" (única viável com a fonte atual, só histórico
 // Yahoo; o "futuro" via brapi.dev fica pra depois, ver PHASE.md item 13.6).
@@ -216,6 +229,7 @@ pub async fn generate_dividend_suggestions(
                         status: Set(STATUS_PENDING.to_string()),
                         com_date: Set(None),
                         source: Set(payment.source.clone()),
+                        payment_type: Set(PAYMENT_TYPE_DIVIDENDO.to_string()),
                         created_at: Set(now),
                         ..Default::default()
                     }
@@ -250,6 +264,7 @@ pub async fn generate_dividend_suggestions(
                 status: Set(STATUS_PENDING.to_string()),
                 com_date: Set(None),
                 source: Set(payment.source.clone()),
+                payment_type: Set(PAYMENT_TYPE_DIVIDENDO.to_string()),
                 created_at: Set(now),
                 ..Default::default()
             }
@@ -274,6 +289,7 @@ pub struct CreateExpectedDividendRequest {
     pub amount: f64,
     pub quantity: f64,
     pub com_date: Option<String>,
+    pub payment_type: Option<String>,
 }
 
 #[tauri::command]
@@ -286,6 +302,7 @@ pub async fn create_expected_dividend(
             "amount e quantity precisam ser maiores que zero".to_string(),
         ));
     }
+    validate_payment_type(&request.payment_type)?;
 
     portfolio::Entity::find_by_id(request.portfolio_id)
         .one(db.inner())
@@ -314,6 +331,7 @@ pub async fn create_expected_dividend(
     }
 
     let total = request.quantity * request.amount;
+    let payment_type = request.payment_type.unwrap_or_else(|| PAYMENT_TYPE_DIVIDENDO.to_string());
     let model = suggested_dividends::ActiveModel {
         portfolio_id: Set(request.portfolio_id),
         asset_id: Set(request.asset_id),
@@ -324,6 +342,7 @@ pub async fn create_expected_dividend(
         status: Set(STATUS_PENDING.to_string()),
         com_date: Set(request.com_date),
         source: Set(SOURCE_MANUAL.to_string()),
+        payment_type: Set(payment_type),
         created_at: Set(chrono::Utc::now().to_rfc3339()),
         ..Default::default()
     }
@@ -344,6 +363,7 @@ pub async fn create_expected_dividend(
         status: model.status,
         com_date: model.com_date,
         source: model.source,
+        payment_type: model.payment_type,
         created_at: model.created_at,
     })
 }
@@ -363,6 +383,7 @@ pub struct DividendSuggestionView {
     pub status: String,
     pub com_date: Option<String>,
     pub source: String,
+    pub payment_type: String,
     pub created_at: String,
 }
 
@@ -408,6 +429,7 @@ pub async fn list_dividend_suggestions(
                 status: s.status,
                 com_date: s.com_date,
                 source: s.source,
+                payment_type: s.payment_type,
                 created_at: s.created_at,
             }
         })
@@ -428,6 +450,7 @@ pub struct ConfirmDividendSuggestionRequest {
     pub suggestion_id: i32,
     pub quantity: f64,
     pub com_date: Option<String>,
+    pub payment_type: Option<String>,
 }
 
 #[tauri::command]
@@ -440,6 +463,7 @@ pub async fn confirm_dividend_suggestion(
             "quantidade confirmada precisa ser maior que zero".to_string(),
         ));
     }
+    validate_payment_type(&request.payment_type)?;
 
     let suggestion = suggested_dividends::Entity::find_by_id(request.suggestion_id)
         .one(db.inner())
@@ -458,6 +482,7 @@ pub async fn confirm_dividend_suggestion(
     let txn = db.inner().begin().await?;
 
     let total = request.quantity * suggestion.amount;
+    let payment_type = request.payment_type.clone().unwrap_or_else(|| suggestion.payment_type.clone());
     let notes = Some(format!(
         "Auto dividend via suggestion {}/{}",
         suggestion.payment_date, suggestion.source
@@ -469,6 +494,7 @@ pub async fn confirm_dividend_suggestion(
         custodia_id: Set(None),
         transfer_to_custodia_id: Set(None),
         transaction_type: Set("provento".to_string()),
+        payment_type: Set(Some(payment_type.clone())),
         quantity: Set(Some(request.quantity)),
         unit_price: Set(Some(suggestion.amount)),
         total_value: Set(total),
@@ -492,6 +518,7 @@ pub async fn confirm_dividend_suggestion(
         quantity: Set(request.quantity),
         total: Set(total),
         com_date: Set(request.com_date),
+        payment_type: Set(payment_type),
         ..Default::default()
     }
     .update(&txn)
@@ -518,6 +545,7 @@ pub async fn confirm_dividend_suggestion(
         status: updated.status,
         com_date: updated.com_date,
         source: updated.source,
+        payment_type: updated.payment_type,
         created_at: updated.created_at,
     })
 }

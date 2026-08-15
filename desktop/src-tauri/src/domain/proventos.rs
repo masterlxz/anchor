@@ -1,0 +1,129 @@
+// Fase 13.4 — agregações puras pra tela "Proventos": IR retido na fonte do
+// JSCP (15% fixo, decisão do dono do projeto) e o bucketing mensal
+// recebido/a-receber que alimenta o gráfico empilhado e a tabela "Monthly
+// history" (o front pivota Ano×Mês e agrega Mensal→Anual em cima disto,
+// mesmo padrão 100% client-side de LedgerSection.tsx/DividendHistoryChart.tsx).
+
+use std::collections::HashMap;
+
+pub const PAYMENT_TYPE_DIVIDENDO: &str = "dividendo";
+pub const PAYMENT_TYPE_JSCP: &str = "jscp";
+const JSCP_IR_RATE: f64 = 0.15;
+
+// `None`/qualquer valor != "jscp" cai no ramo sem retenção — cobre tanto
+// "dividendo" explícito quanto `transactions.payment_type = NULL`
+// (lançamento legado, ver migration).
+pub fn net_total(total: f64, payment_type: Option<&str>) -> f64 {
+    match payment_type {
+        Some(PAYMENT_TYPE_JSCP) => total * (1.0 - JSCP_IR_RATE),
+        _ => total,
+    }
+}
+
+pub struct ProventoEntry {
+    pub asset_id: i32,
+    pub payment_date: String, // "YYYY-MM-DD"
+    pub net_total: f64,
+    pub received: bool, // true = pago (transactions), false = a receber (suggested_dividends pendente/matched/divergent)
+}
+
+pub struct MonthlyBucket {
+    pub year_month: String, // "YYYY-MM"
+    pub received: f64,
+    pub expected: f64,
+}
+
+pub fn bucket_monthly(entries: &[ProventoEntry]) -> Vec<MonthlyBucket> {
+    let mut map: HashMap<String, (f64, f64)> = HashMap::new();
+    for entry in entries {
+        let ym = entry.payment_date.get(0..7).unwrap_or(&entry.payment_date).to_string();
+        let bucket = map.entry(ym).or_insert((0.0, 0.0));
+        if entry.received {
+            bucket.0 += entry.net_total;
+        } else {
+            bucket.1 += entry.net_total;
+        }
+    }
+    let mut result: Vec<MonthlyBucket> = map
+        .into_iter()
+        .map(|(year_month, (received, expected))| MonthlyBucket { year_month, received, expected })
+        .collect();
+    result.sort_by(|a, b| a.year_month.cmp(&b.year_month));
+    result
+}
+
+// Soma `net_total` por ativo sobre o que o caller já filtrou (recebidos,
+// janela de 12 meses) — a filtragem por data/hoje fica no comando, não aqui
+// (mesmo padrão de `commands/portfolio_summary.rs`, que calcula `since` com
+// `chrono::Utc::now()` fora da função pura).
+pub fn by_asset(entries: &[ProventoEntry]) -> HashMap<i32, f64> {
+    let mut map: HashMap<i32, f64> = HashMap::new();
+    for entry in entries {
+        *map.entry(entry.asset_id).or_insert(0.0) += entry.net_total;
+    }
+    map
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn net_total_dividendo_has_no_withholding() {
+        assert_eq!(net_total(100.0, Some("dividendo")), 100.0);
+    }
+
+    #[test]
+    fn net_total_jscp_withholds_15_pct() {
+        assert_eq!(net_total(100.0, Some("jscp")), 85.0);
+    }
+
+    #[test]
+    fn net_total_none_defaults_to_dividendo() {
+        assert_eq!(net_total(100.0, None), 100.0);
+    }
+
+    fn entry(asset_id: i32, date: &str, net_total: f64, received: bool) -> ProventoEntry {
+        ProventoEntry { asset_id, payment_date: date.to_string(), net_total, received }
+    }
+
+    #[test]
+    fn bucket_monthly_separates_received_and_expected() {
+        let entries = [
+            entry(1, "2026-01-10", 100.0, true),
+            entry(1, "2026-01-20", 50.0, false),
+        ];
+        let result = bucket_monthly(&entries);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].year_month, "2026-01");
+        assert_eq!(result[0].received, 100.0);
+        assert_eq!(result[0].expected, 50.0);
+    }
+
+    #[test]
+    fn bucket_monthly_sums_same_month_across_assets() {
+        let entries = [entry(1, "2026-02-05", 10.0, true), entry(2, "2026-02-15", 20.0, true)];
+        let result = bucket_monthly(&entries);
+        assert_eq!(result[0].received, 30.0);
+    }
+
+    #[test]
+    fn bucket_monthly_sorted_ascending() {
+        let entries = [entry(1, "2026-03-01", 1.0, true), entry(1, "2026-01-01", 1.0, true)];
+        let result = bucket_monthly(&entries);
+        assert_eq!(result[0].year_month, "2026-01");
+        assert_eq!(result[1].year_month, "2026-03");
+    }
+
+    #[test]
+    fn by_asset_sums_only_passed_entries() {
+        let entries = [
+            entry(1, "2026-01-01", 10.0, true),
+            entry(1, "2026-02-01", 5.0, true),
+            entry(2, "2026-01-01", 7.0, true),
+        ];
+        let result = by_asset(&entries);
+        assert_eq!(result[&1], 15.0);
+        assert_eq!(result[&2], 7.0);
+    }
+}

@@ -25,6 +25,7 @@ pub mod portfolio_summary;
 pub mod profitability;
 pub mod projected_ceiling;
 pub mod property;
+pub mod proventos;
 pub mod reit;
 pub mod rim;
 pub mod rnav;

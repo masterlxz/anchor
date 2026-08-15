@@ -13,6 +13,7 @@ pub struct Model {
     pub custodia_id: Option<i32>,
     pub transfer_to_custodia_id: Option<i32>,
     pub transaction_type: String,
+    pub payment_type: Option<String>,
     #[sea_orm(column_type = "Double", nullable)]
     pub quantity: Option<f64>,
     #[sea_orm(column_type = "Double", nullable)]

@@ -2,7 +2,8 @@ import { useState, type FormEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AppError } from "../types";
-import type { Asset, DividendSuggestionView } from "./types";
+import type { Asset, DividendSuggestionView, PaymentType } from "./types";
+import { PAYMENT_TYPES, PAYMENT_TYPE_LABELS } from "./types";
 import {
   Dialog,
   DialogContent,
@@ -76,6 +77,7 @@ export default function DividendSuggestionsSection({
     useState<DividendSuggestionView | null>(null);
   const [quantity, setQuantity] = useState("");
   const [comDate, setComDate] = useState("");
+  const [paymentType, setPaymentType] = useState<PaymentType>("dividendo");
 
   const [expectingOpen, setExpectingOpen] = useState(false);
   const [expectingAssetId, setExpectingAssetId] = useState("");
@@ -83,6 +85,7 @@ export default function DividendSuggestionsSection({
   const [expectingAmount, setExpectingAmount] = useState("");
   const [expectingQuantity, setExpectingQuantity] = useState("");
   const [expectingComDate, setExpectingComDate] = useState("");
+  const [expectingPaymentType, setExpectingPaymentType] = useState<PaymentType>("dividendo");
 
   const queryClient = useQueryClient();
 
@@ -121,6 +124,7 @@ export default function DividendSuggestionsSection({
           amount: Number(expectingAmount),
           quantity: Number(expectingQuantity),
           com_date: expectingComDate === "" ? null : expectingComDate,
+          payment_type: expectingPaymentType,
         },
       }),
     onSuccess: () => {
@@ -130,6 +134,7 @@ export default function DividendSuggestionsSection({
       setExpectingAmount("");
       setExpectingQuantity("");
       setExpectingComDate("");
+      setExpectingPaymentType("dividendo");
     },
   });
 
@@ -140,6 +145,7 @@ export default function DividendSuggestionsSection({
           suggestion_id: confirmingSuggestion?.id,
           quantity: Number(quantity),
           com_date: comDate === "" ? null : comDate,
+          payment_type: paymentType,
         },
       }),
     onSuccess: () => {
@@ -147,6 +153,7 @@ export default function DividendSuggestionsSection({
       setConfirmingSuggestion(null);
       setQuantity("");
       setComDate("");
+      setPaymentType("dividendo");
     },
   });
 
@@ -165,6 +172,7 @@ export default function DividendSuggestionsSection({
     setConfirmingSuggestion(suggestion);
     setQuantity(formatValue(suggestion.quantity));
     setComDate("");
+    setPaymentType((suggestion.payment_type as PaymentType) ?? "dividendo");
   }
 
   function handleCreateExpectedSubmit(event: FormEvent) {
@@ -178,6 +186,7 @@ export default function DividendSuggestionsSection({
     setExpectingAmount("");
     setExpectingQuantity("");
     setExpectingComDate("");
+    setExpectingPaymentType("dividendo");
   }
 
   const pendingCount = suggestions.filter((s) => s.status === "pending").length;
@@ -255,6 +264,7 @@ export default function DividendSuggestionsSection({
                   <TableHead>Quantity</TableHead>
                   <TableHead>Total</TableHead>
                   <TableHead>Data Com</TableHead>
+                  <TableHead>Payment type</TableHead>
                   <TableHead>Source</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead />
@@ -270,6 +280,9 @@ export default function DividendSuggestionsSection({
                     <TableCell>{suggestion.total.toFixed(2)}</TableCell>
                     <TableCell>
                       {suggestion.com_date ? formatDate(suggestion.com_date) : "—"}
+                    </TableCell>
+                    <TableCell>
+                      {PAYMENT_TYPE_LABELS[suggestion.payment_type as PaymentType] ?? suggestion.payment_type}
                     </TableCell>
                     <TableCell>
                       {suggestion.source === "manual" ? "Manual" : "Auto"}
@@ -314,6 +327,7 @@ export default function DividendSuggestionsSection({
           setConfirmingSuggestion(null);
           setQuantity("");
           setComDate("");
+          setPaymentType("dividendo");
         }
       }}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
@@ -351,6 +365,20 @@ export default function DividendSuggestionsSection({
                     onChange={(e) => setComDate(e.target.value)}
                   />
                 </Field>
+                <Field label="Payment type">
+                  <Select value={paymentType} onValueChange={(v) => setPaymentType(v as PaymentType)}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAYMENT_TYPES.map((key) => (
+                        <SelectItem key={key} value={key}>
+                          {PAYMENT_TYPE_LABELS[key]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
                 <Field label="Total">
                   <div className="pt-2 text-sm">
                     {(Number(quantity || 0) * confirmingSuggestion.amount).toFixed(2)}
@@ -368,6 +396,7 @@ export default function DividendSuggestionsSection({
                     setConfirmingSuggestion(null);
                     setQuantity("");
                     setComDate("");
+                    setPaymentType("dividendo");
                   }}
                 >
                   Cancel
@@ -440,6 +469,23 @@ export default function DividendSuggestionsSection({
                   value={expectingComDate}
                   onChange={(e) => setExpectingComDate(e.target.value)}
                 />
+              </Field>
+              <Field label="Payment type">
+                <Select
+                  value={expectingPaymentType}
+                  onValueChange={(v) => setExpectingPaymentType(v as PaymentType)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAYMENT_TYPES.map((key) => (
+                      <SelectItem key={key} value={key}>
+                        {PAYMENT_TYPE_LABELS[key]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </Field>
               <Field label="Expected total">
                 <div className="pt-2 text-sm">

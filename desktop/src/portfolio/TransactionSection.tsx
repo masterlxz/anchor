@@ -6,10 +6,13 @@ import {
   FIXED_INCOME_CLASSES,
   FI_INDEXADORES,
   FI_LIQUIDEZ_OPTIONS,
+  PAYMENT_TYPES,
+  PAYMENT_TYPE_LABELS,
   TRANSACTION_TYPES,
   TRANSACTION_TYPE_LABELS,
   type Asset,
   type Custodia,
+  type PaymentType,
   type TransactionType,
   type TransactionView,
 } from "./types";
@@ -36,6 +39,7 @@ type CreateTransactionRequest = {
   custodia_id: number | null;
   transfer_to_custodia_id: number | null;
   transaction_type: string;
+  payment_type: string | null;
   quantity: number | null;
   unit_price: number | null;
   total_value: number;
@@ -69,6 +73,10 @@ function needsTransferDestination(type: TransactionType): boolean {
   return type === "transferencia";
 }
 
+function needsPaymentType(type: TransactionType): boolean {
+  return type === "provento";
+}
+
 function TransactionSection({
   workspaceId,
   portfolioId,
@@ -77,6 +85,7 @@ function TransactionSection({
   portfolioId: number;
 }) {
   const [transactionType, setTransactionType] = useState<TransactionType>("compra");
+  const [paymentType, setPaymentType] = useState<PaymentType>("dividendo");
   const [assetId, setAssetId] = useState("");
   const [custodiaId, setCustodiaId] = useState("");
   const [transferToCustodiaId, setTransferToCustodiaId] = useState("");
@@ -126,6 +135,7 @@ function TransactionSection({
       setNotes("");
       setFiTaxaPercentual("");
       setFiDataVencimento("");
+      setPaymentType("dividendo");
     },
   });
 
@@ -140,6 +150,7 @@ function TransactionSection({
           ? Number(transferToCustodiaId)
           : null,
       transaction_type: transactionType,
+      payment_type: needsPaymentType(transactionType) ? paymentType : null,
       quantity: needsQuantity(transactionType) && quantity !== "" ? Number(quantity) : null,
       unit_price: needsUnitPrice(transactionType) && unitPrice !== "" ? Number(unitPrice) : null,
       total_value: Number(totalValue),
@@ -256,6 +267,22 @@ function TransactionSection({
                   onChange={(e) => setFee(e.currentTarget.value)}
                 />
               </Field>
+              {needsPaymentType(transactionType) && (
+                <Field label="Payment type">
+                  <Select value={paymentType} onValueChange={(v) => setPaymentType(v as PaymentType)}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAYMENT_TYPES.map((key) => (
+                        <SelectItem key={key} value={key}>
+                          {PAYMENT_TYPE_LABELS[key]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              )}
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
