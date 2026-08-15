@@ -301,6 +301,15 @@ export type MonthlyReturn = {
   r_cumulative_pct: number;
 };
 
+// Fase 13.5 — comparação com benchmarks de fonte gratuita
+// (`commands/profitability.rs::get_profitability_comparison`). `code` é
+// "cdi"/"ipca"/"^BVSP"/"IVVB11"; `benchmarks` só traz os que têm dado na
+// janela de meses da carteira (IFIX/SMLL/IDIV ficam de fora desta fase,
+// sem fonte histórica gratuita — ver PHASE.md item 13.5).
+export type BenchmarkPoint = { year_month: string; r_month_pct: number; r_cumulative_pct: number };
+export type BenchmarkSeries = { code: string; label: string; monthly: BenchmarkPoint[] };
+export type ProfitabilityComparison = { portfolio: MonthlyReturn[]; benchmarks: BenchmarkSeries[] };
+
 // Fase 13.1 — `current_price`/`market_value`/`unrealized_pl*` vêm de
 // `domain::position_pricing::price_position` (Rust). `price_source`:
 // "market" (cotação automática), "manual_valuation" (imóvel/empresa não

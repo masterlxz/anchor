@@ -202,6 +202,18 @@ pub async fn run_price_history_backfill(
     run_collector(&app, &lock, &["--price-history", &joined]).await
 }
 
+// Fase 13.5 — atualiza os 4 benchmarks de fonte gratuita (CDI/IPCA/IBOV/
+// IVVB11) usados em "Return vs. benchmarks" (`commands::profitability::
+// get_profitability_comparison`). Mesmo padrão de `run_price_history_backfill`,
+// sem tickers pra passar — são sempre os mesmos 4.
+#[tauri::command]
+pub async fn run_benchmark_backfill(
+    app: tauri::AppHandle,
+    lock: tauri::State<'_, AtomicBool>,
+) -> Result<CollectorSummary, AppError> {
+    run_collector(&app, &lock, &["--benchmark-returns"]).await
+}
+
 #[tauri::command]
 pub async fn list_stock_price_history(
     db: tauri::State<'_, DatabaseConnection>,

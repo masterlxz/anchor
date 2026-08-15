@@ -1,6 +1,7 @@
 pub mod alert_check;
 pub mod banks;
 pub mod bazin;
+pub mod benchmark;
 pub mod chat_provider;
 pub mod crypto_score;
 pub mod dcf;

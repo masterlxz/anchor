@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 from sources import (
     acoes_bolsai,
     acoes_yahoo,
+    bcb_sgs,
     cripto_coingecko,
     cripto_defillama,
     cripto_feargreed,
@@ -325,6 +326,50 @@ def collect_price_history(tickers: list[str]) -> list[dict]:
 def main_price_history(tickers: list[str]) -> int:
     load_dotenv(BASE_DIR / ".env")
     collect_price_history(tickers)
+    return 0
+
+
+def collect_benchmark_returns() -> dict:
+    """Fase 13.5 — série fixa dos 4 benchmarks com fonte gratuita (CDI/IPCA
+    via BCB SGS, IBOV/IVVB11 via Yahoo — IFIX/SMLL/IDIV ficam de fora, sem
+    fonte histórica gratuita achada, ver PHASE.md). CDI/IPCA usam INSERT OR
+    REPLACE (não IGNORE, diferente do resto do coletor): a BCB pode revisar
+    um valor recém-publicado do mês corrente, e rodar o backfill de novo
+    deve refletir o número oficial mais atual — os outros coletores lidam
+    com histórico fechado (pregão já aconteceu), este não.
+    """
+    cdi = bcb_sgs.fetch_monthly_series(4391)
+    ipca = bcb_sgs.fetch_monthly_series(433)
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA journal_mode=WAL")
+    now = datetime.now(timezone.utc).isoformat()
+    changes_before = conn.total_changes
+    conn.executemany(
+        "INSERT OR REPLACE INTO macro_index_monthly "
+        "(index_code, year_month, value_pct, source, fetched_at) VALUES (?, ?, ?, ?, ?)",
+        [("cdi", item["year_month"], item["value_pct"], "bcb_sgs", now) for item in cdi]
+        + [("ipca", item["year_month"], item["value_pct"], "bcb_sgs", now) for item in ipca],
+    )
+    macro_new = conn.total_changes - changes_before
+    conn.commit()
+    conn.close()
+
+    # IBOV (^BVSP, sem sufixo — é índice, não papel B3) e IVVB11 (ETF B3
+    # comum, sufixo .SA padrão) reaproveitam 100% o path de
+    # collect_us_price_history/collect_price_history — mesma tabela
+    # genérica stock_price_history, zero coletor novo.
+    ibov = collect_us_price_history(["^BVSP"])
+    ivvb11 = collect_price_history(["IVVB11"])
+
+    print(f"CDI/IPCA: {len(cdi)}/{len(ipca)} mês(es), {macro_new} novo/atualizado")
+    print(f"IBOV: {len(ibov)} pregão(ões); IVVB11: {len(ivvb11)} pregão(ões)")
+    return {"cdi": len(cdi), "ipca": len(ipca), "ibov": len(ibov), "ivvb11": len(ivvb11)}
+
+
+def main_benchmark_returns() -> int:
+    load_dotenv(BASE_DIR / ".env")
+    collect_benchmark_returns()
     return 0
 
 
@@ -1273,6 +1318,8 @@ if __name__ == "__main__":
             print("Usage: python main.py --etf-us-ticker <TICKER>")
             sys.exit(1)
         sys.exit(main_etf_us(sys.argv[2].strip().upper()))
+    if len(sys.argv) > 1 and sys.argv[1] == "--benchmark-returns":
+        sys.exit(main_benchmark_returns())
     if len(sys.argv) > 1 and sys.argv[1] == "--fii-cvm-data":
         if len(sys.argv) < 3 or not sys.argv[2].strip():
             print("Usage: python main.py --fii-cvm-data <CNPJ1,CNPJ2,...>")

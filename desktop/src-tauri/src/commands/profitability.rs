@@ -4,8 +4,9 @@ use chrono::{Datelike, Duration, NaiveDate, Utc};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use serde::Serialize;
 
+use crate::domain::benchmark::{self, PricePoint};
 use crate::domain::twr::{self, CashFlow};
-use crate::entity::{assets, stock_price_history, transactions};
+use crate::entity::{assets, macro_index_monthly, stock_price_history, transactions};
 use crate::error::AppError;
 
 const BUY: &str = "compra";
@@ -117,8 +118,16 @@ pub async fn get_portfolio_profitability(
     db: tauri::State<'_, DatabaseConnection>,
     portfolio_id: i32,
 ) -> Result<Vec<MonthlyReturn>, AppError> {
-    let db = db.inner();
+    compute_profitability(db.inner(), portfolio_id).await
+}
 
+// Extraída pra ser reaproveitada por `get_profitability_comparison` (Fase
+// 13.5), mesmo precedente de `commands::transaction::compute_positions`
+// (Fase 13.1) — evita duplicar a reconstrução mês a mês do TWR.
+pub async fn compute_profitability(
+    db: &DatabaseConnection,
+    portfolio_id: i32,
+) -> Result<Vec<MonthlyReturn>, AppError> {
     let txs = transactions::Entity::find()
         .filter(transactions::Column::PortfolioId.eq(portfolio_id))
         .all(db)
@@ -252,4 +261,156 @@ pub async fn get_portfolio_profitability(
     }
 
     Ok(results)
+}
+
+// Fase 13.5 — compara a carteira com os 4 benchmarks de fonte gratuita
+// (CDI/IPCA via `macro_index_monthly`, IBOV/IVVB11 via `stock_price_history`
+// — IFIX/SMLL/IDIV ficam de fora, sem fonte histórica gratuita achada, ver
+// PHASE.md item 13.5). Cada benchmark é recortado pra mesma janela de meses
+// da carteira antes de qualquer `chain()` — comparar com anos de histórico
+// de CDI enquanto a carteira só tem 2 meses seria enganoso.
+#[derive(Serialize)]
+pub struct BenchmarkPoint {
+    pub year_month: String,
+    pub r_month_pct: f64,
+    pub r_cumulative_pct: f64,
+}
+
+#[derive(Serialize)]
+pub struct BenchmarkSeries {
+    pub code: String,
+    pub label: String,
+    pub monthly: Vec<BenchmarkPoint>,
+}
+
+#[derive(Serialize)]
+pub struct ProfitabilityComparison {
+    pub portfolio: Vec<MonthlyReturn>,
+    pub benchmarks: Vec<BenchmarkSeries>,
+}
+
+// Encadeia uma sequência de retornos mensais (já na ordem certa) em pontos
+// com `r_cumulative_pct`, mesmo padrão do loop de `compute_profitability`
+// acima, só que reaproveitável pras duas fontes de benchmark (macro e
+// preço), que chegam em formatos diferentes até aqui.
+fn chain_into_points(monthly_r: &[(String, f64)]) -> Vec<BenchmarkPoint> {
+    let mut running: Vec<f64> = Vec::new();
+    monthly_r
+        .iter()
+        .map(|(year_month, r_month_pct)| {
+            running.push(r_month_pct / 100.0);
+            BenchmarkPoint {
+                year_month: year_month.clone(),
+                r_month_pct: *r_month_pct,
+                r_cumulative_pct: twr::chain(&running) * 100.0,
+            }
+        })
+        .collect()
+}
+
+fn month_before(months: &[(i32, u32)]) -> (i32, u32) {
+    let (year, month) = months[0];
+    if month == 1 { (year - 1, 12) } else { (year, month - 1) }
+}
+
+async fn build_macro_series(
+    db: &DatabaseConnection,
+    index_code: &str,
+    label: &str,
+    months: &[(i32, u32)],
+) -> Result<Option<BenchmarkSeries>, AppError> {
+    let rows = macro_index_monthly::Entity::find()
+        .filter(macro_index_monthly::Column::IndexCode.eq(index_code))
+        .all(db)
+        .await?;
+    let by_month: HashMap<String, f64> =
+        rows.into_iter().map(|r| (r.year_month, r.value_pct)).collect();
+
+    let monthly_r: Vec<(String, f64)> = months
+        .iter()
+        .filter_map(|(y, m)| {
+            let key = format!("{y:04}-{m:02}");
+            by_month.get(&key).map(|v| (key, *v))
+        })
+        .collect();
+
+    if monthly_r.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(Some(BenchmarkSeries {
+        code: index_code.to_string(),
+        label: label.to_string(),
+        monthly: chain_into_points(&monthly_r),
+    }))
+}
+
+async fn build_price_series(
+    db: &DatabaseConnection,
+    ticker: &str,
+    label: &str,
+    months: &[(i32, u32)],
+    today: NaiveDate,
+) -> Result<Option<BenchmarkSeries>, AppError> {
+    let (by, bm) = month_before(months);
+    let mut month_ends = vec![month_end_date(by, bm, today)];
+    month_ends.extend(months.iter().map(|&(y, m)| month_end_date(y, m, today)));
+
+    let prices: Vec<PricePoint> = stock_price_history::Entity::find()
+        .filter(stock_price_history::Column::Ticker.eq(ticker))
+        .all(db)
+        .await?
+        .into_iter()
+        .filter_map(|row| {
+            NaiveDate::parse_from_str(&row.price_date, "%Y-%m-%d")
+                .ok()
+                .map(|date| PricePoint { date, close: row.close_price })
+        })
+        .collect();
+
+    let returns = benchmark::monthly_returns_from_prices(&prices, &month_ends, PRICE_TOLERANCE_DAYS);
+    if returns.is_empty() {
+        return Ok(None);
+    }
+
+    let monthly_r: Vec<(String, f64)> =
+        returns.into_iter().map(|r| (r.year_month, r.r_month_pct)).collect();
+
+    Ok(Some(BenchmarkSeries {
+        code: ticker.to_string(),
+        label: label.to_string(),
+        monthly: chain_into_points(&monthly_r),
+    }))
+}
+
+#[tauri::command]
+pub async fn get_profitability_comparison(
+    db: tauri::State<'_, DatabaseConnection>,
+    portfolio_id: i32,
+) -> Result<ProfitabilityComparison, AppError> {
+    let db = db.inner();
+    let portfolio = compute_profitability(db, portfolio_id).await?;
+
+    if portfolio.is_empty() {
+        return Ok(ProfitabilityComparison { portfolio, benchmarks: vec![] });
+    }
+
+    let months: Vec<(i32, u32)> = portfolio
+        .iter()
+        .map(|r| {
+            let (y, m) = r.year_month.split_once('-').expect("year_month sempre YYYY-MM");
+            (y.parse().expect("ano válido"), m.parse().expect("mês válido"))
+        })
+        .collect();
+    let today = Utc::now().date_naive();
+
+    let candidates = [
+        build_macro_series(db, "cdi", "CDI", &months).await?,
+        build_macro_series(db, "ipca", "IPCA", &months).await?,
+        build_price_series(db, "^BVSP", "IBOV", &months, today).await?,
+        build_price_series(db, "IVVB11", "IVVB11", &months, today).await?,
+    ];
+    let benchmarks = candidates.into_iter().flatten().collect();
+
+    Ok(ProfitabilityComparison { portfolio, benchmarks })
 }

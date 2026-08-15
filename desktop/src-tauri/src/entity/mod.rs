@@ -30,6 +30,7 @@ pub mod graham_inputs;
 pub mod indicator_thresholds;
 pub mod liability;
 pub mod liability_installment;
+pub mod macro_index_monthly;
 pub mod portfolio;
 pub mod projected_ceiling_inputs;
 pub mod reit_fundamentals;
