@@ -20,6 +20,7 @@ import { ASSET_CLASS_LABELS, PAYMENT_TYPE_LABELS, type AssetClass, type PaymentT
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -28,6 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import DividendSuggestionsSection from "./DividendSuggestionsSection";
 
 // Fase 13.4 — tela dedicada "Dividends" (Proventos): resumo (KPIs + donut por
 // ativo), evolução mensal/anual empilhando pago (sólido) vs. a receber
@@ -181,6 +183,7 @@ function pivotByYear(monthly: ProventosMonthlyBucket[]): YearRow[] {
 
 function DividendsSummarySection({ portfolioId }: { portfolioId: number }) {
   const [granularity, setGranularity] = useState<Granularity>("monthly");
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
 
   const summaryQuery = useQuery<ProventosSummary, AppError>({
     queryKey: ["proventos-summary", portfolioId],
@@ -215,6 +218,12 @@ function DividendsSummarySection({ portfolioId }: { portfolioId: number }) {
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex justify-end">
+        <Button type="button" variant="outline" onClick={() => setSuggestionsOpen(true)}>
+          Manage suggestions
+        </Button>
+      </div>
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[320px_1fr]">
         <div className="flex flex-col gap-4">
           <KpiCard title="Avg. monthly (12M)" value={formatCurrency(summary.avg_monthly_12m)} />
@@ -410,6 +419,15 @@ function DividendsSummarySection({ portfolioId }: { portfolioId: number }) {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={suggestionsOpen} onOpenChange={setSuggestionsOpen}>
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Dividend suggestions</DialogTitle>
+          </DialogHeader>
+          <DividendSuggestionsSection portfolioId={portfolioId} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
