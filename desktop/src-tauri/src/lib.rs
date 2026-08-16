@@ -148,6 +148,7 @@ pub fn run() {
             commands::liability::create_liability,
             commands::liability::list_liabilities,
             commands::liability::delete_liability,
+            commands::net_worth::get_net_worth_summary,
             commands::watchlist::list_watchlists,
             commands::watchlist::create_watchlist,
             commands::watchlist::delete_watchlist,

@@ -20,6 +20,7 @@ pub mod general_transaction_category;
 pub mod gordon;
 pub mod graham;
 pub mod liability;
+pub mod net_worth;
 pub mod portfolio;
 pub mod portfolio_summary;
 pub mod profitability;

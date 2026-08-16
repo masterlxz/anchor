@@ -62,6 +62,22 @@ export type Liability = {
 
 export type LiabilityView = Liability & {
   saldo_devedor_atual: number;
+  // Fase 12 — retorno alavancado. Os 3 campos abaixo aparecem juntos (todos
+  // presentes ou todos `null`): sem `linked_asset_id`, "custo da dívida"
+  // sozinho não tem com o que ser comparado (ver `commands/liability.rs`).
+  annualized_debt_cost_pct: number | null;
+  linked_asset_return_12m_pct: number | null;
+  spread_12m_pct: number | null;
+};
+
+// Fase 12 — Patrimônio Líquido/Alavancagem cruzando Portfolio + Finanças
+// Gerais (`commands::net_worth::get_net_worth_summary`).
+export type NetWorthSummary = {
+  total_market_value: number;
+  total_cash: number;
+  total_debt: number;
+  net_worth: number;
+  leverage_ratio: number | null;
 };
 
 // Fase 12 — dívida/passivo. Vocabulário duplicado de

@@ -11,6 +11,7 @@ import {
   type Liability,
   type LiabilityAmortizationSystem,
   type LiabilityView,
+  type NetWorthSummary,
 } from "./types";
 import {
   Dialog,
@@ -65,6 +66,34 @@ function accountLabel(accounts: BankAccountView[], id: number): string {
   return accounts.find((a) => a.id === id)?.nome ?? "—";
 }
 
+function assetTicker(assets: Asset[], id: number): string | null {
+  return assets.find((a) => a.id === id)?.ticker ?? null;
+}
+
+// Mesmo padrão de `KpiCard`/`formatPct`/`pctColorClass` em
+// `portfolio/ProfitabilitySection.tsx` — duplicado localmente em vez de
+// extrair um compartilhado (convenção já estabelecida no projeto).
+// Moeda segue a convenção do módulo `finances/` (`.toFixed(2)`, sem
+// `toLocaleString`), diferente de `portfolio/` que usa `pt-BR`.
+function KpiCard({ title, value, subtext }: { title: string; value: string; subtext?: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <p className="text-sm text-muted-foreground">{title}</p>
+      <p className="mt-1 text-2xl font-semibold">{value}</p>
+      {subtext && <p className="mt-1 text-xs text-muted-foreground">{subtext}</p>}
+    </div>
+  );
+}
+
+function formatPct(value: number): string {
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+}
+
+function pctColorClass(value: number | null): string {
+  if (value == null || value === 0) return "text-muted-foreground";
+  return value > 0 ? "text-primary" : "text-destructive";
+}
+
 // Fase 12 — dívida/passivo com geração automática de parcelas (Price ou
 // SAC), Sessão 71. As parcelas em si (`parcela_divida`) aparecem na aba
 // Transactions, geradas de uma vez na criação — esta tela só cadastra a
@@ -99,11 +128,15 @@ function LiabilitySection({ workspaceId }: { workspaceId: number }) {
     queryKey: ["assets"],
     queryFn: () => invoke("list_assets"),
   });
+  const netWorthQuery = useQuery<NetWorthSummary, AppError>({
+    queryKey: ["net-worth", workspaceId],
+    queryFn: () => invoke("get_net_worth_summary", { workspaceId }),
+  });
 
   const liabilities = liabilitiesQuery.data ?? [];
   const accounts = accountsQuery.data ?? [];
   const assets = assetsQuery.data ?? [];
-  const totalDebt = liabilities.reduce((sum, l) => sum + l.saldo_devedor_atual, 0);
+  const netWorth = netWorthQuery.data;
 
   function resetForm() {
     setNome("");
@@ -124,6 +157,7 @@ function LiabilitySection({ workspaceId }: { workspaceId: number }) {
       queryClient.invalidateQueries({ queryKey: ["liabilities", workspaceId] });
       queryClient.invalidateQueries({ queryKey: ["bank-accounts", workspaceId] });
       queryClient.invalidateQueries({ queryKey: ["general-transactions", workspaceId] });
+      queryClient.invalidateQueries({ queryKey: ["net-worth", workspaceId] });
       resetForm();
       setIsAddDialogOpen(false);
     },
@@ -135,6 +169,7 @@ function LiabilitySection({ workspaceId }: { workspaceId: number }) {
       queryClient.invalidateQueries({ queryKey: ["liabilities", workspaceId] });
       queryClient.invalidateQueries({ queryKey: ["bank-accounts", workspaceId] });
       queryClient.invalidateQueries({ queryKey: ["general-transactions", workspaceId] });
+      queryClient.invalidateQueries({ queryKey: ["net-worth", workspaceId] });
       setConfirmingDeleteId(null);
     },
   });
@@ -185,11 +220,18 @@ function LiabilitySection({ workspaceId }: { workspaceId: number }) {
             due date. Outstanding balance is always derived, never entered directly.
           </p>
 
-          <div className="mb-4 flex items-center justify-between">
-            <p className="text-sm">
-              <span className="text-muted-foreground">Total debt: </span>
-              <span className="font-medium">{totalDebt.toFixed(2)}</span>
-            </p>
+          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <KpiCard title="Market value" value={(netWorth?.total_market_value ?? 0).toFixed(2)} />
+            <KpiCard title="Cash" value={(netWorth?.total_cash ?? 0).toFixed(2)} />
+            <KpiCard title="Total debt" value={(netWorth?.total_debt ?? 0).toFixed(2)} />
+            <KpiCard title="Net worth" value={(netWorth?.net_worth ?? 0).toFixed(2)} />
+            <KpiCard
+              title="Leverage"
+              value={netWorth?.leverage_ratio != null ? `${netWorth.leverage_ratio.toFixed(2)}x` : "—"}
+            />
+          </div>
+
+          <div className="mb-4 flex items-center justify-end">
             <Button type="button" onClick={() => setIsAddDialogOpen(true)}>
               New liability
             </Button>
@@ -197,6 +239,9 @@ function LiabilitySection({ workspaceId }: { workspaceId: number }) {
 
           {liabilitiesQuery.isError && (
             <p className="mb-3 text-red-600">{liabilitiesQuery.error.message}</p>
+          )}
+          {netWorthQuery.isError && (
+            <p className="mb-3 text-red-600">{netWorthQuery.error.message}</p>
           )}
 
           <Table>
@@ -209,19 +254,25 @@ function LiabilitySection({ workspaceId }: { workspaceId: number }) {
                 <TableHead>Outstanding</TableHead>
                 <TableHead>Term</TableHead>
                 <TableHead>System</TableHead>
+                <TableHead>Debt cost (p.a.)</TableHead>
+                <TableHead>Linked asset (12M)</TableHead>
+                <TableHead>Spread</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {liabilities.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground">
+                  <TableCell colSpan={11} className="text-center text-muted-foreground">
                     No liability registered yet.
                   </TableCell>
                 </TableRow>
               )}
               {liabilities.map((liability) => {
                 const isConfirming = confirmingDeleteId === liability.id;
+                const ticker = liability.linked_asset_id
+                  ? assetTicker(assets, liability.linked_asset_id)
+                  : null;
                 return (
                   <TableRow key={liability.id}>
                     <TableCell>{liability.nome}</TableCell>
@@ -234,6 +285,19 @@ function LiabilitySection({ workspaceId }: { workspaceId: number }) {
                       {LIABILITY_AMORTIZATION_SYSTEM_LABELS[
                         liability.sistema_amortizacao as LiabilityAmortizationSystem
                       ] ?? liability.sistema_amortizacao}
+                    </TableCell>
+                    <TableCell>
+                      {liability.annualized_debt_cost_pct != null
+                        ? formatPct(liability.annualized_debt_cost_pct)
+                        : "—"}
+                    </TableCell>
+                    <TableCell>
+                      {liability.linked_asset_return_12m_pct != null
+                        ? `${formatPct(liability.linked_asset_return_12m_pct)}${ticker ? ` (${ticker})` : ""}`
+                        : "—"}
+                    </TableCell>
+                    <TableCell className={pctColorClass(liability.spread_12m_pct)}>
+                      {liability.spread_12m_pct != null ? formatPct(liability.spread_12m_pct) : "—"}
                     </TableCell>
                     <TableCell>
                       <Button

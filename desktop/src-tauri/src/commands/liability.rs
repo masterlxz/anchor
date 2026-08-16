@@ -5,8 +5,12 @@ use sea_orm::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::domain::liability::{compute_installments, compute_outstanding_balance, AmortizationSystem};
-use crate::entity::{general_transaction, liability, liability_installment};
+use crate::commands::profitability::compute_profitability;
+use crate::domain::liability::{
+    annualize_monthly_rate, compute_installments, compute_outstanding_balance, AmortizationSystem,
+};
+use crate::domain::twr::trailing_twelve_month_pct;
+use crate::entity::{general_transaction, liability, liability_installment, portfolio};
 use crate::error::AppError;
 
 const PARCELA_DIVIDA: &str = "parcela_divida";
@@ -69,6 +73,15 @@ pub struct LiabilityView {
     pub data_inicio: String,
     pub created_at: String,
     pub saldo_devedor_atual: f64,
+    // Fase 12 — retorno alavancado. Os 3 campos abaixo já vêm em pontos
+    // percentuais (ex. `42.58`), igual `MonthlyReturn::r_cumulative_pct` —
+    // diverge da convenção em fração de `unrealized_pl_pct` (Fase 13.1),
+    // mas segue a família TWR da qual este cálculo deriva. Aparecem juntos
+    // (todos `Some` ou todos `None`) — sem `linked_asset_id`, "custo da
+    // dívida" sozinho não tem com o que ser comparado, então não aparece.
+    pub annualized_debt_cost_pct: Option<f64>,
+    pub linked_asset_return_12m_pct: Option<f64>,
+    pub spread_12m_pct: Option<f64>,
 }
 
 #[tauri::command]
@@ -145,6 +158,14 @@ pub async fn create_liability(
 
     txn.commit().await?;
 
+    // `linked_asset_return_12m_pct`/`spread_12m_pct` ficam `None` na resposta
+    // imediata da criação (exigiriam escanear preço histórico aqui, sem
+    // necessidade — o frontend invalida `["liabilities", workspaceId]` logo
+    // em seguida, então esse `None` transitório nunca aparece na tela).
+    let annualized_debt_cost_pct = liability_model
+        .linked_asset_id
+        .map(|_| annualize_monthly_rate(liability_model.taxa_percentual / 100.0) * 100.0);
+
     Ok(LiabilityView {
         id: liability_model.id,
         workspace_id: liability_model.workspace_id,
@@ -160,6 +181,9 @@ pub async fn create_liability(
         data_inicio: liability_model.data_inicio,
         created_at: liability_model.created_at,
         saldo_devedor_atual: request.principal,
+        annualized_debt_cost_pct,
+        linked_asset_return_12m_pct: None,
+        spread_12m_pct: None,
     })
 }
 
@@ -168,9 +192,19 @@ pub async fn list_liabilities(
     db: tauri::State<'_, DatabaseConnection>,
     workspace_id: i32,
 ) -> Result<Vec<LiabilityView>, AppError> {
+    list_liabilities_view(db.inner(), workspace_id).await
+}
+
+// Extraída pra ser reaproveitada por `commands::net_worth::get_net_worth_summary`
+// (Fase 12), mesmo precedente de `commands::transaction::compute_positions`
+// (Fase 13.1) — evita duplicar a soma de saldo devedor.
+pub async fn list_liabilities_view(
+    db: &DatabaseConnection,
+    workspace_id: i32,
+) -> Result<Vec<LiabilityView>, AppError> {
     let liabilities = liability::Entity::find()
         .filter(liability::Column::WorkspaceId.eq(workspace_id))
-        .all(db.inner())
+        .all(db)
         .await?;
 
     if liabilities.is_empty() {
@@ -180,39 +214,74 @@ pub async fn list_liabilities(
     let liability_ids: Vec<i32> = liabilities.iter().map(|l| l.id).collect();
     let installments = liability_installment::Entity::find()
         .filter(liability_installment::Column::LiabilityId.is_in(liability_ids))
-        .all(db.inner())
+        .all(db)
         .await?;
 
     let hoje = chrono::Utc::now().format("%Y-%m-%d").to_string();
 
-    Ok(liabilities
+    // Resolvido uma vez fora do loop (não por dívida): `Liability.workspace_id`
+    // só carrega contexto de workspace, mas a posição/retorno de um ativo só
+    // existe dentro de `transactions.portfolio_id` — um workspace pode ter
+    // mais de um portfolio, então o retorno do ativo vinculado precisa somar
+    // as transações dele em todos os portfolios do workspace da dívida.
+    let portfolio_ids: Vec<i32> = portfolio::Entity::find()
+        .filter(portfolio::Column::WorkspaceId.eq(workspace_id))
+        .all(db)
+        .await?
         .into_iter()
-        .map(|l| {
-            let pairs: Vec<(&str, f64)> = installments
-                .iter()
-                .filter(|i| i.liability_id == l.id)
-                .map(|i| (i.data_vencimento.as_str(), i.valor_amortizacao))
-                .collect();
-            let saldo_devedor_atual = compute_outstanding_balance(l.principal, &pairs, &hoje);
+        .map(|p| p.id)
+        .collect();
 
-            LiabilityView {
-                id: l.id,
-                workspace_id: l.workspace_id,
-                bank_account_id: l.bank_account_id,
-                linked_asset_id: l.linked_asset_id,
-                nome: l.nome,
-                titular: l.titular,
-                principal: l.principal,
-                taxa_percentual: l.taxa_percentual,
-                indexador: l.indexador,
-                prazo_meses: l.prazo_meses,
-                sistema_amortizacao: l.sistema_amortizacao,
-                data_inicio: l.data_inicio,
-                created_at: l.created_at,
-                saldo_devedor_atual,
-            }
-        })
-        .collect())
+    let mut views = Vec::with_capacity(liabilities.len());
+    for l in liabilities {
+        let pairs: Vec<(&str, f64)> = installments
+            .iter()
+            .filter(|i| i.liability_id == l.id)
+            .map(|i| (i.data_vencimento.as_str(), i.valor_amortizacao))
+            .collect();
+        let saldo_devedor_atual = compute_outstanding_balance(l.principal, &pairs, &hoje);
+
+        let (annualized_debt_cost_pct, linked_asset_return_12m_pct, spread_12m_pct) =
+            match l.linked_asset_id {
+                Some(asset_id) if !portfolio_ids.is_empty() => {
+                    let annualized = annualize_monthly_rate(l.taxa_percentual / 100.0) * 100.0;
+                    // Um gap de preço nesse ativo específico não pode derrubar
+                    // a lista inteira de dívidas — engolido via `.ok()`.
+                    let asset_return = compute_profitability(db, &portfolio_ids, Some(asset_id))
+                        .await
+                        .ok()
+                        .and_then(|monthly| {
+                            let cumulative: Vec<f64> =
+                                monthly.iter().map(|m| m.r_cumulative_pct).collect();
+                            trailing_twelve_month_pct(&cumulative)
+                        });
+                    (Some(annualized), asset_return, asset_return.map(|r| r - annualized))
+                }
+                _ => (None, None, None),
+            };
+
+        views.push(LiabilityView {
+            id: l.id,
+            workspace_id: l.workspace_id,
+            bank_account_id: l.bank_account_id,
+            linked_asset_id: l.linked_asset_id,
+            nome: l.nome,
+            titular: l.titular,
+            principal: l.principal,
+            taxa_percentual: l.taxa_percentual,
+            indexador: l.indexador,
+            prazo_meses: l.prazo_meses,
+            sistema_amortizacao: l.sistema_amortizacao,
+            data_inicio: l.data_inicio,
+            created_at: l.created_at,
+            saldo_devedor_atual,
+            annualized_debt_cost_pct,
+            linked_asset_return_12m_pct,
+            spread_12m_pct,
+        });
+    }
+
+    Ok(views)
 }
 
 #[tauri::command]

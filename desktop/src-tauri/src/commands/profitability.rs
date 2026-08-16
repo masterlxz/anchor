@@ -118,18 +118,24 @@ pub async fn get_portfolio_profitability(
     db: tauri::State<'_, DatabaseConnection>,
     portfolio_id: i32,
 ) -> Result<Vec<MonthlyReturn>, AppError> {
-    compute_profitability(db.inner(), portfolio_id).await
+    compute_profitability(db.inner(), &[portfolio_id], None).await
 }
 
 // Extraída pra ser reaproveitada por `get_profitability_comparison` (Fase
 // 13.5), mesmo precedente de `commands::transaction::compute_positions`
 // (Fase 13.1) — evita duplicar a reconstrução mês a mês do TWR.
+// `portfolio_ids` aceita mais de um portfolio (Fase 12 — retorno alavancado
+// precisa somar as transações de um ativo em todos os portfolios de um
+// workspace, já que `Liability` só carrega contexto de workspace, não de
+// portfolio); `asset_id`, quando `Some`, isola o retorno de um único ativo
+// em vez de agregar a sub-carteira inteira.
 pub async fn compute_profitability(
     db: &DatabaseConnection,
-    portfolio_id: i32,
+    portfolio_ids: &[i32],
+    asset_id: Option<i32>,
 ) -> Result<Vec<MonthlyReturn>, AppError> {
     let txs = transactions::Entity::find()
-        .filter(transactions::Column::PortfolioId.eq(portfolio_id))
+        .filter(transactions::Column::PortfolioId.is_in(portfolio_ids.iter().copied()))
         .all(db)
         .await?;
 
@@ -157,6 +163,7 @@ pub async fn compute_profitability(
         .filter(|t| {
             matches!(t.transaction_type.as_str(), BUY | SELL | DIVIDEND)
                 && t.asset_id.is_some_and(|id| auto_quote_ids.contains(&id))
+                && asset_id.is_none_or(|target| t.asset_id == Some(target))
         })
         .collect();
     relevant.sort_by(|a, b| a.transaction_date.cmp(&b.transaction_date));
@@ -389,7 +396,7 @@ pub async fn get_profitability_comparison(
     portfolio_id: i32,
 ) -> Result<ProfitabilityComparison, AppError> {
     let db = db.inner();
-    let portfolio = compute_profitability(db, portfolio_id).await?;
+    let portfolio = compute_profitability(db, &[portfolio_id], None).await?;
 
     if portfolio.is_empty() {
         return Ok(ProfitabilityComparison { portfolio, benchmarks: vec![] });

@@ -113,6 +113,23 @@ fn compute_balances(
     balances
 }
 
+/// Soma o saldo (já derivado por `compute_balances`) de todas as contas do
+/// workspace — reaproveitado por `commands::net_worth::get_net_worth_summary`
+/// (Fase 12), sem duplicar a query/filtro de data que `list_bank_accounts`
+/// já faz.
+pub async fn compute_total_cash(
+    db: &DatabaseConnection,
+    workspace_id: i32,
+) -> Result<f64, AppError> {
+    let transactions = general_transaction::Entity::find()
+        .filter(general_transaction::Column::WorkspaceId.eq(workspace_id))
+        .all(db)
+        .await?;
+
+    let hoje = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    Ok(compute_balances(&transactions, &hoje).values().sum())
+}
+
 #[tauri::command]
 pub async fn list_bank_accounts(
     db: tauri::State<'_, DatabaseConnection>,

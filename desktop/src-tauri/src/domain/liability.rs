@@ -109,6 +109,15 @@ pub fn compute_installments(
     Ok(installments)
 }
 
+/// Anualiza uma taxa mensal por capitalização composta — mesma matemática
+/// que `compute_installments` já aplica internamente (juros = saldo ×
+/// `taxa_mensal`, todo mês). `taxa_mensal` é decimal (0.03 pra 3% a.m.),
+/// mesma convenção de `compute_installments`. Usado pra comparar o custo de
+/// uma dívida com o retorno anualizado do ativo vinculado (Fase 12).
+pub fn annualize_monthly_rate(taxa_mensal: f64) -> f64 {
+    (1.0 + taxa_mensal).powi(12) - 1.0
+}
+
 /// Saldo devedor "hoje" — principal menos a amortização de toda parcela já
 /// vencida (`data_vencimento <= hoje`, comparação lexicográfica de string
 /// `YYYY-MM-DD`, mesmo formato usado em todo o resto do projeto). Parcelas
@@ -219,5 +228,17 @@ mod tests {
         let installments = vec![("2026-03-01", 100.0)];
         let balance = compute_outstanding_balance(1000.0, &installments, "2026-03-01");
         assert_eq!(balance, 900.0);
+    }
+
+    #[test]
+    fn annualize_monthly_rate_of_zero_is_zero() {
+        assert_eq!(annualize_monthly_rate(0.0), 0.0);
+    }
+
+    #[test]
+    fn annualize_monthly_rate_compounds_over_twelve_months() {
+        // 1% a.m. -> (1.01)^12 - 1 ~= 12.6825%
+        let annual = annualize_monthly_rate(0.01);
+        assert!((annual - 0.12682503013196977).abs() < 1e-9);
     }
 }
