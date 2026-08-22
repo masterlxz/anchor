@@ -22,3 +22,24 @@ export type WorkspaceSummary = {
 };
 
 export type { MonthlyReturn };
+
+// Fase 10.8 fatia 2 (personalização de layout) — espelha
+// `commands/home_layout.rs::HomeWidgetLayout`/`HomeWidgetLayoutInput`. Um id
+// fixo por widget da Home; a lista completa vive em `HomeSection.tsx`
+// (`WIDGET_TITLES`/`DEFAULT_LAYOUT`).
+export type WidgetKey =
+  | "kpi_total_value"
+  | "kpi_profit"
+  | "kpi_dividends_12m"
+  | "kpi_return"
+  | "allocation_donut"
+  | "portfolios_table"
+  | "market_panel";
+
+export type HomeWidgetLayout = {
+  widget_key: WidgetKey;
+  position: number;
+  w: number;
+  h: number;
+  visible: boolean;
+};

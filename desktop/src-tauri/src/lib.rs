@@ -151,6 +151,8 @@ pub fn run() {
             commands::net_worth::get_net_worth_summary,
             commands::workspace_summary::get_workspace_summary,
             commands::workspace_summary::get_workspace_profitability,
+            commands::home_layout::get_home_layout,
+            commands::home_layout::save_home_layout,
             commands::watchlist::list_watchlists,
             commands::watchlist::create_watchlist,
             commands::watchlist::delete_watchlist,

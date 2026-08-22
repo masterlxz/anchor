@@ -52,6 +52,7 @@ mod m20260812_110000_expected_dividends_and_source_index;
 mod m20260815_100000_add_payment_type_to_suggested_dividends;
 mod m20260815_110000_add_payment_type_to_transactions;
 mod m20260815_120000_create_macro_index_monthly;
+mod m20260822_100000_create_home_widget_layout;
 
 pub struct Migrator;
 
@@ -111,6 +112,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260815_100000_add_payment_type_to_suggested_dividends::Migration),
             Box::new(m20260815_110000_add_payment_type_to_transactions::Migration),
             Box::new(m20260815_120000_create_macro_index_monthly::Migration),
+            Box::new(m20260822_100000_create_home_widget_layout::Migration),
         ]
     }
 }

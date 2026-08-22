@@ -25,6 +25,7 @@ pub use super::general_transaction::Entity as GeneralTransaction;
 pub use super::general_transaction_category::Entity as GeneralTransactionCategory;
 pub use super::gordon_inputs::Entity as GordonInputs;
 pub use super::graham_inputs::Entity as GrahamInputs;
+pub use super::home_widget_layout::Entity as HomeWidgetLayout;
 pub use super::indicator_thresholds::Entity as IndicatorThresholds;
 pub use super::liability::Entity as Liability;
 pub use super::liability_installment::Entity as LiabilityInstallment;

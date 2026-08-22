@@ -27,6 +27,7 @@ pub mod general_transaction;
 pub mod general_transaction_category;
 pub mod gordon_inputs;
 pub mod graham_inputs;
+pub mod home_widget_layout;
 pub mod indicator_thresholds;
 pub mod liability;
 pub mod liability_installment;
