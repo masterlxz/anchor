@@ -1,4 +1,5 @@
 import { useState } from "react";
+import HomeSection from "./home/HomeSection";
 import StockLookupPanel from "./stock-lookup/StockLookupPanel";
 import AlertsPanel from "./alerts/AlertsPanel";
 import PortfolioPanel from "./portfolio/PortfolioPanel";
@@ -28,6 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 // junto (mesmo componente `valuations/SavedValuationsPanel.tsx`, agora
 // aberto via popup em vez de toggle de aba).
 const SECTIONS = {
+  home: "Home",
   lookup: "Research",
   portfolio: "Portfolio",
   finances: "General Finances",
@@ -44,7 +46,7 @@ type AppView = "main" | "settings" | "chat";
 function App() {
   const [workspaceId, setWorkspaceId] = useState<number | null>(null);
   const [view, setView] = useState<AppView>("main");
-  const [section, setSection] = useState<SectionKey>("lookup");
+  const [section, setSection] = useState<SectionKey>("home");
   const [chatOpen, setChatOpen] = useState(false);
   const [chatHistory, setChatHistory] = useState<GeminiContent[]>([]);
 
@@ -117,6 +119,10 @@ function App() {
               </Button>
             </div>
           </div>
+
+          <TabsContent value="home">
+            <HomeSection workspaceId={workspaceId} />
+          </TabsContent>
 
           <TabsContent value="lookup">
             <StockLookupPanel workspaceId={workspaceId} />

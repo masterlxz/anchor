@@ -38,3 +38,4 @@ pub mod truthid;
 pub mod valuation;
 pub mod watchlist;
 pub mod workspace;
+pub mod workspace_summary;

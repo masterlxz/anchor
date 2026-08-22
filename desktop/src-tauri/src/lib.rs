@@ -149,6 +149,8 @@ pub fn run() {
             commands::liability::list_liabilities,
             commands::liability::delete_liability,
             commands::net_worth::get_net_worth_summary,
+            commands::workspace_summary::get_workspace_summary,
+            commands::workspace_summary::get_workspace_profitability,
             commands::watchlist::list_watchlists,
             commands::watchlist::create_watchlist,
             commands::watchlist::delete_watchlist,
