@@ -270,12 +270,13 @@ pub async fn compute_profitability(
     Ok(results)
 }
 
-// Fase 13.5 — compara a carteira com os 4 benchmarks de fonte gratuita
-// (CDI/IPCA via `macro_index_monthly`, IBOV/IVVB11 via `stock_price_history`
-// — IFIX/SMLL/IDIV ficam de fora, sem fonte histórica gratuita achada, ver
-// PHASE.md item 13.5). Cada benchmark é recortado pra mesma janela de meses
-// da carteira antes de qualquer `chain()` — comparar com anos de histórico
-// de CDI enquanto a carteira só tem 2 meses seria enganoso.
+// Fase 13.5 — compara a carteira com os 7 benchmarks pedidos, todos com
+// fonte gratuita (CDI/IPCA via `macro_index_monthly`, IBOV/IVVB11/IFIX/SMLL/
+// IDIV via `stock_price_history` — IFIX/SMLL/IDIV entraram na Sessão 83 via
+// a API de estatísticas de índices da B3, ver PHASE.md item 13.5). Cada
+// benchmark é recortado pra mesma janela de meses da carteira antes de
+// qualquer `chain()` — comparar com anos de histórico de CDI enquanto a
+// carteira só tem 2 meses seria enganoso.
 #[derive(Serialize)]
 pub struct BenchmarkPoint {
     pub year_month: String,
@@ -416,6 +417,9 @@ pub async fn get_profitability_comparison(
         build_macro_series(db, "ipca", "IPCA", &months).await?,
         build_price_series(db, "^BVSP", "IBOV", &months, today).await?,
         build_price_series(db, "IVVB11", "IVVB11", &months, today).await?,
+        build_price_series(db, "IFIX", "IFIX", &months, today).await?,
+        build_price_series(db, "SMLL", "SMLL", &months, today).await?,
+        build_price_series(db, "IDIV", "IDIV", &months, today).await?,
     ];
     let benchmarks = candidates.into_iter().flatten().collect();
 

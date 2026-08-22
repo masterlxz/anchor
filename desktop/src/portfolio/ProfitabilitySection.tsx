@@ -63,23 +63,26 @@ const REFERENCE_COLOR = "#3a4553";
 // combinação de mais de 3 delas passa a checagem completa (confirmado pelo
 // próprio `references/palette.md` do skill — só os 3 primeiros slots
 // validam `--pairs all`). Solução: 3 matizes de verdade (os únicos 3
-// validados, ΔE mínimo 9.4 CVD / 20.9 visão normal, PASS limpo), reusados
-// em pares por traço sólido/tracejado — cada par usa o MESMO hex, então não
-// existe ambiguidade de cor entre eles (não são duas cores parecidas, é a
-// mesma cor com um canal secundário).
+// validados, ΔE mínimo 9.4 CVD / 20.9 visão normal, PASS limpo). IFIX/SMLL/
+// IDIV entraram na Sessão 83 reaproveitando o MESMO matiz do grupo
+// "mercado" (IBOV/IVVB11) — decisão explícita do dono do projeto pra não
+// estourar a paleta validada com um 4º matiz — diferenciados só por
+// `dashArray` (padrão de traço), não por cor.
 const PORTFOLIO_COLOR = "#3987e5"; // azul — herói do gráfico
 const CDI_COLOR = "#d95926"; // laranja — benchmark mais importante (base do "vs CDI")
 const IPCA_COLOR = "#d95926"; // mesmo laranja do CDI, tracejado — referência macro/taxa
-const IBOV_COLOR = "#199e70"; // aqua — benchmark de mercado mais importante
-const IVVB11_COLOR = "#199e70"; // mesmo aqua do IBOV, tracejado — referência de mercado/índice
+const IBOV_COLOR = "#199e70"; // aqua — benchmark de mercado mais importante, reaproveitado por IVVB11/IFIX/SMLL/IDIV (mesmo grupo "mercado", diferenciados por dashArray)
 
-type SeriesConfig = { key: string; label: string; color: string; dashed: boolean };
-const PORTFOLIO_SERIES: SeriesConfig = { key: "portfolio", label: "Portfolio", color: PORTFOLIO_COLOR, dashed: false };
+type SeriesConfig = { key: string; label: string; color: string; dashArray?: string };
+const PORTFOLIO_SERIES: SeriesConfig = { key: "portfolio", label: "Portfolio", color: PORTFOLIO_COLOR };
 const BENCHMARK_SERIES: Record<string, SeriesConfig> = {
-  cdi: { key: "cdi", label: "CDI", color: CDI_COLOR, dashed: false },
-  ipca: { key: "ipca", label: "IPCA", color: IPCA_COLOR, dashed: true },
-  "^BVSP": { key: "^BVSP", label: "IBOV", color: IBOV_COLOR, dashed: false },
-  IVVB11: { key: "IVVB11", label: "IVVB11", color: IVVB11_COLOR, dashed: true },
+  cdi: { key: "cdi", label: "CDI", color: CDI_COLOR },
+  ipca: { key: "ipca", label: "IPCA", color: IPCA_COLOR, dashArray: "4 3" },
+  "^BVSP": { key: "^BVSP", label: "IBOV", color: IBOV_COLOR },
+  IVVB11: { key: "IVVB11", label: "IVVB11", color: IBOV_COLOR, dashArray: "4 3" },
+  IFIX: { key: "IFIX", label: "IFIX", color: IBOV_COLOR, dashArray: "1 3" },
+  SMLL: { key: "SMLL", label: "SMLL", color: IBOV_COLOR, dashArray: "9 3 2 3" },
+  IDIV: { key: "IDIV", label: "IDIV", color: IBOV_COLOR, dashArray: "9 2" },
 };
 
 const MONTH_LABELS = [
@@ -381,7 +384,7 @@ function ProfitabilitySection({ portfolioId }: { portfolioId: number }) {
                         name={b.code}
                         stroke={config.color}
                         strokeWidth={1.5}
-                        strokeDasharray={config.dashed ? "4 3" : undefined}
+                        strokeDasharray={config.dashArray}
                         dot={false}
                         hide={hiddenSeries.has(b.code)}
                       />
@@ -389,11 +392,6 @@ function ProfitabilitySection({ portfolioId }: { portfolioId: number }) {
                   })}
                 </LineChart>
               </ResponsiveContainer>
-              <p className="text-xs text-muted-foreground">
-                IFIX, SMLL and IDIV aren't shown — no free historical data source found for them
-                (Yahoo only has live quotes, B3's own API doesn't expose index-level history, and
-                brapi.dev gates it behind a paid plan).
-              </p>
             </CardContent>
           </Card>
         </div>

@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 from sources import (
     acoes_bolsai,
     acoes_yahoo,
+    b3_index_stats,
     bcb_sgs,
     cripto_coingecko,
     cripto_defillama,
@@ -329,14 +330,41 @@ def main_price_history(tickers: list[str]) -> int:
     return 0
 
 
+def collect_b3_index_history(index_code: str, start_year: int) -> list[dict]:
+    """IFIX/SMLL/IDIV via `b3_index_stats` (Fase 13.5, Sessão 83) — mesma
+    tabela genérica `stock_price_history` que IBOV/IVVB11 já usam, ticker =
+    código do índice. `INSERT OR IGNORE` como o resto dos coletores de preço
+    (histórico fechado, não é revisado como CDI/IPCA do mês corrente).
+    """
+    end_year = datetime.now(timezone.utc).year
+    points = b3_index_stats.fetch_index_history(index_code, start_year, end_year)
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA journal_mode=WAL")
+    now = datetime.now(timezone.utc).isoformat()
+    changes_before = conn.total_changes
+    conn.executemany(
+        "INSERT OR IGNORE INTO stock_price_history "
+        "(ticker, price_date, close_price, source, fetched_at) VALUES (?, ?, ?, ?, ?)",
+        [(index_code, p["price_date"], p["close_price"], "b3_index_stats", now) for p in points],
+    )
+    new_count = conn.total_changes - changes_before
+    conn.commit()
+    conn.close()
+
+    print(f"{index_code}: {len(points)} ponto(s), {new_count} novo(s) (resto já salvo)")
+    return points
+
+
 def collect_benchmark_returns() -> dict:
-    """Fase 13.5 — série fixa dos 4 benchmarks com fonte gratuita (CDI/IPCA
-    via BCB SGS, IBOV/IVVB11 via Yahoo — IFIX/SMLL/IDIV ficam de fora, sem
-    fonte histórica gratuita achada, ver PHASE.md). CDI/IPCA usam INSERT OR
-    REPLACE (não IGNORE, diferente do resto do coletor): a BCB pode revisar
-    um valor recém-publicado do mês corrente, e rodar o backfill de novo
-    deve refletir o número oficial mais atual — os outros coletores lidam
-    com histórico fechado (pregão já aconteceu), este não.
+    """Fase 13.5 — série fixa dos 7 benchmarks pedidos, todos com fonte
+    gratuita (CDI/IPCA via BCB SGS, IBOV/IVVB11 via Yahoo, IFIX/SMLL/IDIV via
+    API de estatísticas de índices da B3 — achada na Sessão 83, ver PHASE.md;
+    a rota da B3 tentada na Sessão 81.2 não expunha série histórica). CDI/IPCA
+    usam INSERT OR REPLACE (não IGNORE, diferente do resto do coletor): a BCB
+    pode revisar um valor recém-publicado do mês corrente, e rodar o backfill
+    de novo deve refletir o número oficial mais atual — os outros coletores
+    lidam com histórico fechado (pregão já aconteceu), este não.
     """
     cdi = bcb_sgs.fetch_monthly_series(4391)
     ipca = bcb_sgs.fetch_monthly_series(433)
@@ -362,9 +390,24 @@ def collect_benchmark_returns() -> dict:
     ibov = collect_us_price_history(["^BVSP"])
     ivvb11 = collect_price_history(["IVVB11"])
 
+    # IFIX (base dez/2010) e SMLL/IDIV (base ago/2005) — anos de início
+    # confirmados ao vivo contra a API da B3 (Sessão 83).
+    ifix = collect_b3_index_history("IFIX", 2010)
+    smll = collect_b3_index_history("SMLL", 2005)
+    idiv = collect_b3_index_history("IDIV", 2005)
+
     print(f"CDI/IPCA: {len(cdi)}/{len(ipca)} mês(es), {macro_new} novo/atualizado")
     print(f"IBOV: {len(ibov)} pregão(ões); IVVB11: {len(ivvb11)} pregão(ões)")
-    return {"cdi": len(cdi), "ipca": len(ipca), "ibov": len(ibov), "ivvb11": len(ivvb11)}
+    print(f"IFIX: {len(ifix)} ponto(s); SMLL: {len(smll)} ponto(s); IDIV: {len(idiv)} ponto(s)")
+    return {
+        "cdi": len(cdi),
+        "ipca": len(ipca),
+        "ibov": len(ibov),
+        "ivvb11": len(ivvb11),
+        "ifix": len(ifix),
+        "smll": len(smll),
+        "idiv": len(idiv),
+    }
 
 
 def main_benchmark_returns() -> int:
