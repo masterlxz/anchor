@@ -23,16 +23,22 @@ sol! {
     error RecordNotFound(address who);
 }
 
-/// RPC pública da Base Sepolia (testnet) — sem chave, mesmo endpoint já usado
-/// como fallback pelo resto do ecossistema TruthID (`desktop/src/config/wagmi.ts`
-/// de lá). Base Mainnet só entra quando o fluxo completo da Fase 8 estiver
-/// provado ponta a ponta no testnet.
-const RPC_URL: &str = "https://sepolia.base.org";
+/// RPC pública da Base Mainnet — sem chave, mesmo endpoint que o resto do
+/// ecossistema TruthID já usa. Redeployado de Base Sepolia pra cá na Sessão 87
+/// — o canal `/truthid/v1/sign-request` do TruthID sempre executa a
+/// UserOperation em Base Mainnet, hardcoded (achado da Sessão 33), então
+/// nenhuma escrita via esse canal contra um contrato fora de Mainnet jamais
+/// funcionou; redeploy próprio destrava sem depender do TruthID ganhar
+/// seleção de chain por chamada.
+const RPC_URL: &str = "https://mainnet.base.org";
 
-/// Deployado em Base Sepolia na Sessão 30 (`forge script script/DeploySyncRegistry.s.sol
-/// --broadcast --ledger`, tx `0x52b347795c113a30cfac614497d43c62d1efce6a3c2b3cb7990d2a888aa4bfae`,
-/// ver Fase 8.1 em `project/PHASE.md`).
-pub(crate) const SYNC_REGISTRY_ADDRESS: &str = "0x9e2fd1a4146e3c40ecfef9d35a09e75e00ac30e8";
+/// Deployado em Base Mainnet na Sessão 87 (`forge script script/DeploySyncRegistry.s.sol
+/// --broadcast --ledger`, tx `0xbb795effb8e6f2ed8739b49184cb6a37cdbb7c4a007c022665cd545339c6fdec`,
+/// ver Fase 8.1 em `project/PHASE.md`). Endereço anterior em Base Sepolia
+/// (`0x9e2fd1a4146e3c40ecfef9d35a09e75e00ac30e8`, Sessão 30) nunca recebeu
+/// nenhuma escrita real — todo `/sign-request` contra ele executava em
+/// Mainnet, um no-op silencioso (endereço sem código lá).
+pub(crate) const SYNC_REGISTRY_ADDRESS: &str = "0x778771ba4a7a2e867385980f1616602a1a175115";
 
 /// Busca o registro de sync de um endereço via `eth_call` público — não
 /// precisa de assinatura, qualquer RPC serve. Retorna `None` (não `Err`)

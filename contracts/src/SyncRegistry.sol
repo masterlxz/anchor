@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-// O SyncRegistry guarda apenas uma referência ao blob cifrado de sync (CID
-// no IPFS) — nunca o conteúdo em si. Diferente do VaultRegistry do TruthID,
+// O SyncRegistry guarda apenas uma referência ao blob cifrado de sync (string
+// opaca — hoje um ponteiro Arweave no formato "ar://<tx_id>", publicado via
+// TruthID Sessão 87; o campo nunca mudou de forma, então nenhuma migration de
+// contrato foi necessária quando o backend trocou de IPFS pra Arweave) — nunca
+// o conteúdo em si. Diferente do VaultRegistry do TruthID,
 // não existe indireção de identidade aqui: o registro é indexado direto pelo
 // endereço que chama (a smart account do device), já que este contrato é de
 // uso exclusivo do Practice Valuation, sem necessidade de um IdentityRegistry
@@ -13,7 +16,7 @@ contract SyncRegistry {
     // -------------------------------------------------------------------------
 
     struct CidRecord {
-        string cid; // IPFS CID do blob cifrado atual
+        string cid; // ponteiro opaco do blob cifrado atual (hoje "ar://<tx_id>" no Arweave)
         bytes32 contentHash; // keccak256 do blob (verificação de integridade)
         uint256 updatedAt; // block.timestamp da última atualização
         uint256 version; // contador monotônico — ordena atualizações
