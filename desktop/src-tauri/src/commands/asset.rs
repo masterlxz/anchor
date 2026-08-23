@@ -110,6 +110,25 @@ const ASSET_CLASSES: [&str; 13] = [
 ];
 const EXPOSURE_TYPES: [&str; 2] = ["pais", "categoria_especial"];
 
+// Fase 10, item 8, Sessão 86 — subconjunto de `ASSET_CLASSES` que faz
+// sentido como "o que um BDR realmente representa por trás" (pedido
+// registrado desde a Sessão 53). Sem guard exigindo `asset_class == "bdr"`
+// aqui — mesmo espírito solto do `cnpj`/`equity_*`, quem decide quando
+// mostrar o campo é o frontend.
+const BDR_UNDERLYING_CLASSES: [&str; 5] =
+    ["acao_internacional", "etf_us", "reit", "metal", "cripto"];
+
+fn validate_underlying_asset_class(value: &Option<String>) -> Result<(), AppError> {
+    if let Some(v) = value {
+        if !BDR_UNDERLYING_CLASSES.contains(&v.as_str()) {
+            return Err(AppError::InvalidGuard(format!(
+                "underlying_asset_class '{v}' invalid (expected one of {BDR_UNDERLYING_CLASSES:?})"
+            )));
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn list_assets(
     db: tauri::State<'_, DatabaseConnection>,
@@ -140,6 +159,9 @@ pub struct CreateAssetRequest {
     pub equity_shares_owned: Option<f64>,
     pub equity_total_shares: Option<f64>,
     pub equity_company_valuation: Option<f64>,
+    // Fase 10, item 8, Sessão 86 — só relevante pra `bdr`. `None` pras
+    // demais classes.
+    pub underlying_asset_class: Option<String>,
 }
 
 #[tauri::command]
@@ -159,6 +181,7 @@ pub async fn create_asset(
             request.exposure_type
         )));
     }
+    validate_underlying_asset_class(&request.underlying_asset_class)?;
 
     let asset = assets::ActiveModel {
         ticker: Set(request.ticker.clone()),
@@ -172,6 +195,7 @@ pub async fn create_asset(
         equity_shares_owned: Set(request.equity_shares_owned),
         equity_total_shares: Set(request.equity_total_shares),
         equity_company_valuation: Set(request.equity_company_valuation),
+        underlying_asset_class: Set(request.underlying_asset_class),
         created_at: Set(chrono::Utc::now().to_rfc3339()),
         ..Default::default()
     }
@@ -248,6 +272,37 @@ pub async fn update_asset_equity(
         equity_shares_owned: Set(request.equity_shares_owned),
         equity_total_shares: Set(request.equity_total_shares),
         equity_company_valuation: Set(request.equity_company_valuation),
+        ..Default::default()
+    }
+    .update(db.inner())
+    .await?)
+}
+
+#[derive(Deserialize)]
+pub struct UpdateAssetUnderlyingClassRequest {
+    pub asset_id: i32,
+    pub underlying_asset_class: Option<String>,
+}
+
+/// Comando estreito, mesmo espírito de `update_asset_cnpj` — pedido
+/// registrado desde a Sessão 53, fechado na Sessão 86: BDRs cadastrados
+/// antes desta fatia ficam com `underlying_asset_class = null`, editável
+/// aqui depois (inclusive pra limpar de volta pra `null`, mandando `None`).
+#[tauri::command]
+pub async fn update_asset_underlying_class(
+    db: tauri::State<'_, DatabaseConnection>,
+    request: UpdateAssetUnderlyingClassRequest,
+) -> Result<assets::Model, AppError> {
+    validate_underlying_asset_class(&request.underlying_asset_class)?;
+
+    let existing = assets::Entity::find_by_id(request.asset_id)
+        .one(db.inner())
+        .await?
+        .ok_or_else(|| AppError::NotFound(format!("asset {}", request.asset_id)))?;
+
+    Ok(assets::ActiveModel {
+        id: Unchanged(existing.id),
+        underlying_asset_class: Set(request.underlying_asset_class),
         ..Default::default()
     }
     .update(db.inner())

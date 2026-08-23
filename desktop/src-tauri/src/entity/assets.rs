@@ -23,6 +23,7 @@ pub struct Model {
     pub equity_total_shares: Option<f64>,
     #[sea_orm(column_type = "Double", nullable)]
     pub equity_company_valuation: Option<f64>,
+    pub underlying_asset_class: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

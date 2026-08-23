@@ -127,6 +127,20 @@ export const ASSET_CLASSES_WITH_AUTO_QUOTE: AssetClass[] = [
 
 export type ExposureType = "pais" | "categoria_especial";
 
+// Fase 10, item 8, Sessão 86 — subconjunto de AssetClass que faz sentido
+// como "o que um BDR realmente representa por trás" (pedido registrado
+// desde a Sessão 53: um BDR pode ser ação, ETF, REIT, metal ou cripto, não
+// só empresa operacional). Reaproveita ASSET_CLASS_LABELS pros rótulos do
+// Select em vez de um enum/label próprios — ver
+// commands::asset::BDR_UNDERLYING_CLASSES (mesma lista, backend valida).
+export const BDR_UNDERLYING_CLASSES: AssetClass[] = [
+  "acao_internacional",
+  "etf_us",
+  "reit",
+  "metal",
+  "cripto",
+];
+
 export type Asset = {
   id: number;
   ticker: string;
@@ -141,6 +155,7 @@ export type Asset = {
   equity_shares_owned: number | null;
   equity_total_shares: number | null;
   equity_company_valuation: number | null;
+  underlying_asset_class: string | null;
 };
 
 // Fase 10, item 8, Sessão 41 — indicadores de FII direto da CVM (dados

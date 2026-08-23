@@ -6,6 +6,7 @@ import {
   ASSET_CLASSES,
   ASSET_CLASSES_WITH_AUTO_QUOTE,
   ASSET_CLASS_LABELS,
+  BDR_UNDERLYING_CLASSES,
   type Asset,
   type AssetClass,
   type AssetFavorite,
@@ -59,10 +60,15 @@ type CreateAssetRequest = {
   equity_shares_owned: number | null;
   equity_total_shares: number | null;
   equity_company_valuation: number | null;
+  underlying_asset_class: string | null;
 };
 
 type CollectorSummary = { success: boolean; output: string };
 type ToggleFavoriteRequest = { workspace_id: number; asset_id: number };
+type UpdateAssetUnderlyingClassRequest = {
+  asset_id: number;
+  underlying_asset_class: string | null;
+};
 
 function AssetSection({ workspaceId }: { workspaceId: number }) {
   const [ticker, setTicker] = useState("");
@@ -76,6 +82,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
   const [equitySharesOwned, setEquitySharesOwned] = useState("");
   const [equityTotalShares, setEquityTotalShares] = useState("");
   const [equityCompanyValuation, setEquityCompanyValuation] = useState("");
+  const [underlyingAssetClass, setUnderlyingAssetClass] = useState("");
   const [expandedAssetId, setExpandedAssetId] = useState<number | null>(null);
   const [manualAssetDialogAssetId, setManualAssetDialogAssetId] = useState<number | null>(null);
   const [isAddAssetDialogOpen, setIsAddAssetDialogOpen] = useState(false);
@@ -119,6 +126,20 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["asset-favorites", workspaceId] });
+    },
+  });
+
+  // Fase 10, item 8, Sessão 86 — edição do subjacente de um BDR já
+  // cadastrado, direto na tabela (sem popup, é um campo só). Mesmo padrão
+  // de invalidação do toggleFavoriteMutation acima.
+  const updateUnderlyingClassMutation = useMutation<
+    Asset,
+    AppError,
+    UpdateAssetUnderlyingClassRequest
+  >({
+    mutationFn: (request) => invoke("update_asset_underlying_class", { request }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["assets"] });
     },
   });
 
@@ -256,7 +277,10 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
       setCnpj("");
       cnpjResolvedTickerRef.current = null;
     }
-  }, [isAutoQuoteClass, isFii]);
+    if (!isBdr) {
+      setUnderlyingAssetClass("");
+    }
+  }, [isAutoQuoteClass, isFii, isBdr]);
 
   const createMutation = useMutation<Asset, AppError, CreateAssetRequest>({
     mutationFn: (request) => invoke("create_asset", { request }),
@@ -269,6 +293,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
       setEquitySharesOwned("");
       setEquityTotalShares("");
       setEquityCompanyValuation("");
+      setUnderlyingAssetClass("");
       setTickerQuery("");
       setActiveTicker(null);
       autoFetchedTickerRef.current = null;
@@ -303,6 +328,8 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
         isEmpresaNaoListada && equityCompanyValuation.trim() !== ""
           ? Number(equityCompanyValuation)
           : null,
+      underlying_asset_class:
+        isBdr && underlyingAssetClass !== "" ? underlyingAssetClass : null,
     });
   }
 
@@ -344,6 +371,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
               <TableHead>Currency</TableHead>
               <TableHead>Exchange</TableHead>
               <TableHead>Exposure</TableHead>
+              <TableHead>Underlying</TableHead>
               <TableHead>★</TableHead>
               <TableHead></TableHead>
             </TableRow>
@@ -351,7 +379,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
           <TableBody>
             {assets.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-muted-foreground">
+                <TableCell colSpan={9} className="text-center text-muted-foreground">
                   No assets registered yet.
                 </TableCell>
               </TableRow>
@@ -372,6 +400,33 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
                     <TableCell>
                       {asset.exposure_type === "pais" ? "🌍 " : "🏷️ "}
                       {asset.exposure_value}
+                    </TableCell>
+                    <TableCell>
+                      {asset.asset_class === "bdr" ? (
+                        <Select
+                          value={asset.underlying_asset_class ?? "unspecified"}
+                          onValueChange={(value) =>
+                            updateUnderlyingClassMutation.mutate({
+                              asset_id: asset.id,
+                              underlying_asset_class: value === "unspecified" ? null : value,
+                            })
+                          }
+                        >
+                          <SelectTrigger className="w-[9rem]" size="sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="unspecified">Not specified</SelectItem>
+                            {BDR_UNDERLYING_CLASSES.map((key) => (
+                              <SelectItem key={key} value={key}>
+                                {ASSET_CLASS_LABELS[key]}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        "—"
+                      )}
                     </TableCell>
                     <TableCell>
                       <Button
@@ -411,7 +466,7 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
                   </TableRow>
                   {isExpanded && asset.asset_class === "fii" && (
                     <TableRow>
-                      <TableCell colSpan={8} className="bg-muted/30">
+                      <TableCell colSpan={9} className="bg-muted/30">
                         <FiiCvmDetails asset={asset} />
                       </TableCell>
                     </TableRow>
@@ -575,6 +630,29 @@ function AssetSection({ workspaceId }: { workspaceId: number }) {
                 />
               </Field>
             </div>
+
+            {isBdr && (
+              <Field label="Underlying asset type (optional — what the BDR represents behind the receipt)">
+                <Select
+                  value={underlyingAssetClass === "" ? "unspecified" : underlyingAssetClass}
+                  onValueChange={(value) =>
+                    setUnderlyingAssetClass(value === "unspecified" ? "" : value)
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unspecified">Not specified</SelectItem>
+                    {BDR_UNDERLYING_CLASSES.map((key) => (
+                      <SelectItem key={key} value={key}>
+                        {ASSET_CLASS_LABELS[key]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            )}
 
             {isFii && (
               <Field label="Fund CNPJ (to pull indicators from CVM — vacancy, delinquency, net assets)">
