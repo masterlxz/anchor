@@ -11,6 +11,7 @@ use crate::error::AppError;
 use crate::lan_sweep;
 use crate::pin_content_cipher;
 use crate::sync_registry;
+use crate::sync_snapshot_cipher;
 
 /// Mesma faixa de portas que o TruthID Desktop tenta em
 /// `desktop/src-tauri/src/local_signer_server.rs` (bloco próprio, longe do
@@ -32,6 +33,15 @@ const TEST_DEST_ADDRESS: &str = "0x000000000000000000000000000000000000dEaD";
 /// TruthID mostra "não verificado" + bytes crus, o comportamento correto pra
 /// uma transferência sem chamada de função (não é bug desta fatia).
 const TEST_FUNCTION_SIGNATURE: &str = "practiceValuationTestPing()";
+
+/// `purpose` do `/truthid/v1/sign-message` usado pra derivar a chave de cifra
+/// do snapshot (Fase 8.4, Sessão 87) — precisa bater `^[A-Za-z0-9_.-]+$`,
+/// 1-64 chars, mesma regra validada dos dois lados do TruthID
+/// (`sign_message.rs::is_valid_purpose` no Desktop,
+/// `sign_message_approval_screen.dart::_isValidPurpose` no Mobile).
+/// Determinístico e estável — nunca mudar sem migrar quem já pinou com a
+/// chave derivada da versão antiga.
+const SYNC_SNAPSHOT_PURPOSE: &str = "anchor-sync-snapshot-v1";
 
 #[derive(Deserialize)]
 struct PingResponse {
@@ -248,6 +258,89 @@ impl From<PinWireResult> for PinResult {
     }
 }
 
+// Formato de fio da resposta de `/truthid/v1/sign-message` (mesmo shape nos
+// dois transportes — loopback, `sign_message.rs` do TruthID, e cross-device,
+// `_deliver` em `sign_message_approval_screen.dart` do TruthID Mobile) —
+// mesmo motivo de dois tipos separados que `TruthIdWireResult`/
+// `TruthIdSignResult` já têm.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SignMessageWireResult {
+    status: String,
+    message: Option<String>,
+    signature: Option<String>,
+    error: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct SignMessageResult {
+    status: String,
+    message: Option<String>,
+    signature: Option<String>,
+    error: Option<String>,
+}
+
+impl From<SignMessageWireResult> for SignMessageResult {
+    fn from(wire: SignMessageWireResult) -> Self {
+        SignMessageResult {
+            status: wire.status,
+            message: wire.message,
+            signature: wire.signature,
+            error: wire.error,
+        }
+    }
+}
+
+/// Decodifica a assinatura hex devolvida por `/truthid/v1/sign-message`
+/// (tolera prefixo `0x` opcional, mesmo padrão de
+/// `sync_registry::parse_content_hash`) e deriva a chave de cifra do
+/// snapshot — helper compartilhado pelo caminho loopback
+/// (`derive_sync_snapshot_key_loopback`) e pelo cross-device (`push_pin_content`,
+/// que recebe a assinatura já resolvida pelo frontend via
+/// `await_cross_device_sign_message_response`).
+fn signature_hex_to_snapshot_key(signature_hex: &str) -> Result<[u8; 32], AppError> {
+    let bytes = hex::decode(signature_hex.trim_start_matches("0x"))
+        .map_err(|e| AppError::TruthId(format!("invalid signature hex: {e}")))?;
+    Ok(sync_snapshot_cipher::derive_key(&bytes))
+}
+
+/// Fase 8.4 — pede a assinatura de `/truthid/v1/sign-message` via o canal
+/// loopback (mesma máquina, reaproveita `discover()`) e deriva a chave de
+/// cifra do snapshot. Determinístico: a mesma `purpose` sempre deriva a mesma
+/// chave pra uma dada identidade, então não há nada a persistir aqui — só
+/// pedir de novo quando precisar.
+async fn derive_sync_snapshot_key_loopback() -> Result<[u8; 32], AppError> {
+    let (port, _) = discover().await?;
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(310))
+        .build()?;
+    let url = format!("http://127.0.0.1:{port}/truthid/v1/sign-message");
+    let result: SignMessageWireResult = client
+        .post(&url)
+        .json(&serde_json::json!({
+            "appName": APP_NAME,
+            "purpose": SYNC_SNAPSHOT_PURPOSE,
+        }))
+        .send()
+        .await?
+        .json()
+        .await?;
+
+    if result.status != "signed" {
+        return Err(AppError::TruthId(
+            result
+                .error
+                .unwrap_or_else(|| format!("sign-message returned status \"{}\"", result.status)),
+        ));
+    }
+    let signature = result
+        .signature
+        .ok_or_else(|| AppError::TruthId("sign-message succeeded without a signature".into()))?;
+
+    signature_hex_to_snapshot_key(&signature)
+}
+
 /// Fase 8.3 — pina os bytes reais do arquivo SQLite atual via o proxy de
 /// pinning do TruthID (`/truthid/v1/pin`), que já cuida de aprovação
 /// (park+approve, até 300s) e de subir pros providers configurados em
@@ -261,10 +354,19 @@ impl From<PinWireResult> for PinResult {
 /// (torn read) — não há `journal_mode=WAL`/checkpoint configurado. Aceitável
 /// pra uso pessoal single-user nesta fatia; pendência de robustez registrada
 /// pra quando a Fase 8.5 for desenhada de verdade.
+///
+/// **Fase 8.4, Sessão 87**: os bytes agora são cifrados (AES-256-GCM, chave
+/// derivada de `/truthid/v1/sign-message` via `derive_sync_snapshot_key_loopback`)
+/// antes de pinar — o backend de armazenamento do TruthID hoje é Arweave
+/// (permanente, público, irreversível), então pinar em claro não é mais
+/// aceitável. Isso significa 2 aprovações sequenciais em TruthID por trás de
+/// 1 clique aqui (sign-message, depois pin), não só 1 como antes.
 #[tauri::command]
 pub async fn pin_database_snapshot(app: tauri::AppHandle) -> Result<PinResult, AppError> {
     let bytes = tokio::fs::read(db::resolve_database_path(&app)).await?;
-    let content_base64 = STANDARD.encode(&bytes);
+    let snapshot_key = derive_sync_snapshot_key_loopback().await?;
+    let encrypted = sync_snapshot_cipher::encrypt(&bytes, &snapshot_key);
+    let content_base64 = STANDARD.encode(&encrypted);
 
     let (port, _) = discover().await?;
 
@@ -434,6 +536,104 @@ pub async fn await_cross_device_sign_request_response(
     }
 }
 
+/// Schema v1 do QR de `/sign-message` cross-device (Fase 8.4, Sessão 87) —
+/// precisa bater campo a campo com `_validatePayload` em
+/// `mobile/lib/screens/sign_message_approval_screen.dart` (TruthID),
+/// confirmado lendo o código de lá antes de codar (achado real de sessões
+/// anteriores: contrato de wire cross-repo adivinhado já quebrou em
+/// silêncio, ver `TruthIdWireResult`). Só carrega `purpose` — não é uma
+/// UserOperation nem conteúdo a pinar.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SignMessageQrPayload {
+    action: &'static str,
+    v: u8,
+    session_id: String,
+    ephemeral_pub_key: String,
+    expires_at: i64,
+    app_name: &'static str,
+    purpose: &'static str,
+}
+
+/// Gera uma nova sessão cross-device de `/sign-message`: par efêmero (ECIES),
+/// `sessionId` aleatório e o JSON do QR — mesma estrutura de
+/// `create_cross_device_sign_request`, só troca o payload. Quem varre a LAN
+/// esperando a resposta é `await_cross_device_sign_message_response`, chamado
+/// em seguida pelo frontend assim que o QR aparece. A `purpose` é sempre
+/// `SYNC_SNAPSHOT_PURPOSE` — esta fatia só usa `/sign-message` pra derivar a
+/// chave de cifra do snapshot, não é um mecanismo genérico ainda.
+#[tauri::command]
+pub fn create_cross_device_sign_message_request() -> Result<CrossDeviceSession, AppError> {
+    let session_id = random_session_id();
+    let (ephemeral_priv_key_hex, ephemeral_pub_key_hex) = ecies::generate_ephemeral_keypair();
+    let expires_at_ms = now_ms() + CROSS_DEVICE_SESSION_TTL_MS;
+
+    let payload = SignMessageQrPayload {
+        action: "truthid-sign-message",
+        v: 1,
+        session_id: session_id.clone(),
+        ephemeral_pub_key: ephemeral_pub_key_hex,
+        expires_at: expires_at_ms,
+        app_name: APP_NAME,
+        purpose: SYNC_SNAPSHOT_PURPOSE,
+    };
+    let qr_payload_json =
+        serde_json::to_string(&payload).map_err(|e| AppError::TruthId(e.to_string()))?;
+
+    Ok(CrossDeviceSession {
+        session_id,
+        ephemeral_priv_key_hex,
+        expires_at_ms,
+        qr_payload_json,
+    })
+}
+
+fn decrypt_and_parse_sign_message_result(
+    blob: &[u8],
+    ephemeral_priv_key_hex: &str,
+) -> Result<SignMessageResult, AppError> {
+    let plaintext = ecies::decrypt(blob, ephemeral_priv_key_hex).map_err(AppError::TruthId)?;
+    let wire: SignMessageWireResult =
+        serde_json::from_slice(&plaintext).map_err(|e| AppError::TruthId(e.to_string()))?;
+    Ok(wire.into())
+}
+
+/// Espera a aprovação/rejeição do celular pro `/sign-message` cross-device —
+/// cópia estrutural exata de `await_cross_device_sign_request_response`, só
+/// troca o tipo de resultado. O `signature` devolvido (quando `status ==
+/// "signed"`) é repassado pelo frontend pro `push_pin_content`, que deriva a
+/// mesma chave que o caminho loopback derivaria (`signature_hex_to_snapshot_key`).
+#[tauri::command]
+pub async fn await_cross_device_sign_message_response(
+    session_id: String,
+    ephemeral_priv_key_hex: String,
+    expires_at_ms: i64,
+) -> Result<SignMessageResult, AppError> {
+    let client = reqwest::Client::new();
+    let mut next_dead_drop_attempt_ms = now_ms();
+
+    loop {
+        if let Some(blob) = lan_sweep::sweep_once(&session_id, &client).await {
+            return decrypt_and_parse_sign_message_result(&blob, &ephemeral_priv_key_hex);
+        }
+
+        if now_ms() >= next_dead_drop_attempt_ms {
+            if let Some(blob) = dead_drop::try_fetch_dead_drop(&session_id, &client).await {
+                return decrypt_and_parse_sign_message_result(&blob, &ephemeral_priv_key_hex);
+            }
+            next_dead_drop_attempt_ms = now_ms() + DEAD_DROP_RETRY_INTERVAL.as_millis() as i64;
+        }
+
+        if now_ms() >= expires_at_ms {
+            return Err(AppError::TruthId(
+                "timed out waiting for the phone to respond".to_string(),
+            ));
+        }
+
+        tokio::time::sleep(SWEEP_RETRY_INTERVAL).await;
+    }
+}
+
 /// Schema v1 do QR de `/pin` cross-device — precisa bater campo a campo com
 /// `_validatePayload` em `mobile/lib/screens/pin_approval_screen.dart`
 /// (TruthID). Diferente do `/sign-request`, não carrega `dest`/`value`/
@@ -483,24 +683,38 @@ pub fn create_cross_device_pin_request() -> Result<CrossDeviceSession, AppError>
 
 /// Fase 1 do `/pin` cross-device: lê o snapshot atual do banco (mesmo passo,
 /// e mesma ressalva de torn-read sem `WAL`/checkpoint, que
-/// `pin_database_snapshot` já tem), cifra com a chave simétrica derivada do
-/// `sessionId` do QR (`pin_content_cipher::encrypt`) e empurra o blob pro
-/// celular varrendo a LAN repetidamente (`lan_sweep::sweep_push_once`,
+/// `pin_database_snapshot` já tem), cifra em **duas camadas** e empurra o
+/// blob pro celular varrendo a LAN repetidamente (`lan_sweep::sweep_push_once`,
 /// portas `48050-48054`, mesmo bloco que `RemoteSignerLanServer.receiveOnce`
 /// no Mobile escuta). O celular só sobe esse servidor depois de escanear o
 /// QR, então a 1ª passada quase sempre falha — o loop repete até aceitar ou
 /// expirar, mesmo padrão de `await_cross_device_sign_request_response`.
 /// Sem dead-drop nesta fase: publicar no IPFS já exigiria o próprio acesso
 /// de pin que está sendo concedido, seria circular.
+///
+/// **Fase 8.4, Sessão 87**: `snapshot_signature_hex` vem da assinatura que o
+/// frontend já obteve via `await_cross_device_sign_message_response` (1º QR,
+/// escaneado antes deste) — deriva a mesma chave que o caminho loopback
+/// derivaria (`signature_hex_to_snapshot_key`) e cifra os bytes do banco com
+/// ela primeiro (`sync_snapshot_cipher::encrypt`, at rest). **Só depois**
+/// essa camada já cifrada é cifrada de novo com a chave simétrica derivada do
+/// `sessionId` do QR de pin (`pin_content_cipher::encrypt`, só transporte) —
+/// o celular decifra unicamente a camada de transporte e pina o blob ainda
+/// cifrado at-rest, sem nunca ver a chave real nem o conteúdo em claro.
 #[tauri::command]
 pub async fn push_pin_content(
     app: tauri::AppHandle,
     session_id: String,
     expires_at_ms: i64,
+    snapshot_signature_hex: String,
 ) -> Result<(), AppError> {
     let bytes = tokio::fs::read(db::resolve_database_path(&app)).await?;
-    let key = pin_content_cipher::derive_pin_content_key(&session_id).map_err(AppError::TruthId)?;
-    let encrypted = pin_content_cipher::encrypt(&bytes, &key);
+    let snapshot_key = signature_hex_to_snapshot_key(&snapshot_signature_hex)?;
+    let at_rest_encrypted = sync_snapshot_cipher::encrypt(&bytes, &snapshot_key);
+
+    let transport_key =
+        pin_content_cipher::derive_pin_content_key(&session_id).map_err(AppError::TruthId)?;
+    let encrypted = pin_content_cipher::encrypt(&at_rest_encrypted, &transport_key);
 
     let client = reqwest::Client::new();
     loop {

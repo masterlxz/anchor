@@ -43,6 +43,13 @@ type PinResult = {
   error: string | null;
 };
 
+type SignMessageResult = {
+  status: string;
+  message: string | null;
+  signature: string | null;
+  error: string | null;
+};
+
 /** Bloco de exibição de um `PinResult`, reusado pelo pin loopback (Fase 8.3)
  * e pelo pin cross-device (Fase 8.4) — mesmos campos, mesma origem de tipo. */
 function PinResultDisplay({
@@ -151,13 +158,35 @@ function TruthIdSettingsSection() {
     setUpdateContentHash(result.content_hash);
   }
 
-  // Fase 8.4 — cross-device: pede pro celular pinar o snapshot em vez de
-  // falar loopback com um TruthID Desktop na mesma máquina. Diferente do
-  // cross-device sign-request (2 mutations), este tem 3 fases: gerar a
-  // sessão/QR, empurrar o conteúdo cifrado pro celular (o celular só sobe o
-  // servidor de recepção depois de escanear), e só então esperar a
-  // aprovação/resultado — mesmo protocolo que o TruthID Mobile já implementa
-  // desde a sessão pós-127 (`PinApprovalScreen`, LAN nas portas 48050-54).
+  // Cross-device pin: pede pro celular pinar o snapshot em vez de falar
+  // loopback com um TruthID Desktop na mesma máquina — mesmo protocolo que o
+  // TruthID Mobile já implementa desde a sessão pós-127 (`PinApprovalScreen`,
+  // LAN nas portas 48050-54). Desde a Fase 8.4 (Sessão 87) isso é um fluxo de
+  // **2 QRs em sequência**: 1º pede a assinatura via `/sign-message`
+  // (deriva a chave de cifra do snapshot — ver `crossDeviceSignMessage*`
+  // abaixo), só depois o 2º empurra o conteúdo já cifrado em duas camadas
+  // (`snapshotSignatureRef`, lido dentro do `push_pin_content` mutationFn,
+  // nunca precisa virar estado React porque só é escrito e lido dentro desta
+  // mesma sequência, sem re-render no meio).
+  const snapshotSignatureRef = useRef("");
+
+  const crossDeviceSignMessageSessionMutation = useMutation<CrossDeviceSession, AppError, void>({
+    mutationFn: () => invoke("create_cross_device_sign_message_request"),
+  });
+
+  const crossDeviceSignMessageResultMutation = useMutation<
+    SignMessageResult,
+    AppError,
+    CrossDeviceSession
+  >({
+    mutationFn: (session) =>
+      invoke("await_cross_device_sign_message_response", {
+        sessionId: session.session_id,
+        ephemeralPrivKeyHex: session.ephemeral_priv_key_hex,
+        expiresAtMs: session.expires_at_ms,
+      }),
+  });
+
   const crossDevicePinSessionMutation = useMutation<CrossDeviceSession, AppError, void>({
     mutationFn: () => invoke("create_cross_device_pin_request"),
   });
@@ -167,6 +196,7 @@ function TruthIdSettingsSection() {
       invoke("push_pin_content", {
         sessionId: session.session_id,
         expiresAtMs: session.expires_at_ms,
+        snapshotSignatureHex: snapshotSignatureRef.current,
       }),
   });
 
@@ -180,6 +210,7 @@ function TruthIdSettingsSection() {
   });
 
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
+  const signMessageQrCanvasRef = useRef<HTMLCanvasElement>(null);
   const pinQrCanvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -198,6 +229,29 @@ function TruthIdSettingsSection() {
     crossDeviceResultMutation.reset();
     crossDeviceSessionMutation.mutate();
   }
+
+  // 1º QR do fluxo de pin cross-device: assim que a sessão de sign-message
+  // aparece, renderiza o QR e já dispara a espera pela resposta do celular —
+  // mesma filosofia de "já começa a servir" das outras sessões cross-device.
+  useEffect(() => {
+    const session = crossDeviceSignMessageSessionMutation.data;
+    if (!session || !signMessageQrCanvasRef.current) return;
+    void renderQrToCanvas(signMessageQrCanvasRef.current, session.qr_payload_json);
+    crossDeviceSignMessageResultMutation.mutate(session);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crossDeviceSignMessageSessionMutation.data]);
+
+  // Assim que o celular assina (status "signed"), guarda a assinatura pro
+  // `push_pin_content` ler depois e dispara o 2º QR (pin) — se rejeitado ou
+  // com erro, para aqui, sem avançar pro pin (já fica exposto via
+  // `crossDeviceSignMessageResultMutation.data.error`/`.isError`).
+  useEffect(() => {
+    const result = crossDeviceSignMessageResultMutation.data;
+    if (!result || result.status !== "signed" || !result.signature) return;
+    snapshotSignatureRef.current = result.signature;
+    crossDevicePinSessionMutation.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crossDeviceSignMessageResultMutation.data]);
 
   useEffect(() => {
     const session = crossDevicePinSessionMutation.data;
@@ -218,10 +272,13 @@ function TruthIdSettingsSection() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [crossDevicePinSessionMutation.data]);
 
-  function startCrossDevicePinRequest() {
+  function startCrossDevicePinFlow() {
+    snapshotSignatureRef.current = "";
+    crossDeviceSignMessageResultMutation.reset();
+    crossDevicePinSessionMutation.reset();
     crossDevicePinPushMutation.reset();
     crossDevicePinResultMutation.reset();
-    crossDevicePinSessionMutation.mutate();
+    crossDeviceSignMessageSessionMutation.mutate();
   }
 
   return (
@@ -329,7 +386,7 @@ function TruthIdSettingsSection() {
 
       <div className="flex flex-col gap-2 border-t pt-6">
         <p className="text-sm text-muted-foreground">
-          Fase 8.1 — SyncRegistry (Base Sepolia): read-only proof of concept.
+          Fase 8.1 — SyncRegistry (Base Mainnet): read-only proof of concept.
         </p>
         <div className="flex gap-2">
           <Input
@@ -363,8 +420,10 @@ function TruthIdSettingsSection() {
 
       <div className="flex flex-col gap-2 border-t pt-6">
         <p className="text-sm text-muted-foreground">
-          Fase 8.3 — Pin database snapshot: pins the current SQLite file's real bytes via
-          TruthID's pinning proxy. No real encryption yet (Fase 8.4) — this is the raw file.
+          Fase 8.3 — Pin database snapshot: pins the current SQLite file via TruthID's pinning
+          proxy. Encrypted since Fase 8.4 — asks TruthID for a sign-message signature first (a
+          second approval prompt) to derive the encryption key, then encrypts the bytes before
+          pinning.
         </p>
         <Button
           variant="outline"
@@ -388,14 +447,17 @@ function TruthIdSettingsSection() {
 
       <div className="flex flex-col gap-2 border-t pt-6">
         <p className="text-sm text-muted-foreground">
-          Fase 8.4 — Cross-device pin: scan with your paired TruthID phone instead of a TruthID
-          Desktop on this same machine. The phone receives the encrypted snapshot, asks for your
-          approval, and pins it using its own configured IPFS providers.
+          Cross-device pin: scan with your paired TruthID phone instead of a TruthID Desktop on
+          this same machine. Two QR codes in sequence — the first asks your phone to sign a
+          message (derives the encryption key), the second pushes the already-encrypted snapshot
+          for your phone to pin.
         </p>
         <Button
           variant="outline"
-          onClick={startCrossDevicePinRequest}
+          onClick={startCrossDevicePinFlow}
           disabled={
+            crossDeviceSignMessageSessionMutation.isPending ||
+            crossDeviceSignMessageResultMutation.isPending ||
             crossDevicePinSessionMutation.isPending ||
             crossDevicePinPushMutation.isPending ||
             crossDevicePinResultMutation.isPending
@@ -405,8 +467,33 @@ function TruthIdSettingsSection() {
             ? "Waiting for approval on your phone..."
             : crossDevicePinPushMutation.isPending
               ? "Sending content to your phone..."
-              : "Start cross-device pin"}
+              : crossDeviceSignMessageResultMutation.isPending
+                ? "Waiting for signature on your phone..."
+                : "Start cross-device pin"}
         </Button>
+        {crossDeviceSignMessageSessionMutation.isError && (
+          <p className="text-red-600">{crossDeviceSignMessageSessionMutation.error.message}</p>
+        )}
+        {crossDeviceSignMessageSessionMutation.isSuccess &&
+          !crossDeviceSignMessageResultMutation.isSuccess && (
+            <div className="flex flex-col items-center gap-2">
+              <canvas ref={signMessageQrCanvasRef} />
+              <p className="text-sm text-muted-foreground">
+                1/2 — Scan this QR with your paired TruthID phone to sign the encryption key.
+              </p>
+            </div>
+          )}
+        {crossDeviceSignMessageResultMutation.isError && (
+          <p className="text-red-600">{crossDeviceSignMessageResultMutation.error.message}</p>
+        )}
+        {crossDeviceSignMessageResultMutation.isSuccess &&
+          crossDeviceSignMessageResultMutation.data.status !== "signed" && (
+            <p className="text-red-600">
+              Status: {crossDeviceSignMessageResultMutation.data.status}
+              {crossDeviceSignMessageResultMutation.data.error &&
+                ` — ${crossDeviceSignMessageResultMutation.data.error}`}
+            </p>
+          )}
         {crossDevicePinSessionMutation.isError && (
           <p className="text-red-600">{crossDevicePinSessionMutation.error.message}</p>
         )}
@@ -414,7 +501,7 @@ function TruthIdSettingsSection() {
           <div className="flex flex-col items-center gap-2">
             <canvas ref={pinQrCanvasRef} />
             <p className="text-sm text-muted-foreground">
-              Scan this QR with your paired TruthID phone.
+              2/2 — Scan this QR with your paired TruthID phone to pin the encrypted content.
             </p>
           </div>
         )}
@@ -435,7 +522,7 @@ function TruthIdSettingsSection() {
       <div className="flex flex-col gap-2 border-t pt-6">
         <p className="text-sm text-muted-foreground">
           Fase 8.2 — Update sync record (same-machine only): CID/content hash can be pasted from
-          the pin result above, or typed manually. No real encryption yet (Fase 8.4).
+          the pin result above, or typed manually.
         </p>
         <Input placeholder="CID (bafy...)" value={updateCid} onChange={(e) => setUpdateCid(e.target.value)} />
         <Input

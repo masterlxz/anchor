@@ -14,6 +14,7 @@ mod ipns_key;
 mod lan_sweep;
 mod pin_content_cipher;
 mod sync_registry;
+mod sync_snapshot_cipher;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -99,6 +100,8 @@ pub fn run() {
             commands::truthid::create_cross_device_pin_request,
             commands::truthid::push_pin_content,
             commands::truthid::await_cross_device_pin_response,
+            commands::truthid::create_cross_device_sign_message_request,
+            commands::truthid::await_cross_device_sign_message_response,
             commands::sync_registry::get_sync_record,
             commands::workspace::get_workspace,
             commands::workspace::list_workspaces,
