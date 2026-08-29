@@ -15,20 +15,7 @@ from pathlib import Path
 import yaml
 from dotenv import load_dotenv
 
-from sources import (
-    acoes_bolsai,
-    acoes_yahoo,
-    b3_index_stats,
-    bcb_sgs,
-    cripto_coingecko,
-    cripto_defillama,
-    cripto_feargreed,
-    cripto_ultrasound,
-    cvm_dfp,
-    cvm_fii,
-    metais_yahoo,
-    sec_edgar,
-)
+from sources import acoes_yahoo, cvm_fii, finance_api_client, sec_edgar
 
 BASE_DIR = Path(__file__).parent
 DB_PATH = BASE_DIR / "anchor.db"
@@ -44,7 +31,7 @@ def collect_stock_quotes(tickers: list[str]) -> list[dict]:
     if not tickers:
         return []
 
-    quotes = acoes_yahoo.fetch_quotes(tickers)
+    quotes = finance_api_client.fetch_quotes(tickers)
 
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA journal_mode=WAL")
@@ -72,34 +59,36 @@ def collect_stock_quotes(tickers: list[str]) -> list[dict]:
 
 
 def collect_stock_fundamentals(tickers: list[str]) -> list[dict]:
-    """lpa/vpa/shares_outstanding/cvm_code vêm da bolsai (conferidos OK), mas
-    o `roe` dela mistura lucro trimestral com TTM dependendo da empresa sem
-    avisar qual é qual (achado real testando o BPAC11, Sessão 16: bolsai
-    devolveu 3,54% quando o real reportado é 26,6%) — por isso `roe` é
-    sobrescrito pelo cálculo direto na CVM (`cvm_dfp.fetch_roe`, mesma
-    fonte/zip que `collect_stock_dcf_fundamentals` já usa pro DCF).
-    Ticker sem ROE extraível na CVM é descartado inteiro, não só o roe —
-    evita reintroduzir silenciosamente o valor da bolsai que está sendo
-    corrigido aqui.
+    """lpa/vpa/shares_outstanding/cvm_code vêm da bolsai via Finance API
+    (`GET /v1/stocks/{ticker}/bolsai-fundamentals`), mas o `roe` dela
+    mistura lucro trimestral com TTM dependendo da empresa sem avisar qual
+    é qual (achado real testando o BPAC11, Sessão 16: bolsai devolveu 3,54%
+    quando o real reportado é 26,6%) — por isso `roe` é sobrescrito pelo
+    cálculo direto na CVM (`GET /v1/companies/{cvm_code}/roe`, mesma fonte
+    que `collect_stock_dcf_fundamentals` já usa pro DCF). Ticker sem ROE
+    extraível na CVM é descartado inteiro, não só o roe — evita
+    reintroduzir silenciosamente o valor da bolsai que está sendo corrigido
+    aqui.
 
     `payout` (Sessão 16) é diferente: nunca teve fonte automática nenhuma
     (campo 100% manual no formulário Banks), então é só um acréscimo — um
-    ticker sem payout extraível na CVM (`cvm_dfp.fetch_payout`) continua
-    sendo gravado normalmente, só com `payout=None` (vira NULL), pra não
-    perder lpa/vpa/roe por causa de um caso de borda no payout.
+    ticker sem payout extraível na CVM (`GET /v1/companies/{cvm_code}/
+    payout`) continua sendo gravado normalmente, só com `payout=None`
+    (vira NULL), pra não perder lpa/vpa/roe por causa de um caso de borda
+    no payout.
     """
     if not tickers:
         return []
 
-    fundamentals = acoes_bolsai.fetch_fundamentals(tickers)
+    fundamentals = finance_api_client.fetch_bolsai_fundamentals(tickers)
 
     ticker_cvm_codes = {f["ticker"]: f["cvm_code"] for f in fundamentals}
     roe_by_ticker = {
-        item["ticker"]: item["roe"] for item in cvm_dfp.fetch_roe(ticker_cvm_codes)
+        item["ticker"]: item["roe"] for item in finance_api_client.fetch_company_roe(ticker_cvm_codes)
     }
     payout_by_ticker = {
         item["ticker"]: item["payout"]
-        for item in cvm_dfp.fetch_payout(ticker_cvm_codes)
+        for item in finance_api_client.fetch_company_payout(ticker_cvm_codes)
     }
 
     fundamentals = [f for f in fundamentals if f["ticker"] in roe_by_ticker]
@@ -136,7 +125,7 @@ def collect_stock_dividends_avg(tickers: list[str]) -> list[dict]:
     if not tickers:
         return []
 
-    dividends = acoes_yahoo.fetch_dividends_avg(tickers)
+    dividends = finance_api_client.fetch_dividends_avg(tickers)
 
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA journal_mode=WAL")
@@ -157,10 +146,10 @@ def collect_stock_dividends_avg(tickers: list[str]) -> list[dict]:
 
 def collect_stock_dcf_fundamentals(fundamentals: list[dict]) -> list[dict]:
     """Recebe a lista já buscada por `collect_stock_fundamentals` (que já
-    inclui `cvm_code` e `shares_outstanding`, ver `acoes_bolsai.py`) e
-    completa com os campos vindos da CVM (EBIT, D&A, Capex, ΔNWC, dívida,
-    caixa). `shares_outstanding` vem da bolsai, não da CVM — ver nota em
-    `cvm_dfp.py`.
+    inclui `cvm_code` e `shares_outstanding`, via `bolsai-fundamentals` da
+    Finance API) e completa com os campos vindos da CVM (EBIT, D&A, Capex,
+    ΔNWC, dívida, caixa) via `GET /v1/companies/{cvm_code}/dcf-fundamentals`.
+    `shares_outstanding` vem da bolsai, não da CVM.
     """
     ticker_cvm_codes = {f["ticker"]: f["cvm_code"] for f in fundamentals}
     if not ticker_cvm_codes:
@@ -170,7 +159,7 @@ def collect_stock_dcf_fundamentals(fundamentals: list[dict]) -> list[dict]:
         f["ticker"]: f["shares_outstanding"] / 1_000_000 for f in fundamentals
     }
 
-    records = cvm_dfp.fetch_dcf_fundamentals(ticker_cvm_codes)
+    records = finance_api_client.fetch_company_dcf_fundamentals(ticker_cvm_codes)
     for record in records:
         record["shares_outstanding"] = shares_outstanding_millions[record["ticker"]]
 
@@ -212,7 +201,7 @@ def collect_stock_technicals(tickers: list[str]) -> list[dict]:
     if not tickers:
         return []
 
-    technicals = acoes_yahoo.fetch_technicals(tickers)
+    technicals = finance_api_client.fetch_technicals(tickers)
 
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA journal_mode=WAL")
@@ -251,7 +240,7 @@ def collect_stock_dividend_payments(tickers: list[str]) -> list[dict]:
     if not tickers:
         return []
 
-    payments = acoes_yahoo.fetch_dividend_payments(tickers)
+    payments = finance_api_client.fetch_dividend_payments(tickers)
 
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA journal_mode=WAL")
@@ -302,7 +291,7 @@ def collect_price_history(tickers: list[str]) -> list[dict]:
     if not tickers:
         return []
 
-    prices = acoes_yahoo.fetch_price_history(tickers)
+    prices = finance_api_client.fetch_price_history(tickers)
 
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA journal_mode=WAL")
@@ -330,14 +319,15 @@ def main_price_history(tickers: list[str]) -> int:
     return 0
 
 
-def collect_b3_index_history(index_code: str, start_year: int) -> list[dict]:
-    """IFIX/SMLL/IDIV via `b3_index_stats` (Fase 13.5, Sessão 83) — mesma
-    tabela genérica `stock_price_history` que IBOV/IVVB11 já usam, ticker =
-    código do índice. `INSERT OR IGNORE` como o resto dos coletores de preço
-    (histórico fechado, não é revisado como CDI/IPCA do mês corrente).
+def collect_b3_index_history(index_code: str) -> list[dict]:
+    """IFIX/SMLL/IDIV via a Finance API (`GET /v1/b3-indexes/{index_code}/
+    history`, Fase 1.7) — mesma tabela genérica `stock_price_history` que
+    IBOV/IVVB11 já usam, ticker = código do índice. `INSERT OR IGNORE` como
+    o resto dos coletores de preço (histórico fechado, não é revisado como
+    CDI/IPCA do mês corrente). Sem `start_year`/`end_year`: a Finance API já
+    devolve o histórico completo numa chamada só.
     """
-    end_year = datetime.now(timezone.utc).year
-    points = b3_index_stats.fetch_index_history(index_code, start_year, end_year)
+    points = finance_api_client.fetch_b3_index_history(index_code)
 
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA journal_mode=WAL")
@@ -358,16 +348,17 @@ def collect_b3_index_history(index_code: str, start_year: int) -> list[dict]:
 
 def collect_benchmark_returns() -> dict:
     """Fase 13.5 — série fixa dos 7 benchmarks pedidos, todos com fonte
-    gratuita (CDI/IPCA via BCB SGS, IBOV/IVVB11 via Yahoo, IFIX/SMLL/IDIV via
-    API de estatísticas de índices da B3 — achada na Sessão 83, ver PHASE.md;
-    a rota da B3 tentada na Sessão 81.2 não expunha série histórica). CDI/IPCA
-    usam INSERT OR REPLACE (não IGNORE, diferente do resto do coletor): a BCB
-    pode revisar um valor recém-publicado do mês corrente, e rodar o backfill
-    de novo deve refletir o número oficial mais atual — os outros coletores
-    lidam com histórico fechado (pregão já aconteceu), este não.
+    gratuita. Fase 1.7 (Sessão 7): CDI/IPCA e IFIX/SMLL/IDIV migraram pra
+    Finance API (`finance_api_client`); IBOV (`^BVSP`, sem sufixo — não é
+    ticker `.SA`, sem endpoint equivalente na Finance API) continua local via
+    Yahoo. CDI/IPCA usam INSERT OR REPLACE (não IGNORE, diferente do resto
+    do coletor): a fonte pode revisar um valor recém-publicado do mês
+    corrente, e rodar o backfill de novo deve refletir o número oficial
+    mais atual — os outros coletores lidam com histórico fechado (pregão já
+    aconteceu), este não.
     """
-    cdi = bcb_sgs.fetch_monthly_series(4391)
-    ipca = bcb_sgs.fetch_monthly_series(433)
+    cdi = finance_api_client.fetch_benchmark_series("cdi")
+    ipca = finance_api_client.fetch_benchmark_series("ipca")
 
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA journal_mode=WAL")
@@ -383,18 +374,18 @@ def collect_benchmark_returns() -> dict:
     conn.commit()
     conn.close()
 
-    # IBOV (^BVSP, sem sufixo — é índice, não papel B3) e IVVB11 (ETF B3
-    # comum, sufixo .SA padrão) reaproveitam 100% o path de
-    # collect_us_price_history/collect_price_history — mesma tabela
-    # genérica stock_price_history, zero coletor novo.
+    # IBOV (^BVSP, sem sufixo — é índice, não papel B3) continua local
+    # (sem endpoint na Finance API pra ticker sem sufixo .SA, ver Fase 1.7).
+    # IVVB11 (ETF B3 comum, sufixo .SA padrão) já vai via Finance API dentro
+    # de collect_price_history — mesma tabela genérica stock_price_history.
     ibov = collect_us_price_history(["^BVSP"])
     ivvb11 = collect_price_history(["IVVB11"])
 
-    # IFIX (base dez/2010) e SMLL/IDIV (base ago/2005) — anos de início
-    # confirmados ao vivo contra a API da B3 (Sessão 83).
-    ifix = collect_b3_index_history("IFIX", 2010)
-    smll = collect_b3_index_history("SMLL", 2005)
-    idiv = collect_b3_index_history("IDIV", 2005)
+    # IFIX (base dez/2010) e SMLL/IDIV (base ago/2005) via Finance API — sem
+    # ano de início: ela já devolve o histórico completo.
+    ifix = collect_b3_index_history("IFIX")
+    smll = collect_b3_index_history("SMLL")
+    idiv = collect_b3_index_history("IDIV")
 
     print(f"CDI/IPCA: {len(cdi)}/{len(ipca)} mês(es), {macro_new} novo/atualizado")
     print(f"IBOV: {len(ibov)} pregão(ões); IVVB11: {len(ivvb11)} pregão(ões)")
@@ -427,8 +418,8 @@ def collect_fii_cvm_data(cnpjs: list[str]) -> tuple[list[dict], list[dict]]:
     if not cnpjs:
         return [], []
 
-    monthly = cvm_fii.fetch_monthly_indicators(cnpjs)
-    properties = cvm_fii.fetch_property_data(cnpjs)
+    monthly = finance_api_client.fetch_fii_monthly_indicators(cnpjs)
+    properties = finance_api_client.fetch_fii_properties(cnpjs)
 
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA journal_mode=WAL")
@@ -587,26 +578,33 @@ def _record_crypto_indicator(indicator: str, source: str, raw_value: float) -> d
 
 
 def collect_crypto_tvl_trend() -> dict:
-    raw_value = cripto_defillama.fetch_tvl_trend_mom()
+    # Código da Finance API usa hífen ("tvl-trend"), diferente do nome interno
+    # do Anchor ("tvl_trend", chave de `indicator_thresholds`/`crypto_indicators`).
+    raw_value = finance_api_client.fetch_eth_indicator("tvl-trend")
     return _record_crypto_indicator("tvl_trend", "defillama", raw_value)
 
 
 def collect_crypto_net_issuance() -> dict:
-    raw_value = cripto_ultrasound.fetch_net_issuance_annualized_pct()
+    raw_value = finance_api_client.fetch_eth_indicator("net-issuance")
     return _record_crypto_indicator("net_issuance", "ultrasound.money", raw_value)
 
 
 def collect_crypto_fees_vs_emission() -> dict:
-    raw_value = cripto_ultrasound.fetch_fees_vs_emission_ratio()
+    raw_value = finance_api_client.fetch_eth_indicator("fees-vs-emission")
     return _record_crypto_indicator("fees_vs_emission", "ultrasound.money", raw_value)
 
 
 def collect_crypto_nvt_ratio() -> dict:
-    raw_value = cripto_coingecko.fetch_nvt_ratio_vs_ma90()
+    raw_value = finance_api_client.fetch_eth_indicator("nvt-ratio")
     return _record_crypto_indicator("nvt_ratio", "coingecko", raw_value)
 
 
 def main_crypto() -> int:
+    # Fase 1.7: os 4 indicadores agora vêm da Finance API (`FINANCE_API_KEY`) —
+    # diferente de antes (DefiLlama/ultrasound.money/CoinGecko diretos, sem
+    # chave nenhuma), este modo passou a precisar do `.env` carregado.
+    load_dotenv(BASE_DIR / ".env")
+
     tvl = collect_crypto_tvl_trend()
     print(f"TVL Trend (MoM): {tvl['raw_value']:.2f}% -> {tvl['signal']}")
 
@@ -641,15 +639,11 @@ def collect_crypto_ticker(symbol: str) -> dict:
     `(ticker, price_date)` index Yahoo-sourced rows use — safe to call this
     again later, only new days get inserted).
     """
-    coin = cripto_coingecko.resolve_coin_id(symbol)
-    if coin is None:
-        raise RuntimeError(f"No CoinGecko coin found for symbol '{symbol}'")
-
-    points = cripto_coingecko.fetch_market_chart(coin["id"])
+    quote = finance_api_client.fetch_crypto_quote(symbol)
+    points = finance_api_client.fetch_crypto_price_history(symbol)
     if not points:
-        raise RuntimeError(f"CoinGecko returned no price history for '{symbol}' ({coin['id']})")
+        raise RuntimeError(f"Finance API returned no price history for '{symbol}' ({quote['coin_id']})")
 
-    latest = points[-1]
     now = datetime.now(timezone.utc).isoformat()
 
     conn = sqlite3.connect(DB_PATH)
@@ -657,7 +651,7 @@ def collect_crypto_ticker(symbol: str) -> dict:
     conn.execute(
         "INSERT INTO stock_quotes (ticker, price, name, exchange, currency, source, fetched_at) "
         "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (symbol, latest["price"], coin["name"], "CoinGecko", "USD", "coingecko", now),
+        (symbol, quote["price"], quote["name"], "CoinGecko", "USD", "coingecko", now),
     )
     changes_before = conn.total_changes
     conn.executemany(
@@ -672,7 +666,7 @@ def collect_crypto_ticker(symbol: str) -> dict:
     # projeto pra aparecer em toda tela de cripto. `INSERT OR IGNORE` no
     # índice único de `reading_date`: só grava a primeira vez no dia, buscar
     # nesse mesmo dia de novo (outro ticker, outro refresh) é no-op esperado.
-    fear_greed = cripto_feargreed.fetch_latest()
+    fear_greed = finance_api_client.fetch_fear_greed()
     conn.execute(
         "INSERT OR IGNORE INTO crypto_fear_greed "
         "(value, classification, reading_date, source, fetched_at) VALUES (?, ?, ?, ?, ?)",
@@ -684,8 +678,8 @@ def collect_crypto_ticker(symbol: str) -> dict:
 
     return {
         "ticker": symbol,
-        "name": coin["name"],
-        "price": latest["price"],
+        "name": quote["name"],
+        "price": quote["price"],
         "history_points": len(points),
         "new_history_points": new_history_count,
         "fear_greed": fear_greed,
@@ -713,13 +707,13 @@ def main_crypto_ticker(symbol: str) -> int:
 def collect_metal_ticker(ticker: str) -> dict:
     """Quote + price history pra um metal (Fase 10, item 8, Sessão 55).
 
-    Mesmo papel que `collect_crypto_ticker` cumpre pra cripto: uma chamada
-    só devolve preço atual + série histórica, gravados nas mesmas tabelas
-    genéricas `stock_quotes`/`stock_price_history` que todo o resto do app
-    já lê (TWR, Research, Ativos) — preço já convertido pra USD/grama por
-    `metais_yahoo.fetch_quote_and_history` (COMEX cota em onça troy).
+    Mesmo papel que `collect_crypto_ticker` cumpre pra cripto: gravados nas
+    mesmas tabelas genéricas `stock_quotes`/`stock_price_history` que todo o
+    resto do app já lê (TWR, Research, Ativos) — preço via Finance API
+    (`GET /v1/metals/{ticker}/quote`), já em USD/troy ounce.
     """
-    result = metais_yahoo.fetch_quote_and_history(ticker)
+    quote = finance_api_client.fetch_metal_quote(ticker)
+    history = finance_api_client.fetch_metal_price_history(ticker)
     now = datetime.now(timezone.utc).isoformat()
 
     conn = sqlite3.connect(DB_PATH)
@@ -727,13 +721,13 @@ def collect_metal_ticker(ticker: str) -> dict:
     conn.execute(
         "INSERT INTO stock_quotes (ticker, price, name, exchange, currency, source, fetched_at) "
         "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (ticker, result["price"], result["name"], "COMEX", "USD", "yahoo_finance", now),
+        (ticker, quote["price"], quote["name"], "COMEX", "USD", "yahoo_finance", now),
     )
     changes_before = conn.total_changes
     conn.executemany(
         "INSERT OR IGNORE INTO stock_price_history "
         "(ticker, price_date, close_price, source, fetched_at) VALUES (?, ?, ?, ?, ?)",
-        [(ticker, p["price_date"], p["close_price"], "yahoo_finance", now) for p in result["history"]],
+        [(ticker, p["price_date"], p["close_price"], "yahoo_finance", now) for p in history],
     )
     new_history_count = conn.total_changes - changes_before
     conn.commit()
@@ -741,9 +735,9 @@ def collect_metal_ticker(ticker: str) -> dict:
 
     return {
         "ticker": ticker,
-        "name": result["name"],
-        "price": result["price"],
-        "history_points": len(result["history"]),
+        "name": quote["name"],
+        "price": quote["price"],
+        "history_points": len(history),
         "new_history_points": new_history_count,
     }
 
@@ -916,7 +910,9 @@ def collect_us_price_history(tickers: list[str]) -> list[dict]:
 
 def collect_us_stock_fundamentals(tickers: list[str]) -> list[dict]:
     """Fase 10, item 8, Fatia 2 — LPA/VPA/ROE/Payout de ação americana via
-    SEC EDGAR (`sec_edgar.py`). Mais simples que a versão BR
+    Finance API (Fase 1.7: `GET /v1/us-stocks/{ticker}/{fundamentals,payout}`,
+    resolvendo CIK internamente — `main.py` não precisa mais chamar
+    `sec_edgar.resolve_ciks` pra esse caminho). Mais simples que a versão BR
     (`collect_stock_fundamentals`): não precisa de uma etapa separada
     corrigindo o ROE, a SEC já dá o dado calculado direto de
     NetIncomeLoss/StockholdersEquity, sem a instabilidade trimestral-vs-TTM
@@ -924,11 +920,11 @@ def collect_us_stock_fundamentals(tickers: list[str]) -> list[dict]:
     if not tickers:
         return []
 
-    fundamentals = sec_edgar.fetch_fundamentals(tickers)
+    fundamentals = finance_api_client.fetch_us_stock_fundamentals(tickers)
 
-    ticker_ciks = {f["ticker"]: f["cik"] for f in fundamentals}
     payout_by_ticker = {
-        item["ticker"]: item["payout"] for item in sec_edgar.fetch_payout(ticker_ciks)
+        item["ticker"]: item["payout"]
+        for item in finance_api_client.fetch_us_stock_payout(tickers)
     }
     for item in fundamentals:
         item["payout"] = payout_by_ticker.get(item["ticker"])
@@ -961,18 +957,20 @@ def collect_us_stock_fundamentals(tickers: list[str]) -> list[dict]:
 def collect_us_stock_dcf_fundamentals(fundamentals: list[dict]) -> list[dict]:
     """Fase 10, item 8, Fatia 2 — espelho de `collect_stock_dcf_fundamentals`
     (mesmas colunas/tabela `stock_dcf_fundamentals`), completando com os
-    campos vindos da SEC EDGAR. `shares_outstanding` vem de `fundamentals`
-    (já buscado por `collect_us_stock_fundamentals`), não da SEC diretamente
-    — mesmo desenho do par bolsai/CVM."""
-    ticker_ciks = {f["ticker"]: f["cik"] for f in fundamentals}
-    if not ticker_ciks:
+    campos vindos da Finance API (Fase 1.7: `GET /v1/us-stocks/{ticker}/
+    dcf-fundamentals`, recebe ticker direto, não precisa mais de CIK).
+    `shares_outstanding` vem de `fundamentals` (já buscado por
+    `collect_us_stock_fundamentals`), não da SEC diretamente — mesmo
+    desenho do par bolsai/CVM."""
+    tickers = [f["ticker"] for f in fundamentals]
+    if not tickers:
         return []
 
     shares_outstanding_millions = {
         f["ticker"]: f["shares_outstanding"] / 1_000_000 for f in fundamentals
     }
 
-    records = sec_edgar.fetch_dcf_fundamentals(ticker_ciks)
+    records = finance_api_client.fetch_us_stock_dcf_fundamentals(tickers)
     for record in records:
         record["shares_outstanding"] = shares_outstanding_millions[record["ticker"]]
 
@@ -1144,11 +1142,12 @@ def main_reit(ticker: str) -> int:
 
 def main_us_stock(ticker: str) -> int:
     """Ação americana (Fase 10, item 8). Fatia 1 deu cotação/técnicos/
-    dividendos/histórico de preço via Yahoo, sem sufixo `.SA`. Fatia 2
-    (esta) acrescenta fundamentos + DCF via SEC EDGAR (`sec_edgar.py`),
-    mesmo papel que `acoes_bolsai`/`cvm_dfp` cumprem pra ação BR — só que
-    aqui uma fonte só cobre os dois (LPA/VPA/ROE/Payout e os 9 campos do
-    DCF), ao contrário do par bolsai+CVM.
+    dividendos/histórico de preço via Yahoo, sem sufixo `.SA` (continua
+    local, sem endpoint equivalente na Finance API). Fatia 2 (esta) acrescenta
+    fundamentos + DCF via Finance API (Fase 1.7, `GET /v1/us-stocks/{ticker}/
+    ...` — SEC EDGAR por trás), mesmo papel que bolsai+CVM cumprem pra ação
+    BR — só que aqui uma fonte só cobre os dois (LPA/VPA/ROE/Payout e os 9
+    campos do DCF).
     """
     load_dotenv(BASE_DIR / ".env")
     tickers = [ticker]

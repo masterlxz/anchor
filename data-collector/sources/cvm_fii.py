@@ -1,30 +1,17 @@
-"""Cliente dos Dados Abertos da CVM, fatia FII (Fase 10, item 8 — Sessão 41).
+"""Cliente dos Dados Abertos da CVM, fatia FII — resto local após a Fase 1.7.
 
-Mesmo portal que `cvm_dfp.py` já usa pras ações (`dados.cvm.gov.br`), mas um
-conjunto de arquivos totalmente separado, com schema próprio (nomes de campo
-`Data_Referencia`/`Versao`, não `DT_REFER`/`VERSAO` da DFP) e uma convenção
-de nome de arquivo diferente: o zip é nomeado pelo **ano corrente** dos
-dados (`inf_mensal_fii_2026.zip` já contém os meses de 2026 publicados até
-agora), não pelo ano do exercício fiscal encerrado como a DFP.
+Mesmo portal que `cvm_dfp.py` (removido na Sessão 7) usava pras ações
+(`dados.cvm.gov.br`), conjunto de arquivos `INF_MENSAL` com schema próprio
+(`Data_Referencia`/`Versao`, `CNPJ_Fundo_Classe`), zip nomeado pelo **ano
+corrente** dos dados publicados (não pelo exercício fiscal encerrado).
 
-Três informes usados aqui, confirmados contra os arquivos reais
-(2026-08-02):
-- `INF_MENSAL` — patrimônio líquido, valor patrimonial da cota, dividend
-  yield do mês, nº de cotistas (`inf_mensal_fii_geral_{ano}.csv` +
-  `..._complemento_{ano}.csv`, mesmo `CNPJ_Fundo_Classe`/`Data_Referencia`).
-  Também é a única fonte usada pra resolver ticker→CNPJ (via
-  `resolve_cnpj`), já que só o `geral` tem `Nome_Fundo_Classe`.
-- `INF_TRIMESTRAL` — só o arquivo `imovel` é usado por ora: **vacância e
-  inadimplência por imóvel**, exatamente o que o dono do projeto pediu
-  (`Percentual_Vacancia`/`Percentual_Inadimplencia`), mais endereço/área/%
-  locado/% da receita do fundo. Os outros 15 CSVs do informe trimestral
-  (inquilinos por contrato, resultado contábil-financeiro completo,
-  aquisição/alienação de imóvel...) ficam pra uma fatia futura se o dono do
-  projeto quiser mais detalhe.
-
-**Preço de mercado e proventos não vêm daqui** — a CVM é reguladora, não a
-bolsa; continuam vindo do Yahoo (`acoes_yahoo.py`, já estende pra FII desde
-a fatia anterior desta mesma sessão).
+**Fase 1.7 (Sessão 7)**: `fetch_monthly_indicators`/`fetch_property_data`
+foram removidos — a Finance API (`finance_api_client.fetch_fii_monthly_indicators`/
+`fetch_fii_properties`, `GET /v1/fiis/{cnpj}/{monthly-indicators,properties}`)
+cobre os dois agora. O que sobra aqui é só `resolve_cnpj` (ticker→CNPJ),
+nunca portado pra Finance API (decisão da Sessão 4) — usa o arquivo `geral` do
+informe mensal (único com `Nome_Fundo_Classe`) combinado com
+`acoes_bolsai.fetch_fii_summary`.
 """
 
 import csv
@@ -88,27 +75,6 @@ def _read_csv(zf: zipfile.ZipFile, filename: str) -> list[dict]:
         return list(csv.DictReader(text, delimiter=";"))
 
 
-def _latest_version_rows(rows: list[dict]) -> list[dict]:
-    """Mesma disciplina de `cvm_dfp.py::_latest_version_rows` — uma
-    retificação (`Versao` maior) pro mesmo `Data_Referencia` substitui a
-    versão anterior, nunca soma/duplica."""
-    if not rows:
-        return []
-    max_version = max(int(row["Versao"]) for row in rows)
-    return [row for row in rows if int(row["Versao"]) == max_version]
-
-
-def _latest_reference_rows(rows: list[dict]) -> list[dict]:
-    """Mantém só as linhas do `Data_Referencia` mais recente (já filtradas
-    pela versão mais nova daquele período) — usado tanto pro indicador
-    mensal (1 linha por fundo) quanto pro imóvel trimestral (N linhas por
-    fundo, um por imóvel, todas do mesmo trimestre)."""
-    if not rows:
-        return []
-    latest_date = max(row["Data_Referencia"] for row in rows)
-    return _latest_version_rows([r for r in rows if r["Data_Referencia"] == latest_date])
-
-
 def resolve_cnpj(ticker: str) -> dict | None:
     """Resolve o CNPJ do fundo (não do administrador) a partir do ticker,
     combinando a bolsai (nome oficial do fundo + CNPJ do administrador) com
@@ -146,112 +112,3 @@ def resolve_cnpj(ticker: str) -> dict | None:
 
     cnpj = next(iter(candidates))
     return {"cnpj": cnpj, "fund_name": summary["name"]}
-
-
-def fetch_monthly_indicators(cnpjs: list[str]) -> list[dict]:
-    """Indicadores do informe mensal mais recente disponível, um por fundo.
-
-    Retorna `{"cnpj", "reference_date", "patrimonio_liquido",
-    "valor_patrimonial_cota", "numero_cotistas", "dividend_yield_mes",
-    "rentabilidade_efetiva_mes"}`. Um CNPJ sem nenhuma linha no ano corrente
-    é ignorado (não derruba o resto) — mesmo padrão de `acoes_yahoo.py`.
-    """
-    if not cnpjs:
-        return []
-
-    zf = _resolve_zip("mensal")
-    rows = _read_csv(
-        zf, next(n for n in zf.namelist() if n.startswith("inf_mensal_fii_complemento_"))
-    )
-
-    cnpj_set = set(cnpjs)
-    by_cnpj: dict[str, list[dict]] = {}
-    for row in rows:
-        if row["CNPJ_Fundo_Classe"] in cnpj_set:
-            by_cnpj.setdefault(row["CNPJ_Fundo_Classe"], []).append(row)
-
-    results = []
-    for cnpj, fund_rows in by_cnpj.items():
-        latest = _latest_reference_rows(fund_rows)
-        if not latest:
-            continue
-        row = latest[0]
-        results.append(
-            {
-                "cnpj": cnpj,
-                "reference_date": row["Data_Referencia"],
-                "patrimonio_liquido": float(row["Patrimonio_Liquido"]),
-                "valor_patrimonial_cota": float(row["Valor_Patrimonial_Cotas"]),
-                "numero_cotistas": (
-                    int(row["Total_Numero_Cotistas"]) if row["Total_Numero_Cotistas"] else None
-                ),
-                "dividend_yield_mes": (
-                    float(row["Percentual_Dividend_Yield_Mes"])
-                    if row["Percentual_Dividend_Yield_Mes"]
-                    else None
-                ),
-                "rentabilidade_efetiva_mes": (
-                    float(row["Percentual_Rentabilidade_Efetiva_Mes"])
-                    if row["Percentual_Rentabilidade_Efetiva_Mes"]
-                    else None
-                ),
-            }
-        )
-
-    return results
-
-
-def fetch_property_data(cnpjs: list[str]) -> list[dict]:
-    """Imóveis do informe trimestral mais recente disponível, um item por
-    imóvel (um fundo pode ter vários).
-
-    Retorna `{"cnpj", "reference_date", "nome_imovel", "endereco",
-    "area_m2", "percentual_vacancia", "percentual_inadimplencia",
-    "percentual_receitas_fii", "percentual_locado"}`. Campos percentuais já
-    vêm em fração (0-1) na CVM, mesma convenção do indicador mensal — o
-    lado Rust/frontend decide a formatação em %.
-    """
-    if not cnpjs:
-        return []
-
-    zf = _resolve_zip("trimestral")
-    rows = _read_csv(
-        zf, next(n for n in zf.namelist() if n.startswith("inf_trimestral_fii_imovel_"))
-    )
-
-    cnpj_set = set(cnpjs)
-    by_cnpj: dict[str, list[dict]] = {}
-    for row in rows:
-        if row["CNPJ_Fundo_Classe"] in cnpj_set:
-            by_cnpj.setdefault(row["CNPJ_Fundo_Classe"], []).append(row)
-
-    results = []
-    for cnpj, fund_rows in by_cnpj.items():
-        for row in _latest_reference_rows(fund_rows):
-            results.append(
-                {
-                    "cnpj": cnpj,
-                    "reference_date": row["Data_Referencia"],
-                    "nome_imovel": row["Nome_Imovel"],
-                    "endereco": row["Endereco"] or None,
-                    "area_m2": float(row["Area"]) if row["Area"] else None,
-                    "percentual_vacancia": (
-                        float(row["Percentual_Vacancia"]) if row["Percentual_Vacancia"] else None
-                    ),
-                    "percentual_inadimplencia": (
-                        float(row["Percentual_Inadimplencia"])
-                        if row["Percentual_Inadimplencia"]
-                        else None
-                    ),
-                    "percentual_receitas_fii": (
-                        float(row["Percentual_Receitas_FII"])
-                        if row["Percentual_Receitas_FII"]
-                        else None
-                    ),
-                    "percentual_locado": (
-                        float(row["Percentual_Locado"]) if row["Percentual_Locado"] else None
-                    ),
-                }
-            )
-
-    return results
