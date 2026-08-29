@@ -130,6 +130,8 @@ pub fn run() {
             commands::fii::run_fii_cvm_collector,
             commands::fii::list_fii_cvm_monthly,
             commands::fii::list_fii_cvm_properties,
+            commands::finance_api_settings::get_finance_api_settings,
+            commands::finance_api_settings::set_finance_api_settings,
             commands::reit::list_reit_fundamentals,
             commands::reit::get_reit_manual_indicators,
             commands::reit::save_reit_manual_indicators,

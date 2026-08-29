@@ -54,6 +54,7 @@ mod m20260815_110000_add_payment_type_to_transactions;
 mod m20260815_120000_create_macro_index_monthly;
 mod m20260822_100000_create_home_widget_layout;
 mod m20260823_100000_add_underlying_asset_class_to_assets;
+mod m20260829_141241_create_finance_api_settings;
 
 pub struct Migrator;
 
@@ -115,6 +116,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260815_120000_create_macro_index_monthly::Migration),
             Box::new(m20260822_100000_create_home_widget_layout::Migration),
             Box::new(m20260823_100000_add_underlying_asset_class_to_assets::Migration),
+            Box::new(m20260829_141241_create_finance_api_settings::Migration),
         ]
     }
 }

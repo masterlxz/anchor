@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AppError } from "../types";
 import TruthIdSettingsSection from "../truthid/TruthIdSettingsSection";
+import FinanceApiSettingsSection from "./FinanceApiSettingsSection";
 import Field from "../components/Field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -234,7 +235,7 @@ function IaSettingsSection() {
 // layout de sidebar + conteúdo já pensado pra caber mais de uma seção
 // (comentário original, quando só "IA" existia) funcionou sem redesenho;
 // ainda sem abstração de registro de seções — só 2 itens, não vale a pena.
-const SECTIONS = ["IA", "TruthID"] as const;
+const SECTIONS = ["IA", "TruthID", "Finance API"] as const;
 
 function SettingsPage({ onBack }: { onBack: () => void }) {
   const [section, setSection] = useState<(typeof SECTIONS)[number]>("IA");
@@ -269,6 +270,7 @@ function SettingsPage({ onBack }: { onBack: () => void }) {
         <div className="flex-1">
           {section === "IA" && <IaSettingsSection />}
           {section === "TruthID" && <TruthIdSettingsSection />}
+          {section === "Finance API" && <FinanceApiSettingsSection />}
         </div>
       </CardContent>
     </Card>

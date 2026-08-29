@@ -1132,12 +1132,34 @@ pro lado já implementado):
   roda falha silenciosamente (`GLIBC_2.38' not found`) — não é bug de código, é lembrete pra
   Fase 14.1: o CI precisa buildar o sidecar dentro do mesmo ambiente onde o app roda (ou um
   runner com GLIBC igual ou mais velho), não em qualquer host.
-- [ ] 14.3 — Settings: tabela nova `finance_api_settings` (Local/Remote + URL, migration
-  SeaORM), chave remota no keyring sob um username fixo (não reaproveitar `ai_api_key`/
-  `Provider` — schema errado pro caso, ver achado da Sessão 89), comandos
-  `get_/set_finance_api_*`, seção nova "Finance API" em `SettingsPage.tsx` (`SECTIONS` ganha um
-  3º item, ao lado de "IA"/"TruthID", reaproveitando `Field`/`Select`/`Input`/`Card` já
-  importados ali).
+- [x] 14.3 — Settings (Sessão 90, continuação 2): tabela `finance_api_settings` (linha única,
+  padrão "replace" de `commands::home_layout` — `mode`: `"local"`/`"remote"`, `remote_url`
+  nullable, `updated_at`), migration `m20260829_141241_create_finance_api_settings`. Chave
+  remota no keyring sob username fixo `"finance_api_remote"` (`commands::api_key::
+  KEYRING_SERVICE` reaproveitado, não o esquema `"{provider}:{id}"` de `ai_api_key` — schema
+  errado pro caso). `commands::finance_api_settings::{get_,set_}finance_api_settings` (em
+  branco no campo de chave mantém a já salva, não força redigitar toda vez que só a URL muda).
+  Seção nova "Finance API" em `SettingsPage.tsx` (`SECTIONS` ganha um 3º item, arquivo próprio
+  `FinanceApiSettingsSection.tsx`, mesmo padrão de `TruthIdSettingsSection.tsx`). **Escopo
+  fechado com o dono do projeto via `AskUserQuestion`**: só armazenamento + UI, sem ligar em
+  `finance_api::sidecar::init` (14.2) — a configuração fica salva mas sem efeito real até uma
+  fatia futura consumir, fiel ao desenho original da Sessão 89. **Achado real durante a
+  implementação**: `sea-orm-cli generate entity` sem flag nenhuma regenerou 5 entities
+  existentes (`bank_account`/`general_transaction`/`general_transaction_category`/`liability`/
+  `liability_installment`) com nome de arquivo/módulo **plural**, batendo com o nome real da
+  tabela SQL mas divergindo do nome singular hand-editado que já estava commitado — teria
+  quebrado a compilação de `commands::bank_account.rs` e companhia se não fosse revertido antes
+  do `cargo check`. Corrigido restaurando os arquivos afetados via `git checkout` e inserindo só
+  as 2 linhas novas (`mod.rs`/`prelude.rs`) à mão, sem rodar `generate entity` de novo — mesmo
+  cuidado que `macro_index_monthly.rs` já documentava ("hand-written to match the generated
+  style") por esse motivo exato. **Verificado**: `cargo check`/`cargo test --lib` **173/173 sem
+  regressão**, `tsc --noEmit` limpo, migration aplicada e entity gerada contra o banco real de
+  dev. Testado ao vivo interrompido antes de confirmar a seção na tela — um clique automatizado
+  (`xdotool`) calculado errado, no ambiente de X11 real do dono do projeto (não uma tela de
+  teste isolada), acabou clicando na aba do navegador atrás da janela do Anchor por engano;
+  parado ali por segurança (achado registrado em memória de sessão — `xdotool` neste projeto
+  toca o desktop real, não uma tela isolada). **Confirmação visual da seção fica pro dono do
+  projeto**, mesma política já adotada pra cliques em componentes Radix/WebKitGTK.
 - [ ] 14.4 — Rust: portar a lógica de fetch+write do `data-collector/main.py` pra dentro do
   Tauri — um módulo por classe de ativo (`finance_api/stocks.rs`, `crypto.rs`, `us_stocks.rs`,
   `price_history.rs`, `benchmarks.rs`, `fii.rs`), cada `#[tauri::command]` existente em

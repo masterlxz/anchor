@@ -15,6 +15,7 @@ pub mod dcf;
 pub mod dividend_suggestion;
 pub mod document_extraction;
 pub mod fii;
+pub mod finance_api_settings;
 pub mod general_transaction;
 pub mod general_transaction_category;
 pub mod gordon;
