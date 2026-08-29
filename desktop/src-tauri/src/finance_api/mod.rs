@@ -4,12 +4,15 @@
 // (dev); `client` é o HTTP client tipado consumido por cima dele. Nenhum
 // `#[tauri::command]` chama isso ainda — a Fase 14.4 é quem porta a lógica
 // de fetch+write do coletor Python pra cima deste client.
+pub mod benchmark;
 pub mod client;
 pub mod crypto;
 pub mod fii;
 pub mod metals;
+pub mod reit;
 pub mod sidecar;
 pub mod stocks;
+pub mod us_stock;
 
 pub use sidecar::FinanceApiHandle;
 

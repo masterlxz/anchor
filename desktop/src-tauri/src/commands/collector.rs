@@ -2,27 +2,17 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
 use serde::Serialize;
-use tauri_plugin_shell::ShellExt;
-use tokio::process::Command;
 
-use crate::db;
 use crate::entity::{
     crypto_fear_greed, stock_dcf_fundamentals, stock_dividend_payments, stock_dividends_avg,
     stock_fundamentals, stock_price_history, stock_quotes, stock_technicals,
 };
 use crate::error::AppError;
 use crate::finance_api::{
-    crypto as finance_api_crypto, metals as finance_api_metals, stocks as finance_api_stocks,
-    FinanceApiHandle,
+    benchmark as finance_api_benchmark, crypto as finance_api_crypto,
+    metals as finance_api_metals, reit as finance_api_reit, stocks as finance_api_stocks,
+    us_stock as finance_api_us_stock, FinanceApiHandle,
 };
-
-// Dev-only paths — the venv and script live in the data-collector/ bind
-// mount (see docker-compose.yml), same absolute-path convention as
-// db.rs's DEV_DATABASE_FILE_PATH. Só usados no branch de dev de
-// `run_collector` — build de release usa o sidecar registrado em
-// `tauri.conf.json::bundle.externalBin` (Fase 11.3).
-const COLLECTOR_PYTHON: &str = "/data-collector/.venv/bin/python3";
-const COLLECTOR_SCRIPT: &str = "/data-collector/main.py";
 
 #[derive(Serialize)]
 pub struct CollectorSummary {
@@ -30,65 +20,14 @@ pub struct CollectorSummary {
     pub output: String,
 }
 
-// Aceita tanto `std::process::Output` (branch de dev, `tokio::process::Command`)
-// quanto `tauri_plugin_shell::process::Output` (branch de release, sidecar) —
-// os dois expõem `status`/`stdout`/`stderr` no mesmo formato, então um único
-// helper genérico cobre as duas fontes sem duplicar a lógica de sucesso/erro.
-fn summarize(status_success: bool, stdout: &[u8], stderr: &[u8]) -> CollectorSummary {
-    if status_success {
-        CollectorSummary {
-            success: true,
-            output: String::from_utf8_lossy(stdout).to_string(),
-        }
-    } else {
-        CollectorSummary {
-            success: false,
-            output: String::from_utf8_lossy(stderr).to_string(),
-        }
-    }
-}
-
-// `pub(crate)` — reaproveitado por `commands::fii` (Sessão 41), que também
-// invoca o mesmo subprocess do coletor pra resolver CNPJ e puxar indicadores
-// da CVM, mesmo lock/binário/script. Fase 11.3: em dev roda o `.venv` de
-// sempre; em build de release, roda o sidecar compilado (PyInstaller),
-// passando `--db-path` explicitamente — o sidecar empacotado não tem como
-// adivinhar sozinho onde o `app_data_dir()` do SO fica (ver
-// `data-collector/main.py`).
-pub(crate) async fn run_collector(
-    app: &tauri::AppHandle,
-    lock: &AtomicBool,
-    extra_args: &[&str],
-) -> Result<CollectorSummary, AppError> {
-    if lock.swap(true, Ordering::SeqCst) {
-        return Err(AppError::CollectorBusy);
-    }
-
-    let summary = if cfg!(debug_assertions) {
-        Command::new(COLLECTOR_PYTHON)
-            .arg(COLLECTOR_SCRIPT)
-            .args(extra_args)
-            .output()
-            .await
-            .map(|output| summarize(output.status.success(), &output.stdout, &output.stderr))
-            .map_err(|err| AppError::CollectorFailed(err.to_string()))
-    } else {
-        let db_path = db::resolve_database_path(app);
-        app.shell()
-            .sidecar("anchor-collector")
-            .map_err(|err| AppError::CollectorFailed(err.to_string()))?
-            .args(["--db-path", &db_path.to_string_lossy()])
-            .args(extra_args)
-            .output()
-            .await
-            .map(|output| summarize(output.status.success(), &output.stdout, &output.stderr))
-            .map_err(|err| AppError::CollectorFailed(err.to_string()))
-    };
-
-    lock.store(false, Ordering::SeqCst);
-
-    summary
-}
+// `run_collector` (subprocess Python, `data-collector/main.py` em dev /
+// sidecar `anchor-collector` em release) foi removida nesta sessão — a
+// Fase 14.4 (Sessão 92) portou seu último chamador restante
+// (`commands::fii::resolve_fii_cnpj`) pra Rust, então a função ficou
+// inteiramente morta (`cargo check` confirmou). O binário/script Python em
+// si (`data-collector/`, `tauri.conf.json::bundle.externalBin`, o step de
+// build em `build.yml`) continuam existindo até a Fase 14.5 apagar tudo de
+// vez — só o wrapper Rust que não tinha mais chamador foi removido aqui.
 
 // `asset_class` distingue "cripto" (fonte CoinGecko, `--crypto-ticker`,
 // Sessão 51), "metal" (fonte Yahoo sem `.SA` — COMEX, `--metal-ticker`,
@@ -98,14 +37,14 @@ pub(crate) async fn run_collector(
 // (chamadores que não sabem/não precisam distinguir classe, ex.: os
 // formulários de valuation via `useTickerCollector`).
 //
-// Fase 14.4 (primeira fatia) — o branch padrão (`_`) trocou de `run_collector`
-// (subprocess Python) pra `finance_api::stocks::run_stock_collector` (Rust
-// nativo, via sidecar/endpoint da Finance API). Os outros branches (cripto/
-// metal/ação americana/REIT/ETF-US) continuam no coletor Python por
-// enquanto — portados em fatias futuras.
+// Fase 14.4 — todos os branches trocaram de `run_collector` (subprocess
+// Python) pra chamadas nativas via Finance API: `_` (Sessão 91) usa
+// `finance_api::stocks`, "cripto"/"metal" (Sessão 91) usam
+// `finance_api::{crypto,metals}`, e "acao_internacional"/"reit"/"etf_us"
+// (Sessão 92, desbloqueados pela Fase 1.11 do easybusiness) usam
+// `finance_api::{us_stock,reit}`.
 #[tauri::command]
 pub async fn run_stock_collector(
-    app: tauri::AppHandle,
     lock: tauri::State<'_, AtomicBool>,
     db: tauri::State<'_, DatabaseConnection>,
     finance_api: tauri::State<'_, FinanceApiHandle>,
@@ -151,10 +90,46 @@ pub async fn run_stock_collector(
             result
         }
         Some("acao_internacional") => {
-            run_collector(&app, &lock, &["--us-ticker", &ticker]).await
+            if lock.swap(true, Ordering::SeqCst) {
+                return Err(AppError::CollectorBusy);
+            }
+            let result =
+                finance_api_us_stock::run_us_stock_collector(db.inner(), &finance_api, &[ticker])
+                    .await;
+            lock.store(false, Ordering::SeqCst);
+
+            result.map(|output| CollectorSummary {
+                success: true,
+                output,
+            })
         }
-        Some("reit") => run_collector(&app, &lock, &["--reit-ticker", &ticker]).await,
-        Some("etf_us") => run_collector(&app, &lock, &["--etf-us-ticker", &ticker]).await,
+        Some("reit") => {
+            if lock.swap(true, Ordering::SeqCst) {
+                return Err(AppError::CollectorBusy);
+            }
+            let result =
+                finance_api_reit::run_reit_collector(db.inner(), &finance_api, &[ticker]).await;
+            lock.store(false, Ordering::SeqCst);
+
+            result.map(|output| CollectorSummary {
+                success: true,
+                output,
+            })
+        }
+        Some("etf_us") => {
+            if lock.swap(true, Ordering::SeqCst) {
+                return Err(AppError::CollectorBusy);
+            }
+            let result =
+                finance_api_us_stock::run_etf_us_collector(db.inner(), &finance_api, &[ticker])
+                    .await;
+            lock.store(false, Ordering::SeqCst);
+
+            result.map(|output| CollectorSummary {
+                success: true,
+                output,
+            })
+        }
         _ => {
             if lock.swap(true, Ordering::SeqCst) {
                 return Err(AppError::CollectorBusy);
@@ -295,16 +270,43 @@ pub async fn run_price_history_backfill(
     result
 }
 
-// Fase 13.5 — atualiza os 4 benchmarks de fonte gratuita (CDI/IPCA/IBOV/
-// IVVB11) usados em "Return vs. benchmarks" (`commands::profitability::
-// get_profitability_comparison`). Mesmo padrão de `run_price_history_backfill`,
-// sem tickers pra passar — são sempre os mesmos 4.
+// Fase 13.5 — atualiza os 7 benchmarks de fonte gratuita (CDI/IPCA/IBOV/
+// IVVB11/IFIX/SMLL/IDIV) usados em "Return vs. benchmarks"
+// (`commands::profitability::get_profitability_comparison`). Sem tickers
+// pra passar — são sempre os mesmos 7.
+//
+// Fase 14.4 (Sessão 92) — trocou de `run_collector` (subprocess Python,
+// `--benchmark-returns`) pra `finance_api::benchmark::collect_benchmarks`
+// direto, desbloqueado pela Fase 1.11 do easybusiness (IBOV era o único dos
+// 7 sem endpoint equivalente).
 #[tauri::command]
 pub async fn run_benchmark_backfill(
-    app: tauri::AppHandle,
     lock: tauri::State<'_, AtomicBool>,
+    db: tauri::State<'_, DatabaseConnection>,
+    finance_api: tauri::State<'_, FinanceApiHandle>,
 ) -> Result<CollectorSummary, AppError> {
-    run_collector(&app, &lock, &["--benchmark-returns"]).await
+    if lock.swap(true, Ordering::SeqCst) {
+        return Err(AppError::CollectorBusy);
+    }
+    let result = finance_api_benchmark::collect_benchmarks(db.inner(), &finance_api)
+        .await
+        .map(|s| CollectorSummary {
+            success: true,
+            output: format!(
+                "CDI: {} month(s); IPCA: {} month(s); IBOV: {} point(s); IVVB11: {} point(s); \
+                 IFIX: {} point(s); SMLL: {} point(s); IDIV: {} point(s)",
+                s.cdi_count,
+                s.ipca_count,
+                s.ibov_count,
+                s.ivvb11_count,
+                s.ifix_count,
+                s.smll_count,
+                s.idiv_count,
+            ),
+        });
+    lock.store(false, Ordering::SeqCst);
+
+    result
 }
 
 #[tauri::command]

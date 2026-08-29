@@ -507,6 +507,146 @@ pub async fn fetch_us_stock_payout(
     get(handle, &format!("/v1/us-stocks/{ticker}/payout")).await
 }
 
+// Fase 1.11.1 do easybusiness (Sessão 92 do Anchor) — mesmos 5 recursos de
+// `/v1/stocks/{ticker}/...` acima, só que pra ticker sem sufixo `.SA` (ação
+// americana, ETF-US, REIT, ou um índice sem sufixo como `^BVSP`/IBOV — sem
+// tratamento especial pra índice, mesma decisão que o coletor Python já
+// tomava). DTOs idênticos aos `Stock*Response` — mesmos campos.
+
+#[derive(Debug, Deserialize)]
+pub struct UsStockQuoteResponse {
+    pub ticker: String,
+    #[serde(flatten)]
+    pub meta: ResponseMeta,
+    pub price: f64,
+    pub name: Option<String>,
+    pub exchange: Option<String>,
+    pub currency: Option<String>,
+}
+
+pub async fn fetch_us_stock_quote(
+    handle: &FinanceApiHandle,
+    ticker: &str,
+) -> Result<UsStockQuoteResponse, AppError> {
+    get(handle, &format!("/v1/us-stocks/{ticker}/quote")).await
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UsStockTechnicalsResponse {
+    pub ticker: String,
+    #[serde(flatten)]
+    pub meta: ResponseMeta,
+    pub sma_50: Option<f64>,
+    pub sma_100: Option<f64>,
+    pub sma_200: Option<f64>,
+    pub cagr_5y: Option<f64>,
+    pub cagr_10y: Option<f64>,
+}
+
+pub async fn fetch_us_stock_technicals(
+    handle: &FinanceApiHandle,
+    ticker: &str,
+) -> Result<UsStockTechnicalsResponse, AppError> {
+    get(handle, &format!("/v1/us-stocks/{ticker}/technicals")).await
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UsStockDividendsAvgResponse {
+    pub ticker: String,
+    #[serde(flatten)]
+    pub meta: ResponseMeta,
+    pub avg_dividend_5y: f64,
+}
+
+pub async fn fetch_us_stock_dividends_avg(
+    handle: &FinanceApiHandle,
+    ticker: &str,
+) -> Result<UsStockDividendsAvgResponse, AppError> {
+    get(handle, &format!("/v1/us-stocks/{ticker}/dividends-avg")).await
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UsStockPriceHistoryResponse {
+    pub ticker: String,
+    #[serde(flatten)]
+    pub meta: ResponseMeta,
+    pub data: Vec<PriceHistoryPoint>,
+}
+
+pub async fn fetch_us_stock_price_history(
+    handle: &FinanceApiHandle,
+    ticker: &str,
+) -> Result<UsStockPriceHistoryResponse, AppError> {
+    get(handle, &format!("/v1/us-stocks/{ticker}/price-history")).await
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UsStockDividendPaymentsResponse {
+    pub ticker: String,
+    #[serde(flatten)]
+    pub meta: ResponseMeta,
+    pub data: Vec<StockDividendPaymentPoint>,
+}
+
+pub async fn fetch_us_stock_dividend_payments(
+    handle: &FinanceApiHandle,
+    ticker: &str,
+) -> Result<UsStockDividendPaymentsResponse, AppError> {
+    get(handle, &format!("/v1/us-stocks/{ticker}/dividend-payments")).await
+}
+
+// Fase 1.11.2 do easybusiness — indicadores imobiliários de REIT via SEC
+// EDGAR. Time-series do lado da API (append-only por `reference_year`), por
+// isso `data` é uma lista, não um objeto único.
+#[derive(Debug, Deserialize)]
+pub struct ReitFundamentalsPoint {
+    pub reference_year: i32,
+    pub revenue: f64,
+    pub real_estate_property_net: Option<f64>,
+    pub real_estate_property_at_cost: Option<f64>,
+    pub stockholders_equity: f64,
+    pub net_income: Option<f64>,
+    pub eps_diluted: f64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReitFundamentalsResponse {
+    pub ticker: String,
+    #[serde(flatten)]
+    pub meta: ResponseMeta,
+    pub data: Vec<ReitFundamentalsPoint>,
+}
+
+pub async fn fetch_reit_fundamentals(
+    handle: &FinanceApiHandle,
+    ticker: &str,
+) -> Result<ReitFundamentalsResponse, AppError> {
+    get(handle, &format!("/v1/us-stocks/{ticker}/reit-fundamentals")).await
+}
+
+// ---------------------------------------------------------------------------
+// fiis (ticker-keyed) — /v1/fiis/resolve/{ticker}
+// ---------------------------------------------------------------------------
+
+// Fase 1.11.3 do easybusiness — resolução ticker->CNPJ de FII (cruza bolsai
+// + CVM do lado de lá). Router separado de `/v1/fiis/{cnpj}/...` acima
+// porque é keyed por ticker, não CNPJ.
+#[derive(Debug, Deserialize)]
+pub struct FiiCnpjResolutionResponse {
+    pub ticker: String,
+    #[serde(flatten)]
+    pub meta: ResponseMeta,
+    pub cnpj: String,
+    pub fund_name: String,
+}
+
+pub async fn fetch_fii_cnpj_resolution(
+    handle: &FinanceApiHandle,
+    ticker: &str,
+) -> Result<FiiCnpjResolutionResponse, AppError> {
+    get(handle, &format!("/v1/fiis/resolve/{ticker}")).await
+}
+
 // ---------------------------------------------------------------------------
 // Testes `#[ignore]` — precisam de uma Finance API real rodando em
 // `http://localhost:8000` com `API_KEYS=local-dev-key-change-me` (mesmos
