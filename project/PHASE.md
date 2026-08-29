@@ -1160,7 +1160,7 @@ pro lado já implementado):
   parado ali por segurança (achado registrado em memória de sessão — `xdotool` neste projeto
   toca o desktop real, não uma tela isolada). **Confirmação visual da seção fica pro dono do
   projeto**, mesma política já adotada pra cliques em componentes Radix/WebKitGTK.
-- [ ] 14.4 — Rust: portar a lógica de fetch+write do `data-collector/main.py` pra dentro do
+- [x] 14.4 — Rust: portar a lógica de fetch+write do `data-collector/main.py` pra dentro do
   Tauri — um módulo por classe de ativo (`finance_api/stocks.rs`, `crypto.rs`, `us_stocks.rs`,
   `price_history.rs`, `benchmarks.rs`, `fii.rs`), cada `#[tauri::command]` existente em
   `collector.rs`/`fii.rs` troca o corpo (chamar `run_collector` → chamar `finance_api::*`
@@ -1252,12 +1252,47 @@ pro lado já implementado):
     `PHASE.md`/`ROADMAP.md` do `easybusiness` pros detalhes — nenhum código deste repo mudou).
     **Bloqueio removido**: os 3 fluxos acima ficam livres pra portar pra Rust, mesmo padrão das
     4 fatias já feitas na Sessão 91 — trabalho ainda não iniciado neste repo.
+  - [x] **Ação americana/REIT/ETF-US, benchmarks e `resolve_fii_cnpj`** (Sessão 92, continuação
+    — fecha a 14.4): `finance_api/us_stock.rs` novo (5 recursos Yahoo sem sufixo, escrevendo nas
+    **mesmas tabelas** que Ação BR já usa — `stock_quotes` etc., não existe `us_stock_*` do lado
+    Rust, mesma decisão do Python original; `run_us_stock_collector` acrescenta fundamentos/DCF
+    via `client::fetch_us_stock_fundamentals/payout/dcf_fundamentals`, já existentes desde a
+    Fase 1.7 mas sem chamador até agora; `run_etf_us_collector` é só os 5 recursos, sem
+    fundamentos). `finance_api/reit.rs` novo (reaproveita os 5 de `us_stock` + indicadores
+    imobiliários via `client::fetch_reit_fundamentals`). `finance_api/benchmark.rs` novo (CDI/
+    IPCA com upsert real; IBOV via `us_stock::collect_price_history("^BVSP")`, sem tratamento
+    especial; IVVB11/IFIX/SMLL/IDIV já portáveis desde a Fase 1.7). `finance_api::fii::
+    resolve_cnpj` novo (cache-then-fetch via `client::fetch_fii_cnpj_resolution`, cacheando só
+    quando resolve de verdade — mesma disciplina do original, nunca cacheia ausência).
+    `commands::collector::run_stock_collector` (branches `acao_internacional`/`reit`/`etf_us`)
+    e `run_benchmark_backfill` trocaram de `run_collector` pra chamar `finance_api::*` direto;
+    `commands::fii::resolve_fii_cnpj` idem, perdendo os parâmetros `app`/`lock` (a chamada HTTP
+    não precisa do lock de subprocess — frontend só passa `{ ticker }`, confirmado antes de
+    tirar). **3 achados reais ao vivo, todos corrigidos antes de fechar**: (1)
+    `reit_fundamentals` nunca teve índice único — a Finance API agora devolve a série histórica
+    completa a cada chamada (Fase 1.11.2), então sem índice o `ON CONFLICT` nem compilava
+    ("does not match any PRIMARY KEY or UNIQUE constraint") e, se removido, duplicaria cada ano
+    já existente a cada re-run; migration nova cria o índice `(ticker, reference_year)`,
+    deduplicando antes 2 linhas que já existiam no banco de dev de testes manuais anteriores à
+    Fase 14; (2) a Finance API devolve o CNPJ resolvido só com dígitos (normalizado do lado dela
+    pra caber na própria coluna), mas o resto do Anchor sempre usa o formato pontuado —
+    `finance_api::fii::format_cnpj` novo, achado testando KNRI11 real; (3)
+    `commands::collector::run_collector` (subprocess Python) ficou sem nenhum chamador depois
+    que `resolve_fii_cnpj` (seu último uso) portou pra Rust — removida (o binário/script Python
+    em si continua até a 14.5 apagar `data-collector/` de vez). **Verificado ao vivo**: AAPL (5
+    endpoints + fundamentos/DCF), `^BVSP`/IBOV (2483 pregões via o mesmo mecanismo sem sufixo),
+    IVV (ETF-US), Realty Income + Simon Property (REIT, incluindo idempotência pós-migration e o
+    fallback `NetIncomeLoss`→`ProfitLoss`), os 7 benchmarks completos com upsert de CDI/IPCA sem
+    duplicar, HGLG11 (cache hit, sem chamada de rede) e KNRI11 (cache miss, formato corrigido).
+    `cargo test --lib` **175/175 sem regressão** (+13 testes `#[ignore]` novos, todos passando),
+    `tsc --noEmit` limpo. **Fase 14.4 completa** — `data-collector/` não tem mais nenhum fluxo
+    exclusivo, só falta a 14.5 apagá-lo.
 - [ ] 14.5 — Limpeza: apagar `data-collector/` inteiro (script, `sources/`, `.venv`, spec do
   PyInstaller, `.env*`, artefatos de banco soltos), remover o step de build Python velho do
   `build.yml` e a entrada `anchor-collector` do `externalBin`, atualizar
   `desktop/docker-compose.yml` (bind mount) e este `README.md`.
 
 Sequência: 14.1/14.2/14.3 podem andar em paralelo entre si (todas dependem só da 14.0, já
-pronta); 14.4 é a maior e só fecha de verdade depois da Fase 1.11 do EasyBusiness (independente
-de 14.1-14.3, pode rodar em paralelo do lado de lá); 14.5 fecha por último.
+pronta); 14.4 era a maior e só fechou de verdade depois da Fase 1.11 do EasyBusiness (Sessão 92,
+independente de 14.1-14.3); resta só a 14.5.
 
