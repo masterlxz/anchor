@@ -6,5 +6,26 @@
 // de fetch+write do coletor Python pra cima deste client.
 pub mod client;
 pub mod sidecar;
+pub mod stocks;
 
 pub use sidecar::FinanceApiHandle;
+
+use crate::error::AppError;
+
+/// Vários endpoints da Finance API voltam 404 pra "esse ticker/empresa não
+/// tem esse dado" (ex.: `bolsai-fundamentals` pra um FII, `dividends-avg`
+/// pra um ticker sem histórico) — mesmo contrato que
+/// `data-collector/sources/finance_api_client.py` já tinha (`
+/// FinanceApiNotFoundError` capturado dentro do loop por-ticker, deixando
+/// qualquer outro erro propagar). Usado nos módulos por classe de ativo pra
+/// não repetir esse `match` em cada chamada.
+pub async fn skip_not_found<T, F>(fut: F) -> Result<Option<T>, AppError>
+where
+    F: std::future::Future<Output = Result<T, AppError>>,
+{
+    match fut.await {
+        Ok(value) => Ok(Some(value)),
+        Err(AppError::FinanceApiNotFound(_)) => Ok(None),
+        Err(err) => Err(err),
+    }
+}

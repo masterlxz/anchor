@@ -1321,3 +1321,37 @@
 - **Estado ao final**: Fase 14.3 completa (schema+UI), pendente só de conferência visual pelo
   dono do projeto. Restam: 14.4 (porta do fetch+write, bloqueada pela Fase 1.11 do
   `easybusiness`) e 14.5 (limpeza final).
+
+### 2026-08-29 — Sessão 91
+
+- **Objetivo**: dono do projeto pediu pra deixar rodando sem interação ("deixa rodando, me avisa
+  quando terminar") — Fase 14.4 é a única fatia com trabalho real não-bloqueado (14.5 depende
+  dela), então comecei pela primeira classe de ativo: Ação BR/FII/ETF-BR/BDR (o caminho padrão
+  `--ticker` do coletor Python, sem `asset_class` especial — o mais usado do app).
+- **Implementado**: `finance_api/stocks.rs` novo, espelhando `data-collector/main.py` função a
+  função (`collect_stock_quotes/dividends_avg/technicals/dividend_payments/price_history/
+  fundamentals/dcf_fundamentals`) — mesma sequência, mesmas regras de escrita (série temporal
+  sempre insere linha nova; proventos/preço histórico usam `ON CONFLICT DO NOTHING` no índice
+  único `(ticker, data)` via `sea_orm::sea_query::OnConflict`, `DbErr::RecordNotInserted`
+  normalizado pra sucesso). `finance_api::skip_not_found` novo (helper genérico) reproduz o
+  contrato "404 pula o ticker, qualquer outro erro propaga" que o coletor Python já tinha.
+  `commands::collector::run_stock_collector` (branch padrão) e `run_price_history_backfill`
+  trocaram de subprocess Python pra chamar `finance_api::stocks::*` direto, mesma assinatura —
+  frontend intocado.
+- **Verificado ao vivo**: 4 testes `#[ignore]` novos (`cargo test --lib -- --ignored
+  finance_api::stocks`) contra a Finance API real (`sidecar_main.py` fora de Docker, mesmo
+  contorno da Sessão 90 pro problema de rede do Docker neste host) e o banco real de dev —
+  quote, técnicos+dividendos médios, e 2 testes de idempotência (proventos/preço histórico não
+  duplicam rodando 2x). `cargo test --lib` **173/173 sem regressão** (+10 ignorados no total),
+  `tsc --noEmit` limpo.
+- **Pendência explícita**: o passo de fundamentos/DCF (bolsai+CVM) não foi testado ao vivo — o
+  classificador de permissão do modo auto bloqueou até um `ls` no `.env` que guarda a
+  `BOLSAI_API_KEY` real (serviço pago de terceiro), corretamente, então fica só revisado por
+  código. Nenhuma tentativa de contornar — parado e documentado como pendência.
+- **Sem mais interação com o desktop real do dono do projeto** (achado da Sessão 90) — toda a
+  verificação desta sessão ficou nos testes Rust `#[ignore]` contra API+banco reais, sem
+  `xdotool`/screenshot.
+- **Estado ao final**: primeira fatia da Fase 14.4 completa e commitada. Restam, na mesma Fase
+  14.4: cripto (`crypto.rs`), metal, ação americana/REIT/ETF-US, FII CVM e benchmarks — cada
+  classe é um módulo próprio e uma troca de corpo isolada no `collector.rs`/`fii.rs`, mesmo
+  padrão desta fatia.

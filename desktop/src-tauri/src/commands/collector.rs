@@ -11,6 +11,7 @@ use crate::entity::{
     stock_fundamentals, stock_price_history, stock_quotes, stock_technicals,
 };
 use crate::error::AppError;
+use crate::finance_api::{stocks as finance_api_stocks, FinanceApiHandle};
 
 // Dev-only paths — the venv and script live in the data-collector/ bind
 // mount (see docker-compose.yml), same absolute-path convention as
@@ -90,13 +91,21 @@ pub(crate) async fn run_collector(
 // Sessão 51), "metal" (fonte Yahoo sem `.SA` — COMEX, `--metal-ticker`,
 // Sessão 55) e "acao_internacional" (Yahoo sem `.SA` — ação americana,
 // `--us-ticker`) do resto (Ação BR/FII/ETF/BDR, todos o mesmo endpoint Yahoo
-// `.SA`, `--ticker`) — ver PHASE.md item 8. `None` preserva o comportamento
-// anterior (chamadores que não sabem/não precisam distinguir classe, ex.:
-// os formulários de valuation via `useTickerCollector`).
+// `.SA`) — ver PHASE.md item 8. `None` preserva o comportamento anterior
+// (chamadores que não sabem/não precisam distinguir classe, ex.: os
+// formulários de valuation via `useTickerCollector`).
+//
+// Fase 14.4 (primeira fatia) — o branch padrão (`_`) trocou de `run_collector`
+// (subprocess Python) pra `finance_api::stocks::run_stock_collector` (Rust
+// nativo, via sidecar/endpoint da Finance API). Os outros branches (cripto/
+// metal/ação americana/REIT/ETF-US) continuam no coletor Python por
+// enquanto — portados em fatias futuras.
 #[tauri::command]
 pub async fn run_stock_collector(
     app: tauri::AppHandle,
     lock: tauri::State<'_, AtomicBool>,
+    db: tauri::State<'_, DatabaseConnection>,
+    finance_api: tauri::State<'_, FinanceApiHandle>,
     ticker: String,
     asset_class: Option<String>,
 ) -> Result<CollectorSummary, AppError> {
@@ -108,7 +117,20 @@ pub async fn run_stock_collector(
         }
         Some("reit") => run_collector(&app, &lock, &["--reit-ticker", &ticker]).await,
         Some("etf_us") => run_collector(&app, &lock, &["--etf-us-ticker", &ticker]).await,
-        _ => run_collector(&app, &lock, &["--ticker", &ticker]).await,
+        _ => {
+            if lock.swap(true, Ordering::SeqCst) {
+                return Err(AppError::CollectorBusy);
+            }
+            let result =
+                finance_api_stocks::run_stock_collector(db.inner(), &finance_api, &[ticker])
+                    .await;
+            lock.store(false, Ordering::SeqCst);
+
+            result.map(|output| CollectorSummary {
+                success: true,
+                output,
+            })
+        }
     }
 }
 
@@ -192,14 +214,28 @@ pub async fn list_stock_dividend_payments(
     Ok(payments)
 }
 
+// Fase 14.4 — trocou de `run_collector` (subprocess Python, `--price-history`)
+// pra `finance_api::stocks::collect_price_history` direto, mesma regra de
+// escrita (`ON CONFLICT DO NOTHING` no índice único `(ticker, price_date)`).
 #[tauri::command]
 pub async fn run_price_history_backfill(
-    app: tauri::AppHandle,
     lock: tauri::State<'_, AtomicBool>,
+    db: tauri::State<'_, DatabaseConnection>,
+    finance_api: tauri::State<'_, FinanceApiHandle>,
     tickers: Vec<String>,
 ) -> Result<CollectorSummary, AppError> {
-    let joined = tickers.join(",");
-    run_collector(&app, &lock, &["--price-history", &joined]).await
+    if lock.swap(true, Ordering::SeqCst) {
+        return Err(AppError::CollectorBusy);
+    }
+    let result = finance_api_stocks::collect_price_history(db.inner(), &finance_api, &tickers)
+        .await
+        .map(|count| CollectorSummary {
+            success: true,
+            output: format!("Fetched {count} daily price point(s)"),
+        });
+    lock.store(false, Ordering::SeqCst);
+
+    result
 }
 
 // Fase 13.5 — atualiza os 4 benchmarks de fonte gratuita (CDI/IPCA/IBOV/

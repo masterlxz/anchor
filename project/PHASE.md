@@ -1167,6 +1167,35 @@ pro lado já implementado):
   direto) sem mudar assinatura, então o frontend não muda. **Maior fatia do trabalho**, só fecha
   de verdade depois que a Fase 1.11 do EasyBusiness cobrir as 4 capacidades que hoje só existem
   local — provável 2-4 sessões próprias.
+  - [x] **Ação BR/FII/ETF-BR/BDR** (Sessão 91, dono do projeto pediu pra deixar rodando sem
+    interação): `finance_api/stocks.rs` novo — espelha `collect_stock_{quotes,dividends_avg,
+    technicals,dividend_payments,price_history,fundamentals,dcf_fundamentals}` do coletor
+    Python linha a linha, mesma sequência e mesmas regras de escrita (`stock_quotes`/
+    `stock_dividends_avg`/`stock_technicals`/`stock_fundamentals`/`stock_dcf_fundamentals`
+    sempre inserem linha nova; `stock_dividend_payments`/`stock_price_history` usam `ON
+    CONFLICT DO NOTHING` no índice único `(ticker, data)`, via `sea_orm::sea_query::OnConflict`
+    — `DbErr::RecordNotInserted` normalizado pra sucesso quando todo o lote já existia).
+    `finance_api::skip_not_found` novo (helper genérico, `finance_api/mod.rs`) reproduz o
+    contrato "404 pula o ticker, qualquer outro erro propaga" que `finance_api_client.py` já
+    tinha. `commands::collector::run_stock_collector` (branch padrão `_`, sem `asset_class`
+    especial) e `run_price_history_backfill` trocaram de `run_collector` (subprocess Python)
+    pra chamar `finance_api::stocks::*` direto, mesma assinatura — frontend intocado. Os
+    outros branches (cripto/metal/ação americana/REIT/ETF-US) continuam no coletor Python.
+    **Achado real durante a implementação**: `sea-orm-cli generate entity` sem cuidado quase
+    quebrou 5 entities existentes (ver nota da 14.3 acima) — desta vez as novas escritas usaram
+    as entities já existentes (`stock_quotes` etc.) sem precisar gerar nada novo, então não
+    reincidiu. **Verificado ao vivo**: 4 testes `#[tokio::test] #[ignore]` novos em
+    `finance_api/stocks.rs` (`cargo test --lib -- --ignored finance_api::stocks`) — quote,
+    técnicos+dividendos médios e 2 testes de idempotência (rodar 2x não duplica proventos nem
+    preço histórico), todos contra a Finance API real e o banco real de dev, sem mock.
+    `cargo test --lib` **173/173 sem regressão** (+10 ignorados no total), `tsc --noEmit`
+    limpo. **Não coberto ao vivo**: o passo de fundamentos/DCF (`collect_fundamentals`/
+    `collect_dcf_fundamentals`, via bolsai+CVM) precisa de uma `BOLSAI_API_KEY` real (serviço
+    pago de terceiro) — o classificador de permissão do modo auto bloqueou até um `ls` no
+    `.env` que guarda essa chave (corretamente, é onde o segredo mora), então esse trecho ficou
+    só revisado por código, replicando a lógica do Python (roe da CVM sempre sobrescreve o da
+    bolsai, ticker sem ROE é descartado inteiro) sem confirmação ao vivo — pendência explícita
+    pra quando alguém puder rodar com a chave de verdade.
 - [ ] 14.5 — Limpeza: apagar `data-collector/` inteiro (script, `sources/`, `.venv`, spec do
   PyInstaller, `.env*`, artefatos de banco soltos), remover o step de build Python velho do
   `build.yml` e a entrada `anchor-collector` do `externalBin`, atualizar
