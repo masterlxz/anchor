@@ -10,6 +10,7 @@ mod domain;
 mod ecies;
 mod entity;
 mod error;
+mod finance_api;
 mod ipns_key;
 mod lan_sweep;
 mod pin_content_cipher;
@@ -32,6 +33,14 @@ pub fn run() {
                 .expect("failed to connect to database");
             alert_checker::spawn_periodic_check(db.clone());
             app.manage(db);
+
+            // Fase 14.2 — em dev, aponta pro `docker compose up` manual do
+            // easybusiness; em release, spawna o sidecar compilado. Ver
+            // `finance_api::sidecar::init`.
+            let finance_api = finance_api::sidecar::init(&handle)
+                .expect("failed to initialize the Finance API sidecar");
+            app.manage(finance_api);
+
             Ok(())
         })
         .manage(AtomicBool::new(false))
@@ -182,6 +191,16 @@ pub fn run() {
             commands::property::delete_asset_attachment,
             commands::property::get_asset_attachment_path
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            // Fase 14.2 — mata o processo sidecar da Finance API (se houver
+            // um rodando, ver `finance_api::FinanceApiHandle::shutdown`)
+            // antes do app fechar, pra não deixar processo órfão.
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                if let Some(finance_api) = app_handle.try_state::<finance_api::FinanceApiHandle>() {
+                    finance_api.shutdown();
+                }
+            }
+        });
 }

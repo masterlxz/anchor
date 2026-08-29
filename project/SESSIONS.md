@@ -1201,3 +1201,49 @@
 - **Escopo desta sessão**, fechado com o dono do projeto via `AskUserQuestion`: só a fatia menor/autocontida (`easybusiness` Fase 1.10 — modo SQLite/sidecar), zero código deste repo tocado ainda. As demais 6 fases ficam registradas nos `project/` dos dois repos pra sessões futuras.
 - **Implementação real, do lado `easybusiness`** (`app/services/db_dialect.py` novo — dispatcher `sqlite.insert`/`postgresql.insert` por dialeto de conexão, trocado nos 3 arquivos citados acima; `sidecar_main.py` novo — roda Alembic até `head` programaticamente, sobe uvicorn passando o objeto `app` direto, porta OS-assigned anunciada via `SIDECAR_PORT=` no stdout; `requirements-sidecar-build.txt` novo). **Validado ao vivo**: script interpretado E binário `pyinstaller --onefile` de verdade, os dois rodando contra SQLite puro — Alembic criou as 22 tabelas das 5 migrations, `/healthz` e `/v1/macro-series/{cdi,ipca}` responderam 200 com fetch real na BCB SGS + upsert real no SQLite (não mock). `docker compose exec api pytest -v` (suite Postgres completa) continua 162/162 depois do refactor de dialeto — sem regressão. Detalhes completos em `easybusiness/project/SESSIONS.md`, Sessão 10.
 - **Estado ao final**: `easybusiness` Fase 1.10 completa e validada. Nada neste repo mudou ainda — Fase 14 (14.1-14.5) fica pra sessões futuras, desenho já pronto em `PHASE.md`.
+
+### 2026-08-29 — Sessão 90
+
+- **Objetivo**: dono do projeto pediu pra continuar a Fase 14 — escolhida a fatia 14.2 (sidecar.rs +
+  client.rs) via `AskUserQuestion`, por não depender de 14.1 (CI) nem 14.3 (Settings) pra ser testada.
+- **Decisão de arquitetura**, registrada no plano via `EnterPlanMode`/`ExitPlanMode`: dev não spawna
+  processo nenhum — `FinanceApiHandle` aponta fixo pro `docker compose up` manual do `easybusiness`
+  (`http://localhost:8000`/`local-dev-key-change-me`, alcançável porque `docker-compose.yml` já roda
+  com `network_mode: host`), mesma convenção de `commands::collector::run_collector`; só o build de
+  release spawna de verdade. Schema dos 22 endpoints levantado direto nos 8 routers do `easybusiness`
+  (1 fork de pesquisa) antes de desenhar as DTOs, não adivinhado.
+- **Implementado**: `desktop/src-tauri/src/finance_api/` novo (`sidecar.rs` — `FinanceApiHandle`,
+  API key aleatória via `rand`, banco próprio `finance_api.db` em `app_data_dir()`, parse de
+  `SIDECAR_PORT=`, healthcheck em `/healthz` com timeout de 15s, `shutdown()` chamado no
+  `RunEvent::ExitRequested` novo do `lib.rs`; `client.rs` — 22 métodos/DTOs `serde`, um por endpoint,
+  `ResponseMeta` com `#[serde(flatten)]` pros 4 campos comuns, correção de casing pra minúsculo em
+  `fetch_metal_quote`/`fetch_b3_index_history` — mesma pegadinha que a Sessão 88 já tinha achado do
+  lado Python). 2 variantes novas em `error.rs` (`FinanceApiNotFound`/`FinanceApi`). Nenhum
+  `#[tauri::command]` novo — fica sem chamador real até a Fase 14.4.
+- **Verificado ao vivo de ponta a ponta, nos dois branches**: o host tinha um problema de rede do
+  Docker nesta sessão (módulo `veth` do kernel indisponível, `docker compose up` de qualquer stack
+  multi-container falhando com `operation not supported`) — contornado rodando o `sidecar_main.py`
+  do `easybusiness` fora de Docker (venv descartável) pro branch de dev, já que o container do Anchor
+  roda sozinho (`network_mode: host`, sem precisar de rede multi-container). 6 testes
+  `#[tokio::test] #[ignore]` novos em `client.rs` (`cargo test --lib -- --ignored finance_api`),
+  todos passando contra chamadas de rede reais (BCB SGS, Yahoo Finance, alternative.me, catálogo de
+  metais/índices). Branch de release testado inteiro: binário PyInstaller do sidecar buildado dentro
+  do próprio container Docker do Anchor (não no host — ver achado abaixo), registrado em
+  `tauri.conf.json::bundle.externalBin`, app rodado via `cargo build --release` de verdade com
+  janela real — sidecar spawnou, passou no healthcheck, `xdotool windowclose` na janela real (via
+  X11 passthrough do host) matou o app inteiro de forma limpa (`exit 0`) e não deixou processo órfão.
+  `cargo test --lib` **173/173 sem regressão** (+ 6 ignorados).
+- **2 achados reais, fora do escopo deste repo**: (1) bug real no binário PyInstaller da Fase 1.10 do
+  `easybusiness` — não empacotava `migrations/`/`alembic.ini` (lidos do disco em runtime, não via
+  `import`, então o PyInstaller não segue essa dependência sozinho), quebrando com `Path doesn't
+  exist: .../migrations`. Corrigido lá (aprovado pelo dono do projeto via `AskUserQuestion`):
+  docstring do `sidecar_main.py` ganhou o comando `pyinstaller --add-data` correto, testado com o fix
+  aplicado antes de documentar. (2) um binário buildado num host com GLIBC mais novo que o container
+  Debian onde o app roda de verdade falha silenciosamente (`GLIBC_2.38' not found`) — não é bug de
+  código, é lembrete pra Fase 14.1: o CI precisa buildar o sidecar dentro do mesmo ambiente onde o
+  app roda, não em qualquer host — só percebido porque o binário foi testado dentro do container de
+  verdade, não só no host.
+- **Estado ao final**: Fase 14.2 completa e validada ao vivo nos dois branches. `easybusiness`
+  (`api/sidecar_main.py`) tem uma correção de documentação pendente de commit/push — aguardando
+  confirmação do dono do projeto. Próxima fatia natural: 14.1 (CI) ou 14.3 (Settings), ambas
+  independentes entre si; 14.4 continua bloqueada até a Fase 1.11 do `easybusiness`.

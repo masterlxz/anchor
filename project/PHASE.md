@@ -1088,12 +1088,39 @@ pro lado já implementado):
   sidecar_main.py` no mesmo job/matrix que já builda o `anchor-collector`, binário registrado em
   `tauri.conf.json::bundle.externalBin` como `anchor-finance-api`. Dev continua manual
   (`docker compose up` no `easybusiness`, como hoje) — só o path de release ganha o sidecar.
-- [ ] 14.2 — Rust: `desktop/src-tauri/src/finance_api/` novo —
-  `sidecar.rs` (spawna o processo — `app.shell().sidecar(...).spawn()`, não `.output()` como o
-  `run_collector` atual, já que aqui é servidor de vida longa; gera API key aleatória em memória,
-  parseia `SIDECAR_PORT=` do stdout, healthcheck em `/healthz`, mata o processo no
-  `ExitRequested`) + `client.rs` (`reqwest`, já dependência — um método por endpoint da Finance
-  API consumido, DTOs `serde`, compartilhado entre o path local e o path remoto futuro).
+- [x] 14.2 — Rust (Sessão 90): `desktop/src-tauri/src/finance_api/` novo —
+  `sidecar.rs` (`FinanceApiHandle`, `cfg!(debug_assertions)`: dev aponta fixo pro `docker
+  compose up` manual do `easybusiness` — `http://localhost:8000`/`local-dev-key-change-me`,
+  sem spawn nenhum, mesma convenção de `commands::collector::run_collector`; release spawna via
+  `app.shell().sidecar("anchor-finance-api").spawn()`, API key aleatória em memória via `rand`,
+  banco próprio `finance_api.db` em `app_data_dir()`, parseia `SIDECAR_PORT=` do stdout,
+  healthcheck em `/healthz`, mata o processo no `RunEvent::ExitRequested` do `lib.rs`) +
+  `client.rs` (22 métodos/DTOs `serde`, um por endpoint da Finance API — `ResponseMeta` com
+  `#[serde(flatten)]` pros 4 campos comuns a toda resposta, `AppError::FinanceApiNotFound`/
+  `FinanceApi` novos). Sem `#[tauri::command]` novo — client fica sem chamador real até a 14.4.
+  **Verificado ao vivo, não só em teoria**: branch de dev testado contra uma Finance API real
+  (`sidecar_main.py` do easybusiness rodando fora de Docker, já que o host tinha um problema de
+  rede do Docker nesta sessão — módulo `veth` do kernel indisponível, bloqueando qualquer stack
+  multi-container; branch de release não depende disso, já que roda 1 container só) — 6 testes
+  `#[tokio::test] #[ignore]` novos em `client.rs` (`cargo test --lib -- --ignored finance_api`)
+  cobrindo quote/price-history/roe/macro-series/fear-greed/404, todos passando contra chamadas
+  de rede reais, sem mock. Branch de release testado de ponta a ponta também: binário
+  PyInstaller do sidecar buildado dentro do mesmo container Docker do Anchor (build.yml vai
+  fazer o mesmo na Fase 14.1) e registrado em `tauri.conf.json::bundle.externalBin`, app rodado
+  em `cargo build --release` de verdade — sidecar spawnou, passou no healthcheck, app abriu
+  janela real, fechar a janela matou o processo filho (confirmado via `ps` dentro do container e
+  ausência de processo órfão no host). `cargo test --lib` **173/173 sem regressão** (+ 6
+  ignorados).
+  **2 achados reais, fora do escopo deste repo, corrigidos no `easybusiness`** (aprovados pelo
+  dono do projeto via `AskUserQuestion`): (1) o binário PyInstaller da Fase 1.10 de lá não
+  empacotava `migrations/`/`alembic.ini` (lidos do disco em runtime, não via `import` — o
+  PyInstaller não segue essa dependência sozinho), quebrando com `Path doesn't exist:
+  .../migrations` assim que tentava migrar o banco — corrigido documentando o comando
+  `--add-data` correto no docstring do `sidecar_main.py` de lá, testado com o fix aplicado; (2)
+  um binário buildado num host com GLIBC mais novo que o container Debian onde o app realmente
+  roda falha silenciosamente (`GLIBC_2.38' not found`) — não é bug de código, é lembrete pra
+  Fase 14.1: o CI precisa buildar o sidecar dentro do mesmo ambiente onde o app roda (ou um
+  runner com GLIBC igual ou mais velho), não em qualquer host.
 - [ ] 14.3 — Settings: tabela nova `finance_api_settings` (Local/Remote + URL, migration
   SeaORM), chave remota no keyring sob um username fixo (não reaproveitar `ai_api_key`/
   `Provider` — schema errado pro caso, ver achado da Sessão 89), comandos
