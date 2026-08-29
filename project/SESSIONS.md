@@ -1247,3 +1247,28 @@
   (`api/sidecar_main.py`) tem uma correção de documentação pendente de commit/push — aguardando
   confirmação do dono do projeto. Próxima fatia natural: 14.1 (CI) ou 14.3 (Settings), ambas
   independentes entre si; 14.4 continua bloqueada até a Fase 1.11 do `easybusiness`.
+
+### 2026-08-29 — Sessão 90 (continuação, mesmo dia)
+
+- **Objetivo**: dono do projeto pediu pra seguir pra 14.1 (CI) logo depois da 14.2 fechar.
+- **O que foi feito**: `.easybusiness-version` novo na raiz (1 linha, SHA `3cc32c5` — Fase 1.10
+  do `easybusiness`, já em `origin/main` de lá, sem submodule) + `build.yml` ganhou 3 steps
+  novos (lê o SHA pinado, `actions/checkout@v4` do `easybusiness` nesse ref, `pyinstaller
+  --onefile` contra `api/sidecar_main.py`) no mesmo job/matrix que já builda o
+  `anchor-collector`. Matrix ganhou `pyinstaller_data_sep` (`:` Linux/macOS, `;` Windows) pro
+  `--add-data` de `migrations/`/`alembic.ini` — achado real da Fase 14.2 (sem isso o binário
+  quebra em runtime). Os 2 steps novos usam `shell: bash` explícito, diferente do step existente
+  do `anchor-collector` (sem shell explícito, herdando `pwsh` no Windows) — decisão deliberada
+  pra não herdar esse risco pré-existente, que fica fora do escopo desta fatia consertar.
+- **Verificado**: sintaxe do `build.yml` validada (`yaml.safe_load`, ordem dos steps conferida).
+  Perna Linux reproduzida localmente linha por linha, fora do Docker do Anchor — `git worktree`
+  do `easybusiness` fixado exatamente no SHA pinado (não o working tree local, que já tinha o
+  commit de docstring da 14.2 a mais), `pyinstaller` com a interpolação exata das variáveis de
+  matrix, binário resultante rodado de ponta a ponta (migrations aplicaram, `/healthz`
+  respondeu). Windows/macOS **não verificados de verdade** — `git tag -l` confirma que este repo
+  nunca teve uma tag `v*`, então `build.yml` nunca disparou nem antes desta sessão; só dá pra
+  fechar essa verificação de verdade disparando o workflow real (push de tag), que não fiz sem
+  confirmar antes — cria uma GitHub Release pública.
+- **Estado ao final**: Fase 14.1 completa (Linux verificado ao vivo, Windows/macOS só por
+  sintaxe). Próxima fatia natural: 14.3 (Settings Local/Remote), independente das outras; 14.4
+  continua bloqueada até a Fase 1.11 do `easybusiness`.

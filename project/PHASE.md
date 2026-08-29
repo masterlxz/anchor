@@ -1083,11 +1083,22 @@ pro lado já implementado):
   "free/local" — sidecar compilável via PyInstaller, roda Alembic + uvicorn sozinho, porta
   OS-assigned anunciada via stdout. Pré-requisito de tudo abaixo. Nenhum código deste repo
   tocado ainda.
-- [ ] 14.1 — CI (`build.yml`): checkout do `easybusiness` num ref fixado (arquivo de versão
-  novo, tipo `.easybusiness-version`, sem submodule), `pyinstaller` contra `easybusiness/api/
-  sidecar_main.py` no mesmo job/matrix que já builda o `anchor-collector`, binário registrado em
-  `tauri.conf.json::bundle.externalBin` como `anchor-finance-api`. Dev continua manual
-  (`docker compose up` no `easybusiness`, como hoje) — só o path de release ganha o sidecar.
+- [x] 14.1 — CI (Sessão 90, continuação): `.easybusiness-version` novo na raiz (SHA fixado,
+  `3cc32c5` — Fase 1.10 do `easybusiness`, sem submodule) + 3 steps novos em `build.yml`, no
+  mesmo job/matrix que já builda o `anchor-collector` (matrix ganhou `pyinstaller_data_sep`, `:`
+  Linux/macOS e `;` Windows — sintaxe do `--add-data` do PyInstaller muda por SO): lê o SHA
+  pinado, `actions/checkout@v4` do `easybusiness` nesse ref (repo público, sem token extra),
+  `pyinstaller --onefile` contra `easybusiness/api/sidecar_main.py` com os `--add-data` de
+  `migrations/`/`alembic.ini` (achado real da Fase 14.2 — sem isso o binário quebra em runtime).
+  `tauri.conf.json::bundle.externalBin` já tinha `binaries/anchor-finance-api` registrado desde
+  a 14.2, nada novo lá. Dev continua manual (`docker compose up` no `easybusiness`) — só o path
+  de release ganha o sidecar. **Verificado**: sintaxe do YAML validada (`yaml.safe_load`), e a
+  perna Linux reproduzida localmente linha por linha fora do Docker do Anchor — clone do
+  `easybusiness` fixado exatamente no SHA pinado (`git worktree`, não o working tree local, que
+  já tinha 1 commit a mais), `pyinstaller` com a interpolação exata do matrix, binário resultante
+  rodado de ponta a ponta (migrations aplicaram, `/healthz` respondeu). Windows/macOS **não
+  verificados de verdade** — `build.yml` nunca disparou neste repo (sem tag `v*` nenhuma ainda),
+  só validação de sintaxe; só fecha de verdade quando alguém disparar o workflow real.
 - [x] 14.2 — Rust (Sessão 90): `desktop/src-tauri/src/finance_api/` novo —
   `sidecar.rs` (`FinanceApiHandle`, `cfg!(debug_assertions)`: dev aponta fixo pro `docker
   compose up` manual do `easybusiness` — `http://localhost:8000`/`local-dev-key-change-me`,

@@ -19,14 +19,17 @@ jobs:
             rust_target: x86_64-unknown-linux-gnu
             sidecar_ext: ''
             artifact: '*.deb'
+            pyinstaller_data_sep: ':'
           - os: windows-latest
             rust_target: x86_64-pc-windows-msvc
             sidecar_ext: '.exe'
             artifact: '*.msi'
+            pyinstaller_data_sep: ';'
           - os: macos-latest
             rust_target: aarch64-apple-darwin
             sidecar_ext: ''
             artifact: '*.dmg'
+            pyinstaller_data_sep: ':'
 
     runs-on: ${{ matrix.os }}
 
@@ -87,6 +90,37 @@ jobs:
           pyinstaller --onefile --name anchor-collector-${{ matrix.rust_target }} --distpath dist --workpath build --specpath . main.py
           mkdir -p ../desktop/src-tauri/binaries
           mv dist/anchor-collector-${{ matrix.rust_target }}${{ matrix.sidecar_ext }} ../desktop/src-tauri/binaries/
+
+      # Fase 14.1 — mesma ideia do sidecar acima, mas a fonte (api/sidecar_main.py) vive no repo
+      # irmão easybusiness (mesmo dono), fixada por SHA em `.easybusiness-version` (sem
+      # submodule — só um checkout num ref pinado). `--add-data` é necessário porque
+      # `_run_migrations` lê `migrations/`/`alembic.ini` direto do disco em runtime (Alembic),
+      # não via `import` — sem isso o binário quebra com "Path doesn't exist: .../migrations"
+      # (achado ao vivo na Fase 14.2, Sessão 90). O separador do `--add-data` muda por SO
+      # (`matrix.pyinstaller_data_sep`): `:` no Linux/macOS, `;` no Windows.
+      - name: Read easybusiness pinned ref
+        id: easybusiness-ref
+        shell: bash
+        run: echo "sha=$(cat .easybusiness-version)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout easybusiness
+        uses: actions/checkout@v4
+        with:
+          repository: masterlxz/easybusiness
+          ref: ${{ steps.easybusiness-ref.outputs.sha }}
+          path: easybusiness
+
+      - name: Build Finance API sidecar
+        working-directory: easybusiness/api
+        shell: bash
+        run: |
+          pip install -r requirements.txt -r requirements-sidecar-build.txt
+          pyinstaller --onefile --name anchor-finance-api-${{ matrix.rust_target }} \
+            --add-data "$(pwd)/migrations${{ matrix.pyinstaller_data_sep }}migrations" \
+            --add-data "$(pwd)/alembic.ini${{ matrix.pyinstaller_data_sep }}." \
+            --distpath dist --workpath build --specpath . sidecar_main.py
+          mkdir -p ../../desktop/src-tauri/binaries
+          mv dist/anchor-finance-api-${{ matrix.rust_target }}${{ matrix.sidecar_ext }} ../../desktop/src-tauri/binaries/
 
       - name: Build
         uses: tauri-apps/tauri-action@v0
