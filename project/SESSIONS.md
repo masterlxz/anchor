@@ -1403,3 +1403,31 @@
   com o desktop real do dono do projeto (achado da Sessão 90) — toda verificação ficou nos
   testes Rust `#[ignore]`. Restam: os 3 fluxos bloqueados acima (aguardando Fase 1.11 do
   `easybusiness`) e a 14.5 (limpeza final do `data-collector/`, que depende deles).
+
+### 2026-08-29 — Sessão 92 (mesmo dia, trabalho do lado `easybusiness`)
+
+- **Objetivo**: dono do projeto pediu pra continuar de onde a Sessão 91 parou. Como o restante
+  da Fase 14.4 do Anchor estava bloqueado pela Fase 1.11 do `easybusiness` (ainda não desenhada
+  do lado de lá), o trabalho desta sessão aconteceu inteiramente no repo `easybusiness`
+  (`../../easybusiness`), não no Anchor — sem código novo neste repo.
+- **Fase 1.11 do `easybusiness` fechada por completo**, as 4 capacidades que a migração híbrida
+  (Fase 1.7 do easybusiness) tinha deixado locais: (1.11.1) cotação/técnicos/dividendos/
+  histórico de preço/proventos pra ticker sem sufixo `.SA` — 5 endpoints novos sob
+  `/v1/us-stocks/{ticker}/...`, reaproveitando que `acoes_yahoo.py` já aceitava `suffix=""`;
+  IBOV (`^BVSP`) passa pelos mesmos endpoints, sem endpoint próprio, mesma decisão que o
+  `data-collector` deste repo já tomava. (1.11.2) indicadores imobiliários de REIT via SEC EDGAR
+  (`GET /v1/us-stocks/{ticker}/reit-fundamentals`), tabela time-series por `reference_year`.
+  (1.11.3) resolução ticker→CNPJ de FII (`GET /v1/fiis/resolve/{ticker}`), cruzando bolsai + CVM
+  — achado real corrigido antes de fechar: o CNPJ vinha pontuado do arquivo `geral` da CVM e
+  quebrava o insert numa coluna só-dígitos. Tudo verificado ao vivo (AAPL, `^BVSP`/IBOV, Realty
+  Income, Simon Property — incluindo o fallback `NetIncomeLoss`→`ProfitLoss` — e HGLG11 real,
+  hoje respondendo como "PÁTRIA LOG"), suite completa do easybusiness 196/196 sem regressão.
+  Detalhes completos no `PHASE.md`/`ROADMAP.md` do `easybusiness`, commit próprio lá.
+- **Impacto neste repo**: a Fase 1.11 era o único bloqueio real dos 3 fluxos que sobraram na
+  Fase 14.4 (`main_us_stock`/`main_reit`/`main_etf_us`, benchmarks, `resolve_fii_cnpj`) — com
+  ela fechada, esses 3 fluxos ficam livres pra portar pra Rust (mesmo padrão das 4 fatias já
+  portadas na Sessão 91: `finance_api::{stocks,crypto,metals,fii}`). Nenhum código deste repo
+  mudou nesta sessão; o port em si fica pra uma próxima sessão.
+- **Estado ao final**: Fase 1.11 do `easybusiness` completa. Restam, na Fase 14.4 deste repo: o
+  port dos 3 fluxos acima (agora desbloqueado) e a 14.5 (limpeza final do `data-collector/`, que
+  depende deles).

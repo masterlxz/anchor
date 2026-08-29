@@ -1245,6 +1245,13 @@ pro lado já implementado):
     local Yahoo sem sufixo — mesmo problema de entrelaçamento) e `resolve_fii_cnpj` (bolsai+CVM
     pra sugerir CNPJ, sem endpoint equivalente). `data-collector/` continua necessário até esses
     3 fluxos fecharem — 14.5 (limpeza) segue bloqueada.
+  - **Sessão 92 (mesmo dia, trabalho do lado `easybusiness`)**: Fase 1.11 do `easybusiness`
+    fechada por completo — as 4 capacidades acima ganharam endpoint (`/v1/us-stocks/{ticker}/
+    quote,technicals,dividends-avg,price-history,dividend-payments,reit-fundamentals` e
+    `/v1/fiis/resolve/{ticker}`), verificadas ao vivo e commitadas lá (ver `SESSIONS.md`/
+    `PHASE.md`/`ROADMAP.md` do `easybusiness` pros detalhes — nenhum código deste repo mudou).
+    **Bloqueio removido**: os 3 fluxos acima ficam livres pra portar pra Rust, mesmo padrão das
+    4 fatias já feitas na Sessão 91 — trabalho ainda não iniciado neste repo.
 - [ ] 14.5 — Limpeza: apagar `data-collector/` inteiro (script, `sources/`, `.venv`, spec do
   PyInstaller, `.env*`, artefatos de banco soltos), remover o step de build Python velho do
   `build.yml` e a entrada `anchor-collector` do `externalBin`, atualizar
