@@ -6,6 +6,7 @@
 // de fetch+write do coletor Python pra cima deste client.
 pub mod client;
 pub mod crypto;
+pub mod metals;
 pub mod sidecar;
 pub mod stocks;
 

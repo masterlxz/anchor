@@ -1364,3 +1364,10 @@
   `run_crypto_collector` trocaram de subprocess Python pra `finance_api::crypto::*` direto.
   Verificado ao vivo: 2 testes `#[ignore]` novos (BTC real, 4 indicadores ETH), `cargo test
   --lib` 173/173 sem regressão (+12 ignorados), `tsc --noEmit` limpo. Commit próprio.
+
+- **Continuação, mesma sessão (metal)**: `finance_api/metals.rs` novo — `collect_ticker`, mesmo
+  papel de `crypto::collect_ticker` sem o Fear & Greed (grava com o ticker original maiúsculo,
+  não o `metal_code` minúsculo da URL). `run_stock_collector` (branch `"metal"`) trocou pra
+  `finance_api::metals::collect_ticker` direto. Verificado ao vivo: 1 teste `#[ignore]` novo
+  (XAU real), `cargo test --lib` 173/173 sem regressão (+13 ignorados), `tsc --noEmit` limpo.
+  Commit próprio.

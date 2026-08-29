@@ -1208,6 +1208,13 @@ pro lado já implementado):
     `#[ignore]` novos (quote+histórico real de BTC, 4 indicadores ETH com sinal válido),
     `cargo test --lib` **173/173 sem regressão** (+12 ignorados no total), `tsc --noEmit`
     limpo.
+  - [x] **Metal** (Sessão 91, mesma continuação): `finance_api/metals.rs` novo —
+    `collect_ticker`, mesmo papel de `crypto::collect_ticker` sem o Fear & Greed. Grava com o
+    ticker original (maiúsculo, convenção do frontend), não o `metal_code` minúsculo que
+    `client::fetch_metal_quote` usa só na URL. `run_stock_collector` (branch `Some("metal")`)
+    trocou pra `finance_api::metals::collect_ticker` direto. **Verificado ao vivo**: 1 teste
+    `#[ignore]` novo (XAU real), `cargo test --lib` **173/173 sem regressão** (+13 ignorados),
+    `tsc --noEmit` limpo.
 - [ ] 14.5 — Limpeza: apagar `data-collector/` inteiro (script, `sources/`, `.venv`, spec do
   PyInstaller, `.env*`, artefatos de banco soltos), remover o step de build Python velho do
   `build.yml` e a entrada `anchor-collector` do `externalBin`, atualizar

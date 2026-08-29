@@ -11,7 +11,10 @@ use crate::entity::{
     stock_fundamentals, stock_price_history, stock_quotes, stock_technicals,
 };
 use crate::error::AppError;
-use crate::finance_api::{crypto as finance_api_crypto, stocks as finance_api_stocks, FinanceApiHandle};
+use crate::finance_api::{
+    crypto as finance_api_crypto, metals as finance_api_metals, stocks as finance_api_stocks,
+    FinanceApiHandle,
+};
 
 // Dev-only paths — the venv and script live in the data-collector/ bind
 // mount (see docker-compose.yml), same absolute-path convention as
@@ -131,7 +134,22 @@ pub async fn run_stock_collector(
             lock.store(false, Ordering::SeqCst);
             result
         }
-        Some("metal") => run_collector(&app, &lock, &["--metal-ticker", &ticker]).await,
+        Some("metal") => {
+            if lock.swap(true, Ordering::SeqCst) {
+                return Err(AppError::CollectorBusy);
+            }
+            let result = finance_api_metals::collect_ticker(db.inner(), &finance_api, &ticker)
+                .await
+                .map(|r| CollectorSummary {
+                    success: true,
+                    output: format!(
+                        "{} ({}): US$ {:.2}/oz — {} history point(s)",
+                        r.ticker, r.name, r.price, r.history_points,
+                    ),
+                });
+            lock.store(false, Ordering::SeqCst);
+            result
+        }
         Some("acao_internacional") => {
             run_collector(&app, &lock, &["--us-ticker", &ticker]).await
         }
