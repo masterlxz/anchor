@@ -1196,6 +1196,18 @@ pro lado já implementado):
     só revisado por código, replicando a lógica do Python (roe da CVM sempre sobrescreve o da
     bolsai, ticker sem ROE é descartado inteiro) sem confirmação ao vivo — pendência explícita
     pra quando alguém puder rodar com a chave de verdade.
+  - [x] **Cripto** (Sessão 91, mesma continuação): `finance_api/crypto.rs` novo —
+    `collect_ticker` (quote+histórico de preço de qualquer moeda + Fear & Greed global, mesmo
+    `market_chart` da Finance API que já dava os dois do lado Python) e
+    `collect_eth_indicators` (os 4 indicadores do ciclo ETH, `coin` sempre `"ETH"`). Reaproveita
+    `domain::crypto_score::classify` já existente (não duplicou a lógica de sinal verde/
+    amarelo/vermelho). `insert_ignoring_conflicts` (helper genérico do `ON CONFLICT DO NOTHING`,
+    movido de `stocks.rs` pra `finance_api/mod.rs` pra ser reaproveitado pelos dois módulos).
+    `run_stock_collector` (branch `Some("cripto")`) e `run_crypto_collector` trocaram de
+    `run_collector` pra `finance_api::crypto::*` direto. **Verificado ao vivo**: 2 testes
+    `#[ignore]` novos (quote+histórico real de BTC, 4 indicadores ETH com sinal válido),
+    `cargo test --lib` **173/173 sem regressão** (+12 ignorados no total), `tsc --noEmit`
+    limpo.
 - [ ] 14.5 — Limpeza: apagar `data-collector/` inteiro (script, `sources/`, `.venv`, spec do
   PyInstaller, `.env*`, artefatos de banco soltos), remover o step de build Python velho do
   `build.yml` e a entrada `anchor-collector` do `externalBin`, atualizar

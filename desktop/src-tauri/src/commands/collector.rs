@@ -11,7 +11,7 @@ use crate::entity::{
     stock_fundamentals, stock_price_history, stock_quotes, stock_technicals,
 };
 use crate::error::AppError;
-use crate::finance_api::{stocks as finance_api_stocks, FinanceApiHandle};
+use crate::finance_api::{crypto as finance_api_crypto, stocks as finance_api_stocks, FinanceApiHandle};
 
 // Dev-only paths — the venv and script live in the data-collector/ bind
 // mount (see docker-compose.yml), same absolute-path convention as
@@ -110,7 +110,27 @@ pub async fn run_stock_collector(
     asset_class: Option<String>,
 ) -> Result<CollectorSummary, AppError> {
     match asset_class.as_deref() {
-        Some("cripto") => run_collector(&app, &lock, &["--crypto-ticker", &ticker]).await,
+        Some("cripto") => {
+            if lock.swap(true, Ordering::SeqCst) {
+                return Err(AppError::CollectorBusy);
+            }
+            let result = finance_api_crypto::collect_ticker(db.inner(), &finance_api, &ticker)
+                .await
+                .map(|r| CollectorSummary {
+                    success: true,
+                    output: format!(
+                        "{} ({}): US$ {:.2} — {} history point(s) — Fear & Greed: {} ({})",
+                        r.symbol,
+                        r.name,
+                        r.price,
+                        r.history_points,
+                        r.fear_greed_value,
+                        r.fear_greed_classification,
+                    ),
+                });
+            lock.store(false, Ordering::SeqCst);
+            result
+        }
         Some("metal") => run_collector(&app, &lock, &["--metal-ticker", &ticker]).await,
         Some("acao_internacional") => {
             run_collector(&app, &lock, &["--us-ticker", &ticker]).await
@@ -134,12 +154,31 @@ pub async fn run_stock_collector(
     }
 }
 
+// Fase 14.4 — trocou de `run_collector` (subprocess Python, `crypto`) pra
+// `finance_api::crypto::collect_eth_indicators` direto — os 4 indicadores
+// do ciclo ETH, sempre os mesmos, sempre `coin = "ETH"`.
 #[tauri::command]
 pub async fn run_crypto_collector(
-    app: tauri::AppHandle,
     lock: tauri::State<'_, AtomicBool>,
+    db: tauri::State<'_, DatabaseConnection>,
+    finance_api: tauri::State<'_, FinanceApiHandle>,
 ) -> Result<CollectorSummary, AppError> {
-    run_collector(&app, &lock, &["crypto"]).await
+    if lock.swap(true, Ordering::SeqCst) {
+        return Err(AppError::CollectorBusy);
+    }
+    let result = finance_api_crypto::collect_eth_indicators(db.inner(), &finance_api)
+        .await
+        .map(|readings| CollectorSummary {
+            success: true,
+            output: readings
+                .iter()
+                .map(|r| format!("{}: {:.4} -> {}", r.indicator, r.raw_value, r.signal))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        });
+    lock.store(false, Ordering::SeqCst);
+
+    result
 }
 
 #[tauri::command]

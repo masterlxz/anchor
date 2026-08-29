@@ -11,35 +11,14 @@
 // nova.
 use chrono::Utc;
 use sea_orm::sea_query::OnConflict;
-use sea_orm::{DatabaseConnection, DbErr, EntityTrait, Set};
+use sea_orm::{DatabaseConnection, EntityTrait, Set};
 
 use crate::entity::{
     stock_dcf_fundamentals, stock_dividend_payments, stock_dividends_avg, stock_fundamentals,
     stock_price_history, stock_quotes, stock_technicals,
 };
 use crate::error::AppError;
-use crate::finance_api::{client, skip_not_found, FinanceApiHandle};
-
-/// `insert_many(...).on_conflict(...).do_nothing()` erra com
-/// `DbErr::RecordNotInserted` quando toda linha do lote já existia — não é
-/// falha de verdade, é o mesmo "0 linha nova" que `conn.total_changes` mede
-/// do lado Python. Normalizado aqui pra não vazar como erro de comando.
-async fn insert_ignoring_conflicts<E>(
-    db: &DatabaseConnection,
-    models: Vec<E::ActiveModel>,
-    conflict: OnConflict,
-) -> Result<(), AppError>
-where
-    E: EntityTrait,
-{
-    if models.is_empty() {
-        return Ok(());
-    }
-    match E::insert_many(models).on_conflict(conflict).exec(db).await {
-        Ok(_) | Err(DbErr::RecordNotInserted) => Ok(()),
-        Err(err) => Err(err.into()),
-    }
-}
+use crate::finance_api::{client, insert_ignoring_conflicts, skip_not_found, FinanceApiHandle};
 
 pub async fn collect_quotes(
     db: &DatabaseConnection,

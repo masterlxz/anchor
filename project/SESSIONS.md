@@ -1355,3 +1355,12 @@
   14.4: cripto (`crypto.rs`), metal, ação americana/REIT/ETF-US, FII CVM e benchmarks — cada
   classe é um módulo próprio e uma troca de corpo isolada no `collector.rs`/`fii.rs`, mesmo
   padrão desta fatia.
+
+- **Continuação, mesma sessão (cripto)**: `finance_api/crypto.rs` novo — `collect_ticker`
+  (quote+histórico de qualquer moeda + Fear & Greed global) e `collect_eth_indicators` (os 4
+  indicadores do ciclo ETH), reaproveitando `domain::crypto_score::classify` já existente.
+  `insert_ignoring_conflicts` virou helper genérico em `finance_api/mod.rs` (movido de
+  `stocks.rs`, reaproveitado pelos dois módulos). `run_stock_collector` (branch `"cripto"`) e
+  `run_crypto_collector` trocaram de subprocess Python pra `finance_api::crypto::*` direto.
+  Verificado ao vivo: 2 testes `#[ignore]` novos (BTC real, 4 indicadores ETH), `cargo test
+  --lib` 173/173 sem regressão (+12 ignorados), `tsc --noEmit` limpo. Commit próprio.

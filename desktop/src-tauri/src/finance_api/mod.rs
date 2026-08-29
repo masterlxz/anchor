@@ -5,10 +5,14 @@
 // `#[tauri::command]` chama isso ainda — a Fase 14.4 é quem porta a lógica
 // de fetch+write do coletor Python pra cima deste client.
 pub mod client;
+pub mod crypto;
 pub mod sidecar;
 pub mod stocks;
 
 pub use sidecar::FinanceApiHandle;
+
+use sea_orm::sea_query::OnConflict;
+use sea_orm::{DatabaseConnection, DbErr, EntityTrait};
 
 use crate::error::AppError;
 
@@ -27,5 +31,28 @@ where
         Ok(value) => Ok(Some(value)),
         Err(AppError::FinanceApiNotFound(_)) => Ok(None),
         Err(err) => Err(err),
+    }
+}
+
+/// `insert_many(...).on_conflict(...).do_nothing()` erra com
+/// `DbErr::RecordNotInserted` quando toda linha do lote já existia (ou é um
+/// único item que já existia) — não é falha de verdade, é o mesmo "0 linha
+/// nova" que `conn.total_changes` media do lado Python
+/// (`INSERT OR IGNORE`). Normalizado aqui pra não vazar como erro de
+/// comando.
+pub async fn insert_ignoring_conflicts<E>(
+    db: &DatabaseConnection,
+    models: Vec<E::ActiveModel>,
+    conflict: OnConflict,
+) -> Result<(), AppError>
+where
+    E: EntityTrait,
+{
+    if models.is_empty() {
+        return Ok(());
+    }
+    match E::insert_many(models).on_conflict(conflict).exec(db).await {
+        Ok(_) | Err(DbErr::RecordNotInserted) => Ok(()),
+        Err(err) => Err(err.into()),
     }
 }
