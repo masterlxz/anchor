@@ -3,7 +3,7 @@
 // de lá, Sessão 88) — schema levantado direto nos 8 routers do easybusiness
 // nesta sessão. Sem chamador real ainda: a Fase 14.4 é quem porta a lógica
 // de fetch+write do coletor Python pra cima disto.
-use chrono::{NaiveDate, NaiveDateTime};
+use chrono::{DateTime, NaiveDate, Utc};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 
@@ -12,12 +12,25 @@ use crate::finance_api::FinanceApiHandle;
 
 /// Campos presentes em toda resposta da Finance API — achatado (`flatten`)
 /// dentro de cada DTO abaixo em vez de repetir os 4 campos 22 vezes.
+///
+/// `fetched_at` é `DateTime<Utc>`, não `NaiveDateTime` — achado real ao vivo
+/// (Sessão 92, continuação): contra a Finance API rodando sobre SQLite (o
+/// sidecar embutido, `DateTime(timezone=True)` do SQLAlchemy vira datetime
+/// *naive* nesse dialeto), a string vinha sem sufixo `Z`/offset e
+/// `NaiveDateTime` dava conta; contra Postgres (`docker compose up` do
+/// easybusiness, mesmo tipo de coluna mas timezone-aware de verdade), a
+/// string vem com `Z` — e `NaiveDateTime` combinado com `#[serde(flatten)]`
+/// quebra com "trailing input" nesse caso (bug real de
+/// serde_json+chrono+flatten, reproduzido isolado sem rede nenhuma:
+/// `NaiveDateTime` engasga no sufixo de timezone quando o campo seguinte no
+/// struct achatado é um escalar cru como `f64`). `DateTime<Utc>` é o tipo
+/// certo pro dado em si (timestamp sempre UTC) e não tem esse problema.
 #[derive(Debug, Deserialize)]
 pub struct ResponseMeta {
     pub source: String,
     pub cached: bool,
     pub stale: bool,
-    pub fetched_at: Option<NaiveDateTime>,
+    pub fetched_at: Option<DateTime<Utc>>,
 }
 
 /// Ponto `{price_date, close_price}` — mesma forma em stocks/metals/b3-indexes.

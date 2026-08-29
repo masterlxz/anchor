@@ -1,9 +1,12 @@
 // Fase 14.4 (fatia 2) — porta pra Rust os dois caminhos de cripto do
 // coletor Python: `collect_crypto_ticker` (quote+histórico de preço de
 // qualquer moeda, usado pelo Portfolio/Research) e `main_crypto`/
-// `_record_crypto_indicator` (os 4 indicadores do ciclo ETH, hardcoded
+// `_record_crypto_indicator` (os indicadores do ciclo ETH, hardcoded
 // `coin="ETH"`, usados só na tela de score cripto — sem relação com o
-// primeiro).
+// primeiro). Eram 4 automatizados (Sessão 91); mais 4 se juntaram na
+// automação depois que a Fase 1.12 do easybusiness achou fonte gratuita
+// pra eles (CoinMetrics, ver `ETH_INDICATORS` abaixo) — só `staking_yield`
+// (dos 9 originais da Fase 3) segue manual.
 use chrono::Utc;
 use sea_orm::sea_query::OnConflict;
 use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
@@ -108,12 +111,21 @@ pub async fn collect_ticker(
     })
 }
 
-const ETH_INDICATORS: [(&str, &str, &str); 4] = [
+// Os 4 primeiros são automatizados desde a Fase 1.6 do easybusiness (Sessão
+// 91 deste repo); os 4 últimos foram desbloqueados na Fase 1.12 dele
+// (CoinMetrics Community API, sem chave, achado ao vivo nesta sessão) — o
+// 5º indicador manual (`staking_yield`) segue sem fonte gratuita conhecida,
+// fica de fora deste array de propósito.
+const ETH_INDICATORS: [(&str, &str, &str); 8] = [
     // (nome interno / chave de indicator_thresholds, código na Finance API, source)
     ("tvl_trend", "tvl-trend", "defillama"),
     ("net_issuance", "net-issuance", "ultrasound.money"),
     ("fees_vs_emission", "fees-vs-emission", "ultrasound.money"),
     ("nvt_ratio", "nvt-ratio", "coingecko"),
+    ("mvrv_z_score", "mvrv-z-score", "coinmetrics"),
+    ("puell_multiple", "puell-multiple", "coinmetrics"),
+    ("exchange_netflow", "exchange-netflow", "coinmetrics"),
+    ("active_addresses_trend", "active-addresses-trend", "coinmetrics"),
 ];
 
 async fn record_crypto_indicator(
@@ -202,12 +214,12 @@ mod tests {
 
     #[tokio::test]
     #[ignore]
-    async fn live_collect_eth_indicators_writes_four_readings() {
+    async fn live_collect_eth_indicators_writes_eight_readings() {
         let db = dev_db().await;
         let handle = handle();
 
         let readings = collect_eth_indicators(&db, &handle).await.unwrap();
-        assert_eq!(readings.len(), 4);
+        assert_eq!(readings.len(), 8);
         for reading in &readings {
             assert!(matches!(reading.signal.as_str(), "GREEN" | "NEUTRAL" | "RED"));
         }

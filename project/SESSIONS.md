@@ -1548,3 +1548,57 @@
 - **Estado ao final**: Fase 14 (terceirizar `data-collector/` pro EasyBusiness) **completa** —
   nenhum resquício do coletor Python sobra no repo. Próximo trabalho fica pra quando o dono do
   projeto decidir o que atacar do roadmap.
+
+- **Continuação, mesma sessão — automatiza 4 dos 5 indicadores manuais de cripto**: dono do
+  projeto pediu pra investigar se dava pra achar fonte grátis pros indicadores de topo de ciclo
+  do ETH que ficaram manuais desde as Sessões 5/6/21 (MVRV Z-Score, Puell Multiple, Exchange
+  Netflow, Staking Yield, Active Addresses Trend — só Glassnode/CryptoQuant/Etherscan Pro/
+  stakingrewards.com eram conhecidos, todos pagos). Pesquisa nova, não só por memória — testada
+  ao vivo contra a API real (`curl` direto, campo por campo) — achou a **CoinMetrics Community
+  API** (`community-api.coinmetrics.io`, sem chave, sem cadastro, histórico diário completo do
+  ETH desde 2015-08-08, ~4048 pontos, 1000 req/10min por IP): `CapMrktCurUSD`+`CapMVRVCur`
+  liberados (MVRV Z-Score, via `RealizedCap` derivado — `CapRealUSD` cru vem bloqueado no tier
+  grátis, mas a razão pronta não), `IssTotUSD` (Puell Multiple), `AdrActCnt` (Active Addresses
+  Trend), `FlowInExUSD`/`FlowOutExUSD` (Exchange Netflow). `beaconcha.in` (candidato pro Staking
+  Yield) testado ao vivo e confirmado que parou de aceitar chamada sem chave em 2026 — esse
+  indicador segue sem saída, continua manual.
+- **Implementado no `easybusiness`** (Fase 1.12, commit `6100ea3`): `api/app/sources/
+  cripto_coinmetrics.py` novo (4 funções) + 4 entradas em `crypto_indicator_catalog.py` — **sem
+  router/schema/service/migration novo**, o endpoint genérico `GET /v1/crypto/eth-indicators/
+  {indicator_code}` (Sessão 5 de lá) já resolvia qualquer código do catálogo, então bastou
+  registrar. Achado real ao vivo: `page_size` do tier grátis da CoinMetrics tem teto de 10000
+  (não documentado nos resultados de busca consultados) — a primeira tentativa com 20000
+  quebrou com 400 antes de eu confirmar o teto real via request direto.
+- **Implementado neste repo**: `finance_api::crypto.rs::ETH_INDICATORS` ganhou as 4 tuplas novas
+  — **nenhuma migration, comando ou mudança de frontend nova** (`indicator_thresholds` já tinha
+  os 9 códigos seedados desde a Fase 3 original, incluindo os que eram manuais;
+  `CryptoLookupSection.tsx` já itera os 9 indicadores genericamente, a entrada manual continua
+  disponível como override pra qualquer um).
+- **Achado real e corrigido, fora do escopo original mas bloqueando a verificação**: testando ao
+  vivo contra a Finance API rodando sobre **Postgres** (`docker compose up` do easybusiness, não
+  o sidecar SQLite de sempre — usado porque a fatia de cripto foi implementada com o
+  `docker compose` já de pé), `collect_eth_indicators` quebrou com um erro de deserialização
+  ("trailing input") que não tinha nada a ver com os indicadores novos — reproduzido **isolado,
+  sem rede nenhuma** (`rustc` avulso com o texto JSON capturado): `finance_api::client::
+  ResponseMeta::fetched_at: Option<NaiveDateTime>` engasga com `#[serde(flatten)]` sempre que o
+  timestamp vem com sufixo de timezone (`...Z`) **e** o campo seguinte no struct achatado é um
+  escalar cru (`f64`, caso de `CryptoIndicatorResponse`/`CryptoQuoteResponse`). Contra o sidecar
+  SQLite o bug nunca apareceu porque `DateTime(timezone=True)` do SQLAlchemy vira datetime
+  *naive* nesse dialeto (sem `Z` na resposta) — só aparece contra Postgres de verdade
+  (self-host via `docker compose`, ou uma futura instância Cloud, ambos cenários reais da Fase
+  14.3/Settings Local-Remote). Corrigido trocando o tipo pra `DateTime<Utc>` (mais correto
+  semanticamente também — o dado é sempre UTC) — `meta.fetched_at` nunca é lido em lugar nenhum
+  do código (só carregado por simetria com o schema), então a troca de tipo não teve nenhum
+  outro call site pra ajustar. Rodados de bônus, pra confirmar que o fix não quebrou nada, os 23
+  testes `#[ignore]` de **todos** os módulos `finance_api::*` contra o mesmo Postgres — primeira
+  vez que a suíte inteira roda contra esse backend nesta sessão, todos passando.
+- **Verificado ao vivo**: os 4 endpoints novos no easybusiness com valores plausíveis (MVRV
+  Z-Score 0.15, Puell Multiple 0.98, Exchange Netflow -0.029, Active Addresses Trend -6.3%),
+  cache confirmado na 2ª chamada. `cargo test --lib` **175/175 sem regressão**, `tsc --noEmit`
+  limpo, `live_collect_eth_indicators_writes_eight_readings` (renomeado de "...four...") passa
+  contra a Finance API real com 8 leituras, todas com sinal válido.
+- **Estado ao final**: 4 dos 5 indicadores manuais de cripto automatizados (MVRV Z-Score, Puell
+  Multiple, Exchange Netflow, Active Addresses Trend) — só Staking Yield segue manual, sem fonte
+  grátis conhecida. De bônus, um bug real de deserialização (`NaiveDateTime` + `flatten` +
+  campo escalar seguinte) corrigido antes que afetasse qualquer usuário rodando a Finance API
+  sobre Postgres de verdade.
