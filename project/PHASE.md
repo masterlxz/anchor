@@ -1061,3 +1061,58 @@ Verificação: coletor testado ao vivo duas vezes contra `SPY` dentro do contain
 
 **Continuação, Sessão 77.2 (2026-08-12, mesmo dia) — provento esperado manual + conciliação**: dono do projeto pediu pra poder **cadastrar um provento futuro manualmente** (ex.: empresa aprovou dividendo, ele anota antes do pagamento) e que, quando o automático puxar de verdade, **não lançasse provento novo** — apenas **concilie** o que ele já tinha cadastrado, desde que batam data de pagamento e valor "mais ou menos". 4 decisões via `AskUserQuestion`: (1) proventos esperados ficam na **mesma tabela** `suggested_dividends` com `source = "manual"` (não tabela nova); (2) valor bateu → marca a manual como **`matched`**, ainda exige o clique de Confirmar (princípio de nunca gravar direto no ledger se mantém); (3) valor divergiu → marca a manual como **`divergent`** e cria sugestão automática paralela pra comparar os dois; (4) tolerância **±10%** pro "mais ou menos". Migration `m20260812_110000_expected_dividends_and_source_index`: o índice único passou a incluir `source` (`(portfolio, asset, payment_date, source)`), senão a divergência não teria como coexistir manual+auto na mesma data. Novo comando `create_expected_dividend` (valida asset/portfolio, bloqueia duplicado manual na mesma data, não toca no ledger); `generate_` reescrito: antes de criar sugestão, checa se há manual pendente na data e concilia (`domain::dividend_suggestion::within_tolerance` — função pura com epsilon pra ponto flutuante, 4 testes novos). `confirm_`/`discard_` passaram a aceitar `pending`/`matched`/`divergent`. Frontend: botão "Register future dividend" (asset, data pagamento, valor/cota, quantidade, Data Com opcional, total calculado), coluna Source (Manual/Auto), status novos (Matched/Divergent), ações habilitadas pros 3 estados confirmáveis. Aplicada no banco real; `cargo test --lib` **140/140** (10 testes no domínio), `tsc --noEmit` limpo, schema da coexistência validado via SQLite (manual+auto na mesma data inserem sem colidir). **Não testado no app real ainda** — fluxo a validar: cadastrar provento esperado futuro → quando a fonte trouxer o pagamento, rodar "Generate suggestions" e ver virar `matched` (ou `divergent` + paralela).
 
+### Fase 14 — Terceirizar `data-collector/` de vez pro EasyBusiness (ideia levantada na Sessão 89, planejada por completo, não iniciada)
+
+**Objetivo**: pedido explícito do dono do projeto — apagar `data-collector/` por completo (a
+Fase 1.7 do EasyBusiness já tinha migrado a maior parte dele pra consumir a Finance API via
+HTTP, mas deixou o processo Python local, setup manual, e 4 capacidades sem endpoint
+equivalente). A versão free/self-hosted da Finance API deve rodar "já instalada" localmente
+(sem Docker/Postgres pro usuário final) e a Settings deve ganhar um espaço pra apontar pra uma
+futura instância Cloud paga do EasyBusiness (ainda não existe). Sem copiar código Python entre
+os repos — reaproveitar centralizado no `easybusiness`, mesma diretriz que o `GUIDELINES.md`
+de lá já tinha adotado independente deste pedido.
+
+**Decisão de empacotamento** confirmada com o dono via `AskUserQuestion`: binário compilado
+(PyInstaller), mesmo mecanismo que este repo já usa pro `data-collector` desde a Fase 11.3 —
+não Docker Compose gerenciado pelo Anchor, não lib pip. Motivo: zero dependência de Docker pro
+usuário final de um app desktop público, zero pasta Python neste repo, mecanismo já provado.
+
+**Etapas** (desenho completo via 1 agente `Plan`, ver `easybusiness/project/PHASE.md` Fase 1.10
+pro lado já implementado):
+- [x] 14.0 — `easybusiness` Fase 1.10 (Sessão 89, implementada do lado de lá): modo SQLite
+  "free/local" — sidecar compilável via PyInstaller, roda Alembic + uvicorn sozinho, porta
+  OS-assigned anunciada via stdout. Pré-requisito de tudo abaixo. Nenhum código deste repo
+  tocado ainda.
+- [ ] 14.1 — CI (`build.yml`): checkout do `easybusiness` num ref fixado (arquivo de versão
+  novo, tipo `.easybusiness-version`, sem submodule), `pyinstaller` contra `easybusiness/api/
+  sidecar_main.py` no mesmo job/matrix que já builda o `anchor-collector`, binário registrado em
+  `tauri.conf.json::bundle.externalBin` como `anchor-finance-api`. Dev continua manual
+  (`docker compose up` no `easybusiness`, como hoje) — só o path de release ganha o sidecar.
+- [ ] 14.2 — Rust: `desktop/src-tauri/src/finance_api/` novo —
+  `sidecar.rs` (spawna o processo — `app.shell().sidecar(...).spawn()`, não `.output()` como o
+  `run_collector` atual, já que aqui é servidor de vida longa; gera API key aleatória em memória,
+  parseia `SIDECAR_PORT=` do stdout, healthcheck em `/healthz`, mata o processo no
+  `ExitRequested`) + `client.rs` (`reqwest`, já dependência — um método por endpoint da Finance
+  API consumido, DTOs `serde`, compartilhado entre o path local e o path remoto futuro).
+- [ ] 14.3 — Settings: tabela nova `finance_api_settings` (Local/Remote + URL, migration
+  SeaORM), chave remota no keyring sob um username fixo (não reaproveitar `ai_api_key`/
+  `Provider` — schema errado pro caso, ver achado da Sessão 89), comandos
+  `get_/set_finance_api_*`, seção nova "Finance API" em `SettingsPage.tsx` (`SECTIONS` ganha um
+  3º item, ao lado de "IA"/"TruthID", reaproveitando `Field`/`Select`/`Input`/`Card` já
+  importados ali).
+- [ ] 14.4 — Rust: portar a lógica de fetch+write do `data-collector/main.py` pra dentro do
+  Tauri — um módulo por classe de ativo (`finance_api/stocks.rs`, `crypto.rs`, `us_stocks.rs`,
+  `price_history.rs`, `benchmarks.rs`, `fii.rs`), cada `#[tauri::command]` existente em
+  `collector.rs`/`fii.rs` troca o corpo (chamar `run_collector` → chamar `finance_api::*`
+  direto) sem mudar assinatura, então o frontend não muda. **Maior fatia do trabalho**, só fecha
+  de verdade depois que a Fase 1.11 do EasyBusiness cobrir as 4 capacidades que hoje só existem
+  local — provável 2-4 sessões próprias.
+- [ ] 14.5 — Limpeza: apagar `data-collector/` inteiro (script, `sources/`, `.venv`, spec do
+  PyInstaller, `.env*`, artefatos de banco soltos), remover o step de build Python velho do
+  `build.yml` e a entrada `anchor-collector` do `externalBin`, atualizar
+  `desktop/docker-compose.yml` (bind mount) e este `README.md`.
+
+Sequência: 14.1/14.2/14.3 podem andar em paralelo entre si (todas dependem só da 14.0, já
+pronta); 14.4 é a maior e só fecha de verdade depois da Fase 1.11 do EasyBusiness (independente
+de 14.1-14.3, pode rodar em paralelo do lado de lá); 14.5 fecha por último.
+
