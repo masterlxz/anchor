@@ -1215,6 +1215,25 @@ pro lado já implementado):
     trocou pra `finance_api::metals::collect_ticker` direto. **Verificado ao vivo**: 1 teste
     `#[ignore]` novo (XAU real), `cargo test --lib` **173/173 sem regressão** (+13 ignorados),
     `tsc --noEmit` limpo.
+  - [x] **FII CVM** (Sessão 91, mesma continuação): `finance_api/fii.rs` novo —
+    `collect_cvm_data` (indicadores mensais + imóveis, `ON CONFLICT DO NOTHING` nos índices
+    únicos `(cnpj, reference_date)`/`(cnpj, reference_date, nome_imovel)`). `resolve_fii_cnpj`
+    (bolsai+CVM pra sugerir CNPJ) **não** portado — uma das 4 capacidades sem endpoint
+    equivalente na Finance API ainda, continua no coletor Python. `commands::fii::
+    run_fii_cvm_collector` trocou pra `finance_api::fii::collect_cvm_data` direto.
+    **Bug real achado e corrigido**: a Finance API exige o CNPJ só com dígitos na URL
+    (`11728688000147`, 200) — `assets.cnpj`/`fii_cnpj_cache` (e o resto do app,
+    `list_fii_cvm_monthly`/`list_fii_cvm_properties` incluídos) sempre guardou formatado
+    (`11.728.688/0001-47`, 404 se mandado direto). O `data-collector/sources/
+    finance_api_client.py` (Fase 1.7, Sessão 88) **nunca normalizava isso** — bug real já em
+    produção, só não pego antes porque o teste ao vivo da Sessão 88 usou um CNPJ já em formato
+    de dígitos por fora do fluxo real do app. Corrigido no port: normaliza (só dígitos) pra
+    chamada da API, grava no banco com o `cnpj` original recebido (mesma decisão de
+    `finance_api::metals` com o ticker) — sem isso, `list_fii_cvm_monthly`/
+    `list_fii_cvm_properties` (que filtram pelo `cnpj` formatado de `assets.cnpj`) nunca
+    achariam as linhas gravadas. **Verificado ao vivo**: 1 teste `#[ignore]` novo (HGLG11 real,
+    CNPJ formatado do banco de dev), `cargo test --lib` **173/173 sem regressão** (+14
+    ignorados), `tsc --noEmit` limpo.
 - [ ] 14.5 — Limpeza: apagar `data-collector/` inteiro (script, `sources/`, `.venv`, spec do
   PyInstaller, `.env*`, artefatos de banco soltos), remover o step de build Python velho do
   `build.yml` e a entrada `anchor-collector` do `externalBin`, atualizar

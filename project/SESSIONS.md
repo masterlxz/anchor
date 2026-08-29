@@ -1371,3 +1371,13 @@
   `finance_api::metals::collect_ticker` direto. Verificado ao vivo: 1 teste `#[ignore]` novo
   (XAU real), `cargo test --lib` 173/173 sem regressão (+13 ignorados), `tsc --noEmit` limpo.
   Commit próprio.
+
+- **Continuação, mesma sessão (FII CVM)**: `finance_api/fii.rs` novo — `collect_cvm_data`
+  (indicadores mensais + imóveis). `resolve_fii_cnpj` fica de fora (sem endpoint equivalente).
+  `run_fii_cvm_collector` trocou pra Rust direto. **Bug real achado e corrigido**: a Finance API
+  exige CNPJ só com dígitos na URL, mas `assets.cnpj` (e o resto do app) sempre guarda formatado
+  — o `finance_api_client.py` (Fase 1.7, Sessão 88) nunca normalizava isso, bug já em produção,
+  só não pego porque o teste ao vivo da Sessão 88 usou um CNPJ já em dígitos fora do fluxo real.
+  Corrigido no port: normaliza só pra chamada, grava com o CNPJ original. Verificado ao vivo: 1
+  teste `#[ignore]` novo (HGLG11 real), `cargo test --lib` 173/173 sem regressão (+14
+  ignorados), `tsc --noEmit` limpo. Commit próprio.
