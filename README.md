@@ -33,12 +33,12 @@ a UI built around exactly that workflow.
 | Component | Stack | Path |
 |---|---|---|
 | Desktop app | Tauri + Rust + React/TypeScript | [`desktop/`](desktop/) |
-| Data collector | Python (fetches quotes/fundamentals/crypto data) | [`data-collector/`](data-collector/) |
 | Smart contract (sync, in progress) | Solidity (Foundry) | [`contracts/`](contracts/) |
 
-The desktop app and the data collector never talk over a network or IPC — they just read and write
-the same local SQLite file. The Rust side runs the collector as a subprocess on demand (a button in
-the UI), not on a schedule.
+Quotes, fundamentals, and crypto data come from a local instance of the
+[EasyBusiness Finance API](https://github.com/masterlxz/easybusiness) (a sibling open-source
+project), embedded as a Tauri sidecar process — the Rust side talks to it over HTTP, no
+Python or subprocess-per-fetch involved.
 
 ## Building from source
 

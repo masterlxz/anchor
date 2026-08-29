@@ -1287,12 +1287,47 @@ pro lado já implementado):
     `cargo test --lib` **175/175 sem regressão** (+13 testes `#[ignore]` novos, todos passando),
     `tsc --noEmit` limpo. **Fase 14.4 completa** — `data-collector/` não tem mais nenhum fluxo
     exclusivo, só falta a 14.5 apagá-lo.
-- [ ] 14.5 — Limpeza: apagar `data-collector/` inteiro (script, `sources/`, `.venv`, spec do
+- [x] 14.5 — Limpeza: apagar `data-collector/` inteiro (script, `sources/`, `.venv`, spec do
   PyInstaller, `.env*`, artefatos de banco soltos), remover o step de build Python velho do
   `build.yml` e a entrada `anchor-collector` do `externalBin`, atualizar
   `desktop/docker-compose.yml` (bind mount) e este `README.md`.
+  - **Sessão 92 (mesma sessão, continuação — fecha a Fase 14)**: `data-collector/` apagado por
+    completo — `main.py`, `sources/` (5 arquivos), `config.yaml`, `.env.example`, `README.md`,
+    `requirements*.txt` (`git rm -r`) e `.venv/`/`build/`/`dist/`/`__pycache__/`/`.cache/`/
+    `*.spec` (`rm -rf`, não versionados). **Achado antes de apagar**: `data-collector/anchor.db`
+    é o banco SQLite real de dev (não um artefato Python) — morava ali só porque Rust e Python
+    compartilhavam container (decisão original, `project/ARCHITECTURE.md`); movido pra `data/`
+    (diretório novo, irmão de `desktop/`/`contracts/`), a alternativa que a própria
+    `ARCHITECTURE.md` já cogitava desde a Sessão 1. Junto foram preservados (não descartados sem
+    checar) um `.env` real com `BOLSAI_API_KEY`/`SEC_EDGAR_CONTACT_EMAIL`/`ETHERSCAN_API_KEY`
+    (renomeado `.env.data-collector-bak`, mesmos segredos já duplicados no `.env` do
+    `easybusiness`) e um backup antigo `practice_valuation.db.bak` (nome pré-rebranding, Sessão
+    65) — ambos sem chamador de código, preservados por precaução, não descartados por
+    suposição. **Achado real de segurança durante a limpeza**: o `.env` renomeado e o backup do
+    banco desta sessão (`anchor.db.bak-sessao92`) não batiam em nenhum padrão do `.gitignore`
+    (só `.env`/`.env.*`/`*.db.bak` exatos) — corrigido renomeando pra `.env.data-collector-bak`/
+    `anchor-sessao92.db.bak`, confirmado com `git check-ignore` antes de seguir, pra não arriscar
+    commitar segredo/binário grande sem querer. `desktop/src-tauri/src/db.rs::
+    DEV_DATABASE_FILE_PATH` e os 7 `dev_db()` de teste (`finance_api::{stocks,crypto,metals,
+    fii,reit,benchmark,us_stock}`) trocaram pra `/data/anchor.db`.
+    `desktop/docker-compose.yml` trocou o bind mount `../data-collector:/data-collector` por
+    `../data:/data`; `desktop/Dockerfile` perdeu o bloco `apt-get install python3` (nada mais no
+    container precisa de Python — a Finance API roda fora do container em dev, sem processo
+    spawnado do lado do Anchor); `tauri.conf.json::externalBin` perdeu `"binaries/anchor-
+    collector"`; `.github/workflows/build.yml` perdeu o step "Build Python sidecar" mas manteve
+    o step "Python" (`actions/setup-python@v5`, ainda usado pelo sidecar da Finance API logo
+    depois); `.gitignore` perdeu as 2 entradas `data-collector/*`. `README.md` trocou a linha
+    "Data collector" da tabela de Architecture e o parágrafo de "subprocess sem rede" por uma
+    menção ao sidecar HTTP da Finance API (`easybusiness`). **Verificado ao vivo**: container
+    reconstruído do zero (`docker compose up -d --build`, Dockerfile sem Python compila e sobe
+    normal), `/data` montado e `/data-collector` confirmadamente ausente dentro do container,
+    `cargo test --lib` **175/175 sem regressão**, e pelo menos 1 teste `#[ignore]` de cada um dos
+    7 módulos rodado contra a Finance API real + `/data/anchor.db` no caminho novo (11 testes no
+    total, todos passando — confirma que o caminho resolve de verdade, não só que compila),
+    `tsc --noEmit` limpo. **Fase 14 fechada por completo** — nenhum resquício de
+    `data-collector/` sobra no repo.
 
 Sequência: 14.1/14.2/14.3 podem andar em paralelo entre si (todas dependem só da 14.0, já
 pronta); 14.4 era a maior e só fechou de verdade depois da Fase 1.11 do EasyBusiness (Sessão 92,
-independente de 14.1-14.3); resta só a 14.5.
+independente de 14.1-14.3); 14.5 fechou na mesma sessão logo em seguida. **Fase 14 completa.**
 

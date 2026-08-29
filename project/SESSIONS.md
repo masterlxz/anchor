@@ -1486,3 +1486,65 @@
   fluxo exclusivo, tudo que ele fazia já existe em Rust. Resta só a Fase 14.5 (apagar
   `data-collector/` inteiro, o step de build Python do `build.yml`, a entrada `anchor-collector`
   do `externalBin`, atualizar `desktop/docker-compose.yml` e o `README.md`).
+
+- **Continuação, mesma sessão — fecha a Fase 14**: dono do projeto pediu pra seguir com a 14.5.
+  **Achado de exploração antes de apagar qualquer coisa**: `data-collector/anchor.db` é o banco
+  SQLite real de dev (não um artefato Python) — mora ali só porque Rust e Python compartilhavam
+  o mesmo container (`db.rs::DEV_DATABASE_FILE_PATH`, decisão original registrada em
+  `project/ARCHITECTURE.md`), então apagar o diretório inteiro sem mover esse arquivo primeiro
+  apagaria o banco de dev de verdade. Explorando o diretório completo antes de decidir, achados
+  mais 2 arquivos não catalogados no pedido original: um `.env` real (não o `.env.example`) com
+  `BOLSAI_API_KEY`/`SEC_EDGAR_CONTACT_EMAIL`/`ETHERSCAN_API_KEY` (essa terceira chave nem
+  documentada no `.env.example`, sem nenhum código lendo ela — provavelmente resquício de algo
+  nunca construído) e um backup antigo `practice_valuation.db.bak`/`-shm`/`-wal` (nome de antes
+  do rebranding pra "Anchor", Sessão 65, ~5MB). Nenhum dos dois é chamado por código nenhum, mas
+  também nenhum dos dois é um artefato de build descartável — em vez de assumir que dava pra
+  apagar, preservados por precaução: `.env` copiado (os segredos já existem duplicados no `.env`
+  do `easybusiness`, confirmado antes) e o backup movido, ambos pra dentro da pasta `data/` nova.
+- **`data/` criada** (raiz do repo, irmã de `desktop/`/`contracts/`) — a própria
+  `project/ARCHITECTURE.md` já cogitava essa opção desde a Sessão 1, descartada só pelo motivo
+  que acabou de deixar de existir (compartilhamento de container com o Python). Movidos pra lá:
+  `anchor.db`+`-wal`+`-shm` (banco ativo), `anchor.db.bak-sessao92` (renomeado
+  `anchor-sessao92.db.bak`, backup desta sessão antes da migration do `reit_fundamentals`),
+  `.env` de `data-collector/` (renomeado `.env.data-collector-bak`) e
+  `practice_valuation.db.bak`/`-shm`/`-wal`.
+- **Achado real de segurança durante a própria limpeza**: os dois arquivos preservados acima
+  (`.env` renomeado, backup do banco desta sessão) não batiam em nenhum padrão existente do
+  `.gitignore` (só cobre `.env`/`.env.*` exatos e `*.db.bak` exato) — um `git add -A` futuro
+  teria commitado um segredo real e um binário de 9MB sem ninguém perceber. Corrigido renomeando
+  os dois pra baterem nos padrões já existentes (`.env.data-collector-bak` casa com `.env.*`;
+  `anchor-sessao92.db.bak` casa com `*.db.bak`) — confirmado com `git check-ignore -v` em cada
+  um antes de seguir, não só por inspeção visual do nome.
+- **`data-collector/` apagado por completo**: `main.py`/`sources/` (5 arquivos)/`config.yaml`/
+  `.env.example`/`README.md`/`requirements*.txt` via `git rm -r` (rastreados); `.venv/`/`build/`/
+  `dist/`/`__pycache__/`/`.cache/`/`*.spec` via `rm -rf` (não rastreados, já cobertos pelo
+  `.gitignore`). Diretório confirmado vazio antes do `rm -rf` final.
+- **Referências atualizadas**: `desktop/src-tauri/src/db.rs::DEV_DATABASE_FILE_PATH` e os 7
+  `dev_db()` de teste (`finance_api::{stocks,crypto,metals,fii,reit,benchmark,us_stock}`) pra
+  `/data/anchor.db`; `desktop/docker-compose.yml` (bind mount `../data-collector:/data-collector`
+  → `../data:/data`); `desktop/Dockerfile` (removido o bloco `apt-get install python3
+  python3-venv python3-pip` — nada mais no container precisa de Python, a Finance API roda fora
+  dele em dev, sem processo spawnado do lado do Anchor, ver `finance_api/sidecar.rs`);
+  `tauri.conf.json::bundle.externalBin` (removido `"binaries/anchor-collector"`);
+  `.github/workflows/build.yml` (removido o step "Build Python sidecar" e seu comentário — **mantido**
+  o step "Python"/`actions/setup-python@v5`, ainda usado pelo step seguinte, sidecar da Finance
+  API); `.gitignore` (removidas as 2 entradas `data-collector/.cache/`/`data-collector/*.spec`);
+  `README.md` (linha "Data collector" removida da tabela de Architecture, parágrafo de
+  "subprocess sem rede/IPC" reescrito pra descrever o sidecar HTTP da Finance API);
+  `project/ARCHITECTURE.md` (2 linhas de decisão anotadas — "onde roda a coleta" e "caminho do
+  SQLite" — como revisadas na Fase 14, não reescritas por cima do registro original).
+- **Verificado ao vivo**: `docker compose up -d --build` reconstruiu a imagem do zero sem
+  Python, subiu normal; dentro do container, `/data` montado com os arquivos certos e
+  `/data-collector` confirmadamente inexistente (`ls` retorna erro). `cargo check --lib` limpo,
+  `cargo test --lib` **175/175 sem regressão**. Rodados ao vivo contra a Finance API real
+  (`sidecar_main.py` do easybusiness, mesmo contorno de rede de sessões anteriores) e o banco no
+  caminho novo: 1 teste `#[ignore]` de cada um dos 7 módulos `finance_api::*` (11 no total,
+  incluindo os 4 primeiro pra confirmar resolução do caminho e depois +7 dos módulos restantes),
+  todos passando — confirma que o caminho novo resolve de verdade em runtime, não só que
+  compila. `tsc --noEmit` limpo (nenhuma mudança de frontend). Limpeza de ambiente: sidecar da
+  Finance API e container do Anchor parados ao final, binário órfão
+  `anchor-collector-x86_64-unknown-linux-gnu` apagado de `desktop/src-tauri/binaries/` (local,
+  não versionado).
+- **Estado ao final**: Fase 14 (terceirizar `data-collector/` pro EasyBusiness) **completa** —
+  nenhum resquício do coletor Python sobra no repo. Próximo trabalho fica pra quando o dono do
+  projeto decidir o que atacar do roadmap.

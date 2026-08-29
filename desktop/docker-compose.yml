@@ -8,7 +8,7 @@ services:
     user: "1000:1000"                             # mesmo uid do host (node:20 já tem esse usuário) — exigido pela autenticação D-Bus da notificação nativa (Fase 5.3)
     volumes:
       - .:/app                                  # código fonte do app (Tauri + React)
-      - ../data-collector:/data-collector        # coletor Python — caminho fixo que o Rust vai chamar (Fase 2)
+      - ../data:/data                            # banco SQLite de dev, caminho fixo (Fase 2; pasta própria desde a Fase 14.5, o coletor Python que compartilhava ela foi apagado)
       - /tmp/.X11-unix:/tmp/.X11-unix           # display do Linux (para a janela aparecer)
       - ${XAUTHORITY:-${HOME}/.Xauthority}:/root/.Xauthority:ro  # cookie de auth X11
       - ${XDG_RUNTIME_DIR:-/run/user/1000}/bus:/run/user/1000/bus  # socket D-Bus do host (Fase 5.3, notificação nativa)

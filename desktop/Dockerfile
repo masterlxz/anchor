@@ -38,11 +38,4 @@ RUN cargo install sea-orm-cli --version 1.1.20 --locked
 # Libera leitura/execução do toolchain instalado como root pra esse usuário.
 RUN chmod 755 /root && chmod -R a+rX /root/.cargo /root/.rustup
 
-# Python + venv, pra rodar o coletor de dados (../data-collector) chamado pelo app
-RUN apt-get update && apt-get install -y \
-    python3 \
-    python3-venv \
-    python3-pip \
-    && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app

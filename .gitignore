@@ -19,9 +19,6 @@ __pycache__/
 .venv/
 venv/
 
-# downloaded/cached data (large, regenerable)
-data-collector/.cache/
-
 # node
 node_modules/
 
@@ -29,7 +26,6 @@ node_modules/
 dist/
 build/
 target/
-data-collector/*.spec
 desktop/src-tauri/binaries/
 
 # Foundry

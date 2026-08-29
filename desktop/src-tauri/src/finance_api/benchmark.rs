@@ -161,7 +161,7 @@ mod tests {
     }
 
     async fn dev_db() -> DatabaseConnection {
-        sea_orm::Database::connect("sqlite:///data-collector/anchor.db?mode=rwc")
+        sea_orm::Database::connect("sqlite:///data/anchor.db?mode=rwc")
             .await
             .expect("failed to connect to the real dev database")
     }

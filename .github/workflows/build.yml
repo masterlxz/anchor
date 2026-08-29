@@ -73,25 +73,14 @@ jobs:
         working-directory: desktop
         run: npm ci --legacy-peer-deps
 
-      # Fase 11.3 — compila o sidecar Python (data-collector/) num binário
-      # standalone, nativo pra cada runner do matrix — PyInstaller não faz
-      # cross-compile, precisa rodar no próprio SO alvo. Nome/extensão
-      # seguem a convenção de sidecar do Tauri (`binaries/<nome>-<target-triple>[.exe]`),
-      # registrada em `desktop/src-tauri/tauri.conf.json::bundle.externalBin`.
+      # Python — pré-requisito do PyInstaller usado no step abaixo (sidecar da
+      # Finance API). Não faz cross-compile, precisa rodar no próprio SO alvo.
       - name: Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Build Python sidecar
-        working-directory: data-collector
-        run: |
-          pip install -r requirements.txt -r requirements-build.txt
-          pyinstaller --onefile --name anchor-collector-${{ matrix.rust_target }} --distpath dist --workpath build --specpath . main.py
-          mkdir -p ../desktop/src-tauri/binaries
-          mv dist/anchor-collector-${{ matrix.rust_target }}${{ matrix.sidecar_ext }} ../desktop/src-tauri/binaries/
-
-      # Fase 14.1 — mesma ideia do sidecar acima, mas a fonte (api/sidecar_main.py) vive no repo
+      # Fase 14.1 — sidecar da Finance API. A fonte (api/sidecar_main.py) vive no repo
       # irmão easybusiness (mesmo dono), fixada por SHA em `.easybusiness-version` (sem
       # submodule — só um checkout num ref pinado). `--add-data` é necessário porque
       # `_run_migrations` lê `migrations/`/`alembic.ini` direto do disco em runtime (Alembic),
