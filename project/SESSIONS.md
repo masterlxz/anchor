@@ -1381,3 +1381,25 @@
   Corrigido no port: normaliza só pra chamada, grava com o CNPJ original. Verificado ao vivo: 1
   teste `#[ignore]` novo (HGLG11 real), `cargo test --lib` 173/173 sem regressão (+14
   ignorados), `tsc --noEmit` limpo. Commit próprio.
+
+- **Fechamento da sessão**: confirmado que `run_price_history_backfill` (fatia 1) é seguro — o
+  frontend (`ProfitabilitySection.tsx`, `YAHOO_BACKFILL_CLASSES`) já filtra por design pra só
+  mandar ticker `.SA` (`acao_br`/`fii`/`etf_br`/`bdr`) pra esse comando, nunca cripto/metal/US —
+  sem risco de um ticker sem sufixo cair no endpoint `.SA` genérico. Avaliados os 3 fluxos que
+  restam na Fase 14.4 (ação americana/REIT/ETF-US via `main_us_stock`/`main_reit`/`main_etf_us`,
+  benchmarks via `--benchmark-returns`, `resolve_fii_cnpj`) — todos misturam, numa função só do
+  coletor Python, um trecho já portável (Finance API) com um trecho que só a Fase 1.11 do
+  easybusiness resolve (Yahoo sem sufixo `.SA` pro IBOV/ação americana/REIT/ETF-US, resolução de
+  CNPJ). Separar os dois agora exigiria chamar Python e Rust dentro do mesmo comando (frágil,
+  redundante) — decisão deliberada de não forçar isso, esperar o gap fechar e portar o fluxo
+  inteiro de uma vez. **Nenhum trabalho pela frente nesta sessão sem esperar a Fase 1.11** —
+  parado aqui, ponto de parada natural, não arbitrário.
+- **Estado ao final da Sessão 91**: Fase 14.4 avançou 4 fatias completas e verificadas ao vivo
+  (Ação BR/FII/ETF-BR/BDR, Cripto, Metal, FII CVM), cada uma com commit próprio. `cargo test
+  --lib` 173/173 sem regressão (+14 testes `#[ignore]` no total, todos passando contra a Finance
+  API real e o banco real de dev), `tsc --noEmit` limpo em todas as fatias. 2 achados reais
+  registrados (regeneração acidental de entities existentes, corrigida antes de commitar; CNPJ
+  sem normalização quebrando a chamada da Finance API, corrigido no port). Sem interação nenhuma
+  com o desktop real do dono do projeto (achado da Sessão 90) — toda verificação ficou nos
+  testes Rust `#[ignore]`. Restam: os 3 fluxos bloqueados acima (aguardando Fase 1.11 do
+  `easybusiness`) e a 14.5 (limpeza final do `data-collector/`, que depende deles).

@@ -1234,6 +1234,17 @@ pro lado já implementado):
     achariam as linhas gravadas. **Verificado ao vivo**: 1 teste `#[ignore]` novo (HGLG11 real,
     CNPJ formatado do banco de dev), `cargo test --lib` **173/173 sem regressão** (+14
     ignorados), `tsc --noEmit` limpo.
+  - **Estado da 14.4 ao final da Sessão 91**: todas as classes/fluxos sem dependência das 4
+    capacidades locais (ver Sessão 88/89) já portadas — Ação BR/FII/ETF-BR/BDR, Cripto, Metal,
+    FII CVM. **Bloqueado de propósito, aguardando a Fase 1.11 do easybusiness**: ação
+    americana/REIT/ETF-US (`main_us_stock`/`main_reit`/`main_etf_us` misturam, numa função só, o
+    trecho local Yahoo sem sufixo com o trecho já coberto pela Finance API — dividir os dois
+    dentro de **um** comando/invocação exigiria chamar Python e Rust juntos, redundante e
+    frágil; melhor esperar o gap fechar e portar o fluxo inteiro de uma vez), benchmarks
+    (`--benchmark-returns` mistura CDI/IPCA/IFIX/SMLL/IDIV/IVVB11, já portáveis, com o IBOV
+    local Yahoo sem sufixo — mesmo problema de entrelaçamento) e `resolve_fii_cnpj` (bolsai+CVM
+    pra sugerir CNPJ, sem endpoint equivalente). `data-collector/` continua necessário até esses
+    3 fluxos fecharem — 14.5 (limpeza) segue bloqueada.
 - [ ] 14.5 — Limpeza: apagar `data-collector/` inteiro (script, `sources/`, `.venv`, spec do
   PyInstaller, `.env*`, artefatos de banco soltos), remover o step de build Python velho do
   `build.yml` e a entrada `anchor-collector` do `externalBin`, atualizar
