@@ -19,6 +19,7 @@ pub mod company_ai_info;
 pub mod crypto_fear_greed;
 pub mod crypto_indicators;
 pub mod custodia;
+pub mod cvm_dividend_notice_documents;
 pub mod dcf_inputs;
 pub mod fii_cnpj_cache;
 pub mod fii_cvm_monthly;

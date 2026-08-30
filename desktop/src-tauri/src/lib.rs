@@ -145,6 +145,7 @@ pub fn run() {
             commands::dividend_suggestion::list_dividend_suggestions,
             commands::dividend_suggestion::confirm_dividend_suggestion,
             commands::dividend_suggestion::discard_dividend_suggestion,
+            commands::cvm_dividend_notice::check_cvm_dividend_notices,
             commands::proventos::get_proventos_summary,
             commands::profitability::get_portfolio_profitability,
             commands::profitability::get_profitability_comparison,

@@ -11,6 +11,7 @@ pub mod company_ai_info;
 pub mod conversation;
 pub mod crypto_indicator;
 pub mod custodia;
+pub mod cvm_dividend_notice;
 pub mod dcf;
 pub mod dividend_suggestion;
 pub mod document_extraction;

@@ -1660,3 +1660,73 @@
 - **Estado ao final**: Fase 10 segue com um único item aberto (10.7), agora com desenho
   concreto e decisões de escopo fechadas em vez de "bloqueada, não planejada". Pré-requisito
   técnico real pra começar a implementar: fechar a Fase 8.5 primeiro.
+
+### 2026-08-30 — Sessão 94
+
+- **Objetivo**: dono do projeto pediu pra continuar de onde a Sessão 93 parou, sem alvo
+  específico. `AskUserQuestion` sobre por qual frente do roadmap seguir — escolhida a Fase 13.6
+  (proventos futuros, pendência desde a Sessão 76: brapi.dev cogitado mas nunca assinado).
+- **brapi.dev descartado, confirmado ao vivo**: sem plano gratuito pra ticker real — só o
+  sandbox de 4 tickers (PETR4/VALE3/MGLU3/ITUB4) sem token, qualquer outro exige assinar
+  Startup (R$99,99/mês anual) ou mais. Mesmo achado já registrado na Sessão 76, só reconfirmado.
+- **Avaliada a alternativa gratuita já registrada, CVM Dados Abertos**: baixado e inspecionado
+  o CSV real do dataset `cia_aberta-doc-ipe` de 2026 (33 mil linhas) — achado que destrava: a
+  categoria **"Relatório Proventos"** (481 documentos) é um **formulário padronizado da CVM**,
+  não texto livre feito Fato Relevante/Comunicado ao Mercado — confirmado baixando um PDF real
+  (Banco do Brasil): Valor Bruto (R$/Unidade), Data Pagamento, "Último dia de negociação com
+  Direitos" (= Data Com) e ISIN por classe de ação, tudo em campo fixo. Filtro só por
+  `Categoria`, sem heurística de palavra-chave.
+- **Plano desenhado formalmente** (`EnterPlanMode`/`ExitPlanMode`, aprovado pelo dono do
+  projeto) e implementado por completo na mesma sessão — arquitetura seguindo o padrão já
+  estabelecido pela Fase 14: fonte nova centralizada no `easybusiness`
+  (`api/app/sources/cvm_ipe.py`, mirror curto de `cvm_dfp.py`, endpoint novo
+  `GET /v1/companies/{cvm_code}/dividend-notices`), Anchor consome via `finance_api::client`.
+  `AskUserQuestion` fechou uma decisão de escopo real: se um documento trouxer valores
+  divergentes entre classes de ação (ON/PN/units) sem dar pra casar o ISIN certo com o ticker,
+  a sugestão automática é pulada (nunca arrisca um valor errado) — mesmo princípio que
+  `cvm_dfp.py` já usa.
+- **Reaproveitamento real, não retrabalho**: resolução ticker→`cvm_code` extraída do caminho
+  que já existia pra fundamentos (`finance_api::stocks::resolve_cvm_code`, ganhou 2º chamador);
+  extração via IA reaproveita as 3 funções por provider de `commands::document_extraction`
+  (viraram `pub(crate)`); sugestão vira `suggested_dividends` direto (`source = "cvm"`) — **zero
+  tela de revisão nova**, mesmo fluxo de confirmar/editar/descartar do "passado" (Yahoo); a
+  conciliação da Sessão 77.2 (antes só pra `source = "manual"`) foi generalizada pra qualquer
+  fonte não-Yahoo, incluindo a nova.
+- **3 achados reais só descobertos testando ao vivo contra o portfolio real do dono do projeto**
+  (BBAS3/Banco do Brasil, único ticker de Ação BR lançado, `cvm_code` 1023):
+  1. `extract_via_gemini` (função existente da Fase 2.4/2.5, nunca exercitada de verdade contra
+     Gemini antes) manda o schema em JSON Schema padrão, mas a API do Gemini só aceita um
+     subconjunto OpenAPI — sem `additionalProperties`, `type` precisa ser string maiúscula única
+     (nulidade via `nullable: true`). Corrigido na fonte (`to_gemini_schema`, conversor
+     recursivo), beneficia qualquer chamador futuro (inclusive a feature de landbank já
+     existente, que também nunca tinha sido testada contra Gemini).
+  2. Quantidade da sugestão precisa reconstruir pela data do **próprio aviso**
+     (`payment_date`), não por "hoje" — a CVM devolve o histórico inteiro (passado e futuro
+     juntos), e usar "hoje" geraria sugestão de dinheiro que quem comprou depois de um provento
+     antigo nunca recebeu. Corrigido, e escopo restrito a `payment_date > hoje` (o "passado" já
+     é do fluxo Yahoo, mais confiável — evita duplicar).
+  3. A CVM às vezes devolve uma página de erro HTML no lugar do PDF de verdade (filings com
+     `numVersao` antigo/superseded) — sem checar isso, o app gastava uma chamada de IA numa
+     "PDF" que era HTML, sempre com o mesmo erro. Corrigido com guard de magic bytes (`%PDF-`)
+     antes de gastar a chamada de IA — classificado como falha permanente (não retry), diferente
+     de erro transitório de rede/API (503 "alta demanda"), que não entra no ledger de
+     idempotência e fica elegível pra nova tentativa no próximo clique.
+- **Resultado real, confirmado no banco de dev do dono do projeto**: 16 "Relatório Proventos"
+  da CVM pra BBAS3, **1 sugestão futura criada** (JSCP, R$0,10245643978/cota, pagamento
+  2026-09-11, Data Com 2026-09-01, `status = pending`, aguardando confirmação), 6 já passados
+  (cobertos pelo Yahoo), 5 ambíguos/sem linha utilizável, 3 com PDF inválido do lado da CVM, 2
+  documentos resolvidos mas colapsados numa sugestão só (2 filings pro mesmo evento — dedup
+  funcionando). Teste `#[ignore]` novo (`live_check_cvm_dividend_notices_is_idempotent`)
+  confirmou 0 reprocessamento rodando de novo contra o mesmo dado real.
+- **Verificado**: `cargo test --lib` **187/187 sem regressão** (12 testes novos: 7 domínio puro
+  em `domain::cvm_dividend_notice`, 5 `to_gemini_schema`), `tsc --noEmit` limpo, suíte do
+  `easybusiness` **209/209** (5 testes novos de `cvm_ipe.py`), migration aplicada no banco real
+  de dev. Frontend: botão "Check CVM notices" em `DividendSuggestionsSection.tsx` (mesmo padrão
+  de auto-seleção de key/modelo do `AboutCompanySection.tsx`), coluna Source ganhou "CVM".
+- **Achado de ambiente, fora do escopo do código**: `docker compose exec` sem `-u root` cai no
+  user `node`, que tem `DBUS_SESSION_BUS_ADDRESS` configurado (keyring real acessível); com
+  `-u root`, o teste `#[ignore]` quebrava com erro de keyring (`Broken pipe` no D-Bus) — cargo
+  em si só existia mesmo sob `/root/.cargo/bin` (mundo-legível, funciona pros dois usuários).
+- **Estado ao final**: Fase 13.6 **completa** — "passado" (Sessão 77/77.2) e "futuro" (esta
+  sessão) implementados, testados ao vivo com dado real. Sem pendência conhecida registrada
+  pra essa fase.

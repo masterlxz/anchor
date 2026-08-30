@@ -132,7 +132,64 @@ struct GeminiExtractionResponsePart {
     text: Option<String>,
 }
 
-async fn extract_via_gemini(
+/// Gemini's `response_schema` is a subset of OpenAPI 3.0, not standard JSON
+/// Schema — achado ao vivo (Fase 13.6, esta sessão, `cvm_dividend_notice`):
+/// um schema com `type: ["string", "null"]` e `additionalProperties` (o
+/// formato que `extract_document_data`'s caller já usava, ex.
+/// `LANDBANK_JSON_SCHEMA`) quebra com 400 contra a API real do Gemini —
+/// `additionalProperties` não existe nesse subconjunto, e `type` precisa
+/// ser uma única string maiúscula (`"STRING"`, não `"string"`), nulidade
+/// vem de um campo `nullable: true` separado em vez de um array em `type`.
+/// Nunca tinha sido exercitado ao vivo contra Gemini antes (só Claude/OpenAI
+/// tinham confirmação real, ver histórico deste arquivo). Convertido aqui,
+/// não no chamador — assim qualquer schema padrão que já funciona pra
+/// Claude/OpenAI passa a funcionar pra Gemini também, sem duplicar schema.
+fn to_gemini_schema(schema: &serde_json::Value) -> serde_json::Value {
+    let serde_json::Value::Object(map) = schema else {
+        return schema.clone();
+    };
+    let mut out = serde_json::Map::new();
+    for (key, value) in map {
+        match key.as_str() {
+            "additionalProperties" => {}
+            "type" => match value {
+                serde_json::Value::Array(types) => {
+                    if let Some(t) = types.iter().find_map(|t| t.as_str().filter(|t| *t != "null"))
+                    {
+                        out.insert("type".to_string(), t.to_uppercase().into());
+                    }
+                    if types.iter().any(|t| t.as_str() == Some("null")) {
+                        out.insert("nullable".to_string(), true.into());
+                    }
+                }
+                serde_json::Value::String(t) => {
+                    out.insert("type".to_string(), t.to_uppercase().into());
+                }
+                other => {
+                    out.insert("type".to_string(), other.clone());
+                }
+            },
+            "properties" => {
+                if let serde_json::Value::Object(props) = value {
+                    let converted: serde_json::Map<String, serde_json::Value> = props
+                        .iter()
+                        .map(|(k, v)| (k.clone(), to_gemini_schema(v)))
+                        .collect();
+                    out.insert("properties".to_string(), converted.into());
+                }
+            }
+            "items" => {
+                out.insert("items".to_string(), to_gemini_schema(value));
+            }
+            _ => {
+                out.insert(key.clone(), value.clone());
+            }
+        }
+    }
+    out.into()
+}
+
+pub(crate) async fn extract_via_gemini(
     api_key: &str,
     model: &str,
     pdf_base64: &str,
@@ -142,6 +199,7 @@ async fn extract_via_gemini(
     let url = format!(
         "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
     );
+    let gemini_schema = to_gemini_schema(json_schema);
     let body = GeminiExtractionRequestBody {
         contents: vec![GeminiExtractionContent {
             role: "user",
@@ -161,7 +219,7 @@ async fn extract_via_gemini(
         }],
         generation_config: GeminiGenerationConfig {
             response_mime_type: "application/json",
-            response_schema: json_schema,
+            response_schema: &gemini_schema,
         },
     };
 
@@ -240,7 +298,7 @@ struct ClaudeExtractionResponseBlock {
     text: Option<String>,
 }
 
-async fn extract_via_claude(
+pub(crate) async fn extract_via_claude(
     api_key: &str,
     model: &str,
     pdf_base64: &str,
@@ -354,7 +412,7 @@ struct OpenAiExtractionResponseMessage {
     content: Option<String>,
 }
 
-async fn extract_via_openai(
+pub(crate) async fn extract_via_openai(
     api_key: &str,
     model: &str,
     pdf_base64: &str,
@@ -426,6 +484,76 @@ mod tests {
     fn check_file_size_rejects_oversized_file() {
         let oversized = vec![0u8; MAX_PDF_BYTES + 1];
         assert!(check_file_size(&oversized).is_err());
+    }
+
+    #[test]
+    fn to_gemini_schema_drops_additional_properties() {
+        let schema = serde_json::json!({"type": "object", "additionalProperties": false});
+        let converted = to_gemini_schema(&schema);
+        assert_eq!(converted, serde_json::json!({"type": "OBJECT"}));
+    }
+
+    #[test]
+    fn to_gemini_schema_converts_nullable_union_type() {
+        let schema = serde_json::json!({"type": ["string", "null"]});
+        let converted = to_gemini_schema(&schema);
+        assert_eq!(converted, serde_json::json!({"type": "STRING", "nullable": true}));
+    }
+
+    #[test]
+    fn to_gemini_schema_uppercases_plain_type() {
+        let schema = serde_json::json!({"type": "number"});
+        assert_eq!(to_gemini_schema(&schema), serde_json::json!({"type": "NUMBER"}));
+    }
+
+    #[test]
+    fn to_gemini_schema_recurses_into_properties_and_items() {
+        let schema = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "notices": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "rate": {"type": ["number", "null"]}
+                        },
+                        "additionalProperties": false
+                    }
+                }
+            },
+            "additionalProperties": false
+        });
+        let converted = to_gemini_schema(&schema);
+        assert_eq!(
+            converted,
+            serde_json::json!({
+                "type": "OBJECT",
+                "properties": {
+                    "notices": {
+                        "type": "ARRAY",
+                        "items": {
+                            "type": "OBJECT",
+                            "properties": {
+                                "rate": {"type": "NUMBER", "nullable": true}
+                            }
+                        }
+                    }
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn to_gemini_schema_preserves_enum_and_required() {
+        let schema = serde_json::json!({
+            "type": "string",
+            "enum": ["DIVIDENDO", "JCP"],
+            "required": ["label"]
+        });
+        let converted = to_gemini_schema(&schema);
+        assert_eq!(converted["enum"], serde_json::json!(["DIVIDENDO", "JCP"]));
+        assert_eq!(converted["required"], serde_json::json!(["label"]));
     }
 
     #[test]

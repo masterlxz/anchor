@@ -17,6 +17,7 @@ pub use super::company_ai_info::Entity as CompanyAiInfo;
 pub use super::crypto_fear_greed::Entity as CryptoFearGreed;
 pub use super::crypto_indicators::Entity as CryptoIndicators;
 pub use super::custodia::Entity as Custodia;
+pub use super::cvm_dividend_notice_documents::Entity as CvmDividendNoticeDocuments;
 pub use super::dcf_inputs::Entity as DcfInputs;
 pub use super::fii_cnpj_cache::Entity as FiiCnpjCache;
 pub use super::fii_cvm_monthly::Entity as FiiCvmMonthly;

@@ -1049,7 +1049,64 @@ Verificação: coletor testado ao vivo duas vezes contra `SPY` dentro do contain
 
 **Infra reaproveitável já existente**: `recharts` (já dependência, usado em `stock-lookup/PriceHistoryChart.tsx`/`DividendHistoryChart.tsx`/`portfolio/ProfitabilitySection.tsx`) é o precedente natural pros gráficos novos, mesmo padrão `ResponsiveContainer` + tooltip customizado — evita introduzir uma segunda lib de gráficos.
 
-### Fase 13.6 — Automação de Proventos (ideia levantada na Sessão 75, desenhada na Sessão 76, parte "passado" + conciliação implementadas na Sessão 77/77.2)
+### Fase 13.6 — Automação de Proventos (ideia levantada na Sessão 75, desenhada na Sessão 76, parte "passado" + conciliação implementadas na Sessão 77/77.2, parte "futuro" implementada na Sessão 94 via CVM em vez de brapi.dev)
+
+**Parte "futuro" — Sessão 94 (2026-08-30)**: brapi.dev, cogitado desde a Sessão 76, **não tem
+plano gratuito pra ticker real** (confirmado ao vivo — só sandbox de 4 tickers sem token; real
+exige assinar Startup, R$99,99/mês+) — dono do projeto pediu pra avaliar a alternativa gratuita
+já registrada, CVM Dados Abertos. Achado que destrava: a categoria **"Relatório Proventos"** do
+dataset `cia_aberta-doc-ipe` (481 documentos em 2026) é um **formulário padronizado da CVM**
+(confirmado baixando um PDF real, Banco do Brasil) — Valor Bruto/cota, Data Pagamento, "Último
+dia de negociação com Direitos" (= Data Com) e ISIN por classe de ação, tudo em campos fixos —
+bem mais confiável que Fato Relevante/Comunicado ao Mercado (texto livre, maioria não é sobre
+provento apesar de mencionar a palavra). Extração via IA (mesmo formulário, mas a ordem do texto
+cru sai embaralhada pelo layout multi-coluna — resolvido lendo o PDF nativamente, não
+`pdftotext`).
+
+**Arquitetura**: mesmo padrão da Fase 14 — fonte externa nova centralizada no `easybusiness`
+(`api/app/sources/cvm_ipe.py`, mirror curto de `cvm_dfp.py`; diferença: o zip do ano corrente
+muda o ano inteiro, não cacheia em disco pra sempre como o DFP faz; endpoint novo
+`GET /v1/companies/{cvm_code}/dividend-notices`), Anchor consome via
+`finance_api::client::fetch_company_dividend_notices`. Resolução ticker→`cvm_code` reaproveita o
+caminho que já existia pra fundamentos (`fetch_stock_bolsai_fundamentals`, extraído pra
+`finance_api::stocks::resolve_cvm_code` — ganhou um segundo chamador). Extração via IA reaproveita
+as 3 funções por provider de `commands::document_extraction` (viraram `pub(crate)`, já recebiam
+`pdf_base64` puro, sem precisar de arquivo local). Sugestão vira `suggested_dividends` direto
+(`source = "cvm"`) — **zero tela de revisão nova**, mesmo fluxo de confirmar/editar/descartar que
+o "passado" (Yahoo) já tinha. Ledger de idempotência novo (`cvm_dividend_notice_documents`) evita
+reprocessar o mesmo documento — mas só grava permanentemente resultado *estável* (sucesso,
+ambíguo, `payment_date` já passado, ou "não é PDF de verdade"); falha transitória (rede, Gemini
+503) não entra no ledger, fica elegível pra nova tentativa no próximo clique.
+
+**3 achados reais só descobertos testando ao vivo contra o portfolio real do dono do projeto**
+(BBAS3/Banco do Brasil, `cvm_code` 1023, único ticker de Ação BR que ele tinha lançado): (1)
+`extract_via_gemini` (função já existente da Fase 2.4/2.5, nunca antes exercitada de verdade
+contra Gemini) manda o schema em JSON Schema padrão, mas a API do Gemini só aceita um
+subconjunto OpenAPI — sem `additionalProperties`, `type` precisa ser string maiúscula única
+(nulidade via `nullable: true`, não `type: ["string","null"]`) — corrigido na fonte
+(`to_gemini_schema`, conversor recursivo) pra beneficiar qualquer chamador futuro, não só este;
+(2) a quantidade tinha que ser reconstruída na data do **próprio aviso** (`payment_date`), não em
+"hoje" — a CVM devolve o histórico inteiro de "Relatório Proventos" (passado e futuro juntos),
+não só os futuros, e usar "hoje" geraria sugestão de dinheiro que quem comprou depois de um
+provento antigo nunca recebeu; corrigido, e escopo restrito a `payment_date > hoje` (o "passado"
+já é do fluxo Yahoo, mais confiável — evita duplicar); (3) a CVM devolve uma página de erro HTML
+no lugar do PDF de verdade pra algumas versões antigas de filing (`numVersao` superseded) — sem
+checar isso, o app gastava uma chamada de IA numa "PDF" que era HTML, sempre falhando do mesmo
+jeito; corrigido com um guard de magic bytes (`%PDF-`) antes de gastar a chamada de IA,
+classificado como falha permanente (não retry) já que é sempre o mesmo resultado.
+
+**Resultado real, confirmado no banco de dev do dono do projeto**: 16 "Relatório Proventos" da
+CVM pra BBAS3, 1 sugestão futura criada (JSCP, R$0,10245643978/cota, pagamento 2026-09-11, Data
+Com 2026-09-01, `status = pending`, aguardando confirmação do dono do projeto), 6 já passados
+(cobertos pelo Yahoo), 5 ambíguos/sem linha utilizável, 3 com PDF inválido do lado da CVM, 2
+documentos resolvidos mas colapsados numa sugestão só (2 filings pro mesmo evento — dedup
+funcionando). Teste `#[ignore]` novo (`live_check_cvm_dividend_notices_is_idempotent`) roda de
+novo pra confirmar 0 reprocessamento contra o mesmo dado real. `cargo test --lib` **187/187 sem
+regressão** (12 testes novos: 7 domínio puro em `domain::cvm_dividend_notice`, 5
+`to_gemini_schema`), `tsc --noEmit` limpo, suíte do `easybusiness` **209/209** (5 testes novos de
+`cvm_ipe.py`). Frontend: botão "Check CVM notices" em `DividendSuggestionsSection.tsx` (mesmo
+padrão de auto-seleção de key/modelo do `AboutCompanySection.tsx`, some sem key de IA
+configurada), coluna Source ganhou o rótulo "CVM".
 
 **Objetivo**: dono do projeto quer automatizar o lançamento de proventos (hoje 100% manual, um `transaction_type = "provento"` por evento em `transactions`, sem campo de status). Quer tanto passados quanto futuros, com confirmação manual antes de virar lançamento de verdade — não confia (nem deveria) em gravação automática direto no ledger.
 

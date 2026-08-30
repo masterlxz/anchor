@@ -40,23 +40,23 @@ fn validate_payment_type(payment_type: &Option<String>) -> Result<(), AppError> 
     }
 }
 
-// Fase 13.6 — parte "passado" (única viável com a fonte atual, só histórico
-// Yahoo; o "futuro" via brapi.dev fica pra depois, ver PHASE.md item 13.6).
-// Desenho: pra cada pagamento de provento registrado em
-// `stock_dividend_payments` de um ticker que o portfolio tem/lanceu,
-// reconstruir a quantidade na data de pagamento (compras − vendas até a
-// data, mesma regra de `get_portfolio_positions`) e gerar uma "sugestão"
-// pendente — nunca grava direto no ledger. O dono do projeto confirma
-// (vira `provento` de verdade em `transactions`, com Data Com manual,
-// decisão da Sessão 76), edita a quantidade ou descarta, numa tela de
-// revisão dedicada.
+// Fase 13.6 — parte "passado", só histórico Yahoo (`stock_dividend_payments`,
+// fonte `"yahoo_finance"`). Desenho: pra cada pagamento de provento
+// registrado de um ticker que o portfolio tem/lanceu, reconstruir a
+// quantidade na data de pagamento (compras − vendas até a data, mesma regra
+// de `get_portfolio_positions`) e gerar uma "sugestão" pendente — nunca
+// grava direto no ledger. O dono do projeto confirma (vira `provento` de
+// verdade em `transactions`, com Data Com manual, decisão da Sessão 76),
+// edita a quantidade ou descarta, numa tela de revisão dedicada.
 //
-// Conciliação (Sessão 77.2): se o dono do projeto cadastrou manualmente um
-// provento esperado (`source = "manual"`) na mesma data, o `generate_` não
-// cria sugestão nova — só concilia: valor ±10% → marca a manual como
-// `matched` (ainda exige o clique de Confirmar); divergiu → marca a manual
-// como `divergent` e cria uma sugestão automática paralela pra comparar
-// (habilitado pelo índice único que agora inclui `source`).
+// Conciliação (Sessão 77.2, generalizada na automação CVM da parte
+// "futuro"): se já existe uma sugestão pendente de outra fonte na mesma
+// data (`source = "manual"`, cadastrada à mão pelo dono do projeto, ou
+// `source = "cvm"`, gerada por `commands::cvm_dividend_notice`), o
+// `generate_` não cria sugestão nova — só concilia: valor ±10% → marca a
+// outra como `matched` (ainda exige o clique de Confirmar); divergiu →
+// marca a outra como `divergent` e cria uma sugestão automática paralela
+// pra comparar (habilitado pelo índice único que já inclui `source`).
 
 // Geração idempotente de sugestões pendentes para um portfolio:
 //   - pula pagamento que já virou lançamento (`provento` na mesma data);
@@ -189,9 +189,14 @@ pub async fn generate_dividend_suggestions(
                 continue;
             }
 
-            // Conciliação: um provento esperado manual pendente na mesma data.
+            // Conciliação: uma sugestão pendente de outra fonte (manual ou
+            // "cvm", Fase 13.6) na mesma data — generalizado de "só manual"
+            // (Sessão 77.2) pra "qualquer fonte que não seja esta mesma"
+            // quando a fonte CVM passou a gerar sugestões futuras também
+            // sujeitas a conciliar contra o pagamento real do Yahoo.
             if let Some(manual) = date_rows.and_then(|rows| {
-                rows.iter().find(|s| s.source == SOURCE_MANUAL && s.status == STATUS_PENDING)
+                rows.iter()
+                    .find(|s| s.source != payment.source && s.status == STATUS_PENDING)
             }) {
                 let now = chrono::Utc::now().to_rfc3339();
                 if within_tolerance(manual.amount, payment.amount, MATCH_TOLERANCE_PCT) {
@@ -240,13 +245,13 @@ pub async fn generate_dividend_suggestions(
                 continue;
             }
 
-            // Só chega aqui se não havia manual pendente: já havia sugestão
-            // manual decidida/paralela, ou sugestão de outra fonte, ou nada.
+            // Só chega aqui se não havia sugestão de outra fonte pendente:
+            // já havia sugestão de outra fonte decidida/paralela, ou nada.
             let already_decided = date_rows.is_some_and(|rows| {
                 rows.iter().any(|s| {
                     s.status == STATUS_CONFIRMED
                         || s.status == STATUS_DISCARDED
-                        || s.source == SOURCE_MANUAL
+                        || s.source != payment.source
                 })
             });
             if already_decided {
