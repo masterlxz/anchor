@@ -1602,3 +1602,61 @@
   grátis conhecida. De bônus, um bug real de deserialização (`NaiveDateTime` + `flatten` +
   campo escalar seguinte) corrigido antes que afetasse qualquer usuário rodando a Finance API
   sobre Postgres de verdade.
+
+### 2026-08-30 — Sessão 93
+
+- **Objetivo**: dono do projeto pediu pra continuar de onde a Sessão 92 parou, sem alvo
+  específico. Levantamento do estado real (`git log`/`git status` limpo, `project/PHASE.md`/
+  `ROADMAP.md`) mostrou a Fase 14 e a automação de cripto já fechadas — perguntado via
+  `AskUserQuestion` por onde seguir entre as frentes abertas do roadmap (Fase 10 Workspaces,
+  Fase 13.6 proventos futuros via brapi.dev, Fase 8 Arweave). Escolhida **Fase 10**.
+- **Achado antes de planejar qualquer coisa**: a Fase 10 já estava praticamente inteira —
+  10.1 a 10.6, item 8 (10 classes de ativo expandidas + Empresa não listada), item 9
+  (custódias) e 10.8 (Home dashboard, 2 fatias) todos `[x]`, ao longo de ~30 sessões (33-86).
+  Só a **10.7** (convite + RBAC ativo entre pessoas diferentes) seguia `[ ]`, marcada
+  "Bloqueada, não planejada" desde a Sessão 29 — reportado ao dono do projeto antes de seguir
+  (a expectativa de "frente em aberto" não batia com o estado real), que confirmou querer
+  atacar justo esse item.
+- **Desenho da 10.7, só documentação, nenhum código novo** (mesmo padrão da Sessão 87 —
+  replanejamento da Fase 8 sem tocar código). Reli a Fase 8 inteira antes de desenhar
+  (`Sync Multi-Dispositivo via TruthID + Arweave`) pra não desenhar em cima de suposição velha,
+  e o repo do TruthID (`~/Documents/workspace/truthid/contracts/src/`) pra achar precedente real
+  de controle de acesso descentralizado.
+- **Achado que destrava o desenho**: a ressalva registrada desde a Sessão 29 ("sem servidor,
+  quem arbitra quem pode escrever o quê") comparava sempre com uma checagem central de `role`
+  numa query antes do `UPDATE` — mas o `DeviceRegistry.sol` do TruthID já resolve um problema
+  isomorfo (`identityId → address[]` de devices autorizados, checado via `eth_call` antes de
+  confiar numa ação assinada). O mesmo padrão generaliza pra Workspace: a checagem de permissão
+  vira um `eth_call` num contrato próprio em vez de uma query Postgres.
+- **Desenho proposto e as 3 decisões levadas ao dono do projeto via `AskUserQuestion`**:
+  1. `WorkspaceRegistry.sol` — contrato novo do Anchor, mesmo padrão do `SyncRegistry.sol` já
+     deployado em Base Mainnet (Fase 8.1), mas **um contrato só com `workspaceId` como
+     namespace** (não um deploy por Workspace — diferente da decisão da Sessão 24 de "cada app
+     traz o próprio contrato", que fazia sentido pra deploy único por desenvolvedor, não pra
+     usuário final criando Workspaces repetidamente).
+  2. **Modelo de papel: bitmask de permissões** (escolhido pelo dono do projeto sobre enum
+     fixo) — reaproveita as flags já especificadas desde a Sessão 29
+     (`can_add_transactions`/`can_delete_transactions`/`can_create_theses`/
+     `can_manage_members`) como bits, Owner/Admin/Editor/Viewer viram presets no frontend, não
+     tipos novos no contrato.
+  3. **Escopo desta sessão: só o desenho** (escolhido pelo dono do projeto sobre já
+     escrever+testar o contrato via `forge test`, no molde da 8.1) — a 10.7 só vira útil de
+     ponta a ponta depois que a Fase 8.5 (loop de sync completo, ainda `[ ]`) existir; um
+     contrato de ACL sozinho, sem o loop de replicação por trás, não libera feature nenhuma
+     usável ainda.
+  4. **Convite: os dois fluxos ficam registrados** (pedido explícito do dono do projeto) — só
+     colar o endereço (smart account) do convidado manualmente entra como fatia a implementar
+     primeiro (zero protocolo novo); QR/pareamento reaproveitando o padrão LAN/dead-drop da
+     Fase 8.6 do TruthID fica registrado como pendência futura, não bloqueando nada.
+- **Replicação de dado, parte do mesmo desenho**: generaliza a 8.5 ("merge por replay causal")
+  do caso single-user (mesmo usuário, múltiplos devices) pro multi-user sem mudar de forma —
+  log append-only de eventos assinados, cada device confere via cache local do
+  `WorkspaceRegistry` (invalidado pelos eventos `RoleChanged`/`MemberRemoved`) se o remetente
+  tinha permissão suficiente no momento do evento antes de aceitar/repetir.
+- **Documentação atualizada**: `project/PHASE.md` (item 10.7, desenho completo com a ordem de
+  implementação sugerida pra quando a Fase 8.5 estiver pronta) e `project/ROADMAP.md`
+  (parágrafo da Fase 10 atualizado — estado real de "praticamente tudo fechado" + o desenho da
+  10.7 resumido). Nenhum código tocado nesta sessão.
+- **Estado ao final**: Fase 10 segue com um único item aberto (10.7), agora com desenho
+  concreto e decisões de escopo fechadas em vez de "bloqueada, não planejada". Pré-requisito
+  técnico real pra começar a implementar: fechar a Fase 8.5 primeiro.
