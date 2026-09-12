@@ -1474,3 +1474,57 @@ tomada, nenhum código escrito. Depende logicamente da Fase 8 estar pelo menos d
 está) antes de `DecentralizedVaultProvider` fazer sentido como implementação real; não bloqueia
 `LocalFSProvider` nem o desenho do resto do contrato.
 
+### Fase 16 — Backup do Workspace (ideia trazida em conversa pelo dono do projeto na Sessão 96, puro registro, não iniciada)
+
+**Objetivo**: mecanismo explícito de backup/restauração de um Workspace inteiro (dados +
+eventualmente anexos, ver Fase 15), distinto do sync contínuo multi-dispositivo já desenhado na
+Fase 8 — cobre o caso de o usuário simplesmente querer um snapshot restaurável (proteção contra
+perda de dado/corrupção/troca de máquina), não a sincronização em tempo real entre dispositivos.
+Não decidido ainda: formato do backup (dump do SQLite vs. export estruturado), gatilho (manual vs.
+periódico), nem destino (local vs. remoto — se remoto, provavelmente reaproveita as interfaces
+`StorageProvider` da Fase 15 em vez de inventar um mecanismo próprio).
+
+**Estado**: puro registro de intenção — nenhuma decisão de arquitetura tomada, nenhum código
+escrito. Relacionada à Fase 8 (sync) e à Fase 15 (`StorageProvider`), mas não depende de nenhuma
+das duas pra existir na sua forma mais simples (backup local manual).
+
+### Fase 17 — Índices macro adicionais via EasyBusiness: SELIC, DI Futuro (ideia trazida em conversa pelo dono do projeto na Sessão 96, puro registro, não iniciada)
+
+**Objetivo**: trazer mais índices de referência pro painel de mercado/benchmarks (Fase 10.4/13.5)
+— **SELIC** (meta definida pelo Copom, distinta do CDI que já é coletado via BCB SGS desde a Fase
+13.5) e **DI Futuro** (taxa de juros futura negociada na B3), entre outros que o dono do projeto
+for pedindo. Dependência de ordem: a coleta desses índices ainda não existe do lado do
+`easybusiness` (mesmo padrão de dependência cross-repo da Fase 14) — o Anchor só consome depois
+que o endpoint existir lá, sem repetir a lógica de coleta localmente.
+
+**Estado**: puro registro de intenção — nenhum índice novo implementado, nenhuma decisão sobre
+quais fontes usar do lado do `easybusiness`. Bloqueada até o `easybusiness` ganhar suporte pra
+esses índices.
+
+### Fase 18 — Software de apoio à gestão de opções (ideia trazida em conversa pelo dono do projeto na Sessão 96, puro registro, não iniciada)
+
+**Objetivo**: suporte a operações com opções sobre ações (ex. venda coberta, travas, etc.) —
+ideia registrada em conversa, ainda sem nenhum desenho de escopo ou arquitetura ("pensamos nisso
+depois", palavras do dono do projeto). Não decidido: se vira uma classe de ativo nova (ver
+`AssetClass`, Fase 10 item 8), como o cálculo de posição/resultado funciona, nem fonte de dado de
+cotação de opções.
+
+**Estado**: puro registro de intenção, o mais em aberto de todas as ideias desta sessão — nenhuma
+decisão tomada além de "existe vontade de ter isso um dia".
+
+### Fase 19 — Moeda base seletiva da carteira (ideia trazida em conversa pelo dono do projeto na Sessão 96, puro registro, não iniciada)
+
+**Objetivo**: permitir escolher, nas Configurações, a moeda base em que a carteira é exibida (ex.:
+um usuário americano escolhe USD e o Workspace inteiro passa a mostrar valores convertidos nessa
+moeda, em vez do BRL fixo de hoje). Cobre pelo menos: campo de moeda base em Settings (por
+Workspace, já que a Fase 10 tornou Workspace multi-usuário — cada um pode querer uma moeda
+diferente); conversão de exibição via câmbio (ao vivo vs. fechamento diário, a decidir); e a
+questão de exibição vs. armazenamento — provavelmente cada ativo continua guardado/transacionado
+na sua moeda de origem e a conversão acontece só na camada de exibição/agregação, não decidido
+com certeza ainda.
+
+**Estado**: puro registro de intenção — nenhuma decisão de escopo tomada (câmbio ao vivo vs.
+diário, per-asset vs. per-workspace, quais telas precisam converter). Não bloqueada por nenhuma
+outra fase, mas toca bastante superfície (Resumo, Posições, gráficos de alocação, Rentabilidade)
+se um dia for implementada.
+

@@ -1754,3 +1754,27 @@
   logicamente da Fase 8 avançar antes de `DecentralizedVaultProvider` virar implementação real,
   mas não bloqueia nada (`LocalFSProvider` é independente). Nenhuma decisão de priorização
   tomada nesta sessão.
+
+### 2026-09-12 — Sessão 96
+
+- **Objetivo**: dono do projeto trouxe 4 ideias soltas em conversa (não uma spec pronta como a
+  Sessão 95), pediu pra registrar tudo no `project/` sem implementar nada agora.
+- **4 ideias registradas, puro documento (nenhum código tocado)**:
+  1. **Backup do Workspace** — snapshot restaurável, distinto do sync contínuo da Fase 8;
+     formato/gatilho/destino ainda não decididos, provavelmente reaproveita `StorageProvider`
+     (Fase 15) se o destino for remoto. Fase 16 (nova).
+  2. **Índices macro adicionais via EasyBusiness** (SELIC, DI Futuro) — bloqueada até o
+     `easybusiness` ganhar suporte pra coletar esses índices, mesma dependência cross-repo da
+     Fase 14; consumidos depois pelo painel de mercado/benchmarks (Fase 10.4/13.5). Fase 17
+     (nova).
+  3. **Software de apoio à gestão de opções** — a mais em aberto das 4, dono do projeto
+     explicitamente disse "pensamos nisso depois"; nenhuma decisão de escopo, classe de ativo,
+     cálculo ou fonte de dado. Fase 18 (nova).
+  4. **Moeda base seletiva da carteira** — escolha de moeda de exibição (ex. USD pra usuário
+     americano) nas Configurações, possivelmente por Workspace; câmbio ao vivo vs. diário e
+     exibição-vs-armazenamento ainda em aberto. Fase 19 (nova).
+- **Arquivos tocados**: `PHASE.md` (4 fases novas, 16 a 19), `ROADMAP.md` (4 bullets novos,
+  cada um linkando pra fase correspondente). `INDEX.md` não atualizado nesta sessão (mesmo
+  padrão da Sessão 95 — resumo de topo só é regravado em sessões com implementação real).
+- **Estado ao final**: 4 ideias registradas como puro desenho, nenhuma iniciada, nenhuma
+  decisão de priorização entre elas tomada.
