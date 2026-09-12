@@ -1402,3 +1402,75 @@ Sequência: 14.1/14.2/14.3 podem andar em paralelo entre si (todas dependem só 
 pronta); 14.4 era a maior e só fechou de verdade depois da Fase 1.11 do EasyBusiness (Sessão 92,
 independente de 14.1-14.3); 14.5 fechou na mesma sessão logo em seguida. **Fase 14 completa.**
 
+### Fase 15 — Storage Provider seletivo (desacopla anexos/documentos do Vault Web3, ideia trazida via spec na Sessão 95, puro registro, não iniciada)
+
+**Objetivo**: hoje o plano é que anexos e documentos financeiros (extratos bancários,
+comprovantes, notas fiscais, fotos/documentos de imóveis e empresas não listadas) fiquem
+guardados só no Vault descentralizado Web3 (Fase 8, ainda `[ ]`) — e isso é majoritariamente
+ideia, não código ainda. Antes de avançar essa implementação, desacoplar o storage do Web3 como
+dependência obrigatória, suportando também opções locais e hospedadas, sem tratar Web3 como a
+única opção possível. **Escopo explícito: só desenhar o contrato/arquitetura agora — não
+implementar billing/infra do plano pago hospedado.**
+
+**Princípio de design**: o core do app nunca fala direto com a stack Web3, só com duas
+interfaces abstratas — `StorageProvider` (onde arquivos são lidos/escritos) e `AuthProvider`
+(como o usuário se identifica e, no futuro, paga por um tier de storage). A integração Web3 já
+planejada na Fase 8 vira **uma implementação** dessas interfaces (`DecentralizedVaultProvider`),
+registrada como plugin — nunca hard-coded no core.
+
+```
+interface StorageProvider {
+  read(path: string): Promise<Blob | string>
+  write(path: string, content: Blob | string): Promise<void>
+  list(prefix?: string): Promise<string[]>
+  delete(path: string): Promise<void>
+  exportAll(): Promise<Map<string, Blob | string>>   // necessário pro fluxo de migração
+  importAll(files: Map<string, Blob | string>): Promise<void>
+}
+
+interface AuthProvider {
+  getUserId(): string | null
+  isSubscriptionActive(): Promise<boolean>  // só relevante pra providers pagos, futuro
+  login(): Promise<void>
+  logout(): Promise<void>
+}
+```
+
+O resto do app (transações, anexos de compra/venda, documentos de imóvel/empresa, extratos
+importados) só chama esses métodos, nunca sabe qual provider está por trás.
+
+**As 4 implementações propostas**:
+
+| Provider | Custo | Onde roda | Depende de Web3? |
+|---|---|---|---|
+| `LocalFSProvider` | Grátis | Disco da máquina atual | Não — vira o default |
+| `SelfHostedProvider` | Grátis | Servidor próprio do usuário (endereço configurável) | Não |
+| `ManagedCloudProvider` | Pago (futuro) | Infra hospedada pelo dono do projeto | Não — **não implementar agora**, só reservar o contrato |
+| `DecentralizedVaultProvider` | Pago (assinatura, futuro) | Vault Web3 da Fase 8 | Sim — único provider que depende da stack Web3 |
+
+Config nova: `storage_provider: "local" \| "self_hosted" \| "managed_cloud" \| "decentralized_vault"`,
+resolvida em runtime por uma factory. `managed_cloud` precisa existir como valor válido no enum
+e na UI (desabilitado/"em breve") mesmo sem implementação, pra ativar no futuro sem migração de
+schema. UI de configuração deve explicar em termos simples o que cada opção significa (quem tem
+acesso aos dados, precisa de servidor próprio ligado, custo), não só um dropdown técnico.
+
+**Fluxo de migração entre providers** (troca de provider com documentos já salvos): confirmar
+com o usuário → `oldProvider.exportAll()` → `newProvider.importAll(dados)` → validar integridade
+(contagem/tamanho/checksum) → só então liberar a troca definitiva do `storage_provider` no
+config. Vale desenhar o contrato `exportAll`/`importAll` desde já mesmo que só `local` e
+`decentralized_vault` fiquem prontos no curto prazo, pra não quebrar contrato quando
+`managed_cloud` for ativado depois.
+
+**Escopo sugerido quando isto for implementado**: `LocalFSProvider` (default) +
+`DecentralizedVaultProvider` (integra com o que a Fase 8 for entregando) primeiro;
+`ManagedCloudProvider` fica só reservado (enum + UI desabilitada); `SelfHostedProvider` avaliar
+se entra junto ou depois, dependendo do esforço de rede que exigir. Fora de escopo mesmo depois
+de implementado: modelo de billing do `ManagedCloudProvider`, implementação de
+rede/descoberta do `SelfHostedProvider`, UI final das telas de configuração (só o contrato de
+dados que ela precisa respeitar).
+
+**Estado**: puro registro de spec trazida pelo dono do projeto — nenhuma decisão de priorização
+tomada, nenhum código escrito. Depende logicamente da Fase 8 estar pelo menos desenhada (já
+está) antes de `DecentralizedVaultProvider` fazer sentido como implementação real; não bloqueia
+`LocalFSProvider` nem o desenho do resto do contrato.
+

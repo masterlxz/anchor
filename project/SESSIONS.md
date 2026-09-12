@@ -1730,3 +1730,27 @@
 - **Estado ao final**: Fase 13.6 **completa** — "passado" (Sessão 77/77.2) e "futuro" (esta
   sessão) implementados, testados ao vivo com dado real. Sem pendência conhecida registrada
   pra essa fase.
+
+### 2026-09-12 — Sessão 95
+
+- **Objetivo**: dono do projeto trouxe `spec-storage-provider-anchor.md` solto na raiz do repo
+  (arquivo novo, fora de `project/`) com uma spec de arquitetura pronta — pediu pra ler inteiro,
+  registrar no `project/` e apagar o arquivo solto.
+- **Conteúdo registrado, puro documento (nenhum código tocado)**: desacoplar o storage de
+  anexos/documentos financeiros (extratos, comprovantes, notas fiscais, fotos de imóvel/empresa
+  não listada) do Vault Web3 (Fase 8) como dependência obrigatória, via duas interfaces
+  abstratas — `StorageProvider` (read/write/list/delete/exportAll/importAll) e `AuthProvider`
+  (identidade + assinatura paga, futuro) — e 4 implementações propostas (`LocalFSProvider`
+  grátis/local como default, `SelfHostedProvider` grátis/servidor próprio, `ManagedCloudProvider`
+  pago/hospedado só reservado no enum, e `DecentralizedVaultProvider` = a integração Web3 da
+  Fase 8, virando uma opção entre quatro em vez da única). Escopo explícito da spec: **não**
+  implementar billing/infra do plano pago agora, só deixar o contrato pronto pra não exigir
+  retrabalho depois. Ver Fase 15 (nova) em `PHASE.md` pro desenho completo e o bullet novo em
+  `ROADMAP.md`.
+- **Arquivo solto removido**: `spec-storage-provider-anchor.md` apagado da raiz depois de
+  registrado — conteúdo já preservado em `project/PHASE.md`/`ROADMAP.md`, não fazia sentido
+  como arquivo solto fora da convenção de documentação do projeto.
+- **Estado ao final**: Fase 15 registrada como puro desenho, não iniciada — depende
+  logicamente da Fase 8 avançar antes de `DecentralizedVaultProvider` virar implementação real,
+  mas não bloqueia nada (`LocalFSProvider` é independente). Nenhuma decisão de priorização
+  tomada nesta sessão.
