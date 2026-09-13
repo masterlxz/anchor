@@ -115,6 +115,18 @@ pub fn parse_content_hash(raw: &str) -> Result<FixedBytes<32>, AppError> {
     Ok(FixedBytes::from(array))
 }
 
+/// Extrai o `tx_id` de um `cid` no formato `ar://<tx_id>` — desde a migração do TruthID pro
+/// Arweave (Sessão 87), todo `cid` gravado pelo Anchor tem esse formato; nunca existiu escrita
+/// real antes disso, então não há caso legado de CID IPFS pra tratar aqui (Fase 8, item 3 da
+/// fila).
+pub fn parse_arweave_tx_id(cid: &str) -> Result<&str, AppError> {
+    cid.strip_prefix("ar://")
+        .filter(|tx_id| !tx_id.is_empty())
+        .ok_or_else(|| {
+            AppError::InvalidInput(format!("unsupported or malformed cid '{cid}' (expected 'ar://<tx_id>')"))
+        })
+}
+
 /// Monta o calldata de `updateRecord(cid, contentHash)` — só codifica, não
 /// fala com rede nem assina nada; quem executa de fato é o TruthID via
 /// `/truthid/v1/sign-request` (`commands/truthid.rs::update_sync_record`).
@@ -186,6 +198,18 @@ mod tests {
     fn parse_content_hash_rejects_wrong_length_or_garbage() {
         assert!(parse_content_hash("0x1234").is_err());
         assert!(parse_content_hash("not-hex-at-all-not-hex-at-all-not-hex-at-all-not-hex-1").is_err());
+    }
+
+    #[test]
+    fn parse_arweave_tx_id_strips_the_prefix() {
+        assert_eq!(parse_arweave_tx_id("ar://abc123").unwrap(), "abc123");
+    }
+
+    #[test]
+    fn parse_arweave_tx_id_rejects_missing_prefix_or_empty_id() {
+        assert!(parse_arweave_tx_id("abc123").is_err());
+        assert!(parse_arweave_tx_id("ipfs://abc123").is_err());
+        assert!(parse_arweave_tx_id("ar://").is_err());
     }
 
     #[test]

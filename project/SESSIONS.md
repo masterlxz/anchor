@@ -1827,3 +1827,42 @@
 - **Estado ao final**: Fase 15 passou de puro desenho pra implementada — `LocalFSProvider` é o
   único provider real, os outros 3 seguem reservados sem lógica, e os anexos existentes já rodam
   por trás da abstração nova. Sem regressão de teste/tipo; só falta a confirmação visual na UI.
+
+### 2026-09-13 — Sessão 98
+
+- **Objetivo**: dono do projeto pediu pra continuar sem alvo específico. `AskUserQuestion` sobre
+  qual frente seguir — escolhida a **Fase 8.5** (loop completo de sync). Antes de codar, achado
+  que a 8.5 depende de 2 itens anteriores na fila registrada na Sessão 87: (3) branch de leitura
+  `ar://` no Anchor, destravado; (4) revalidação ponta a ponta real, bloqueada até o TruthID ter
+  uma wallet Arweave configurada (operacional, fora deste repo). Segunda `AskUserQuestion`
+  esclareceu a ordem — escolhido **fazer o item 3 agora**, avançando a fila de verdade sem
+  depender de nada externo, em vez de pular direto pra 8.5 ou só verificar o bloqueio da wallet.
+- **Implementado** (`EnterPlanMode`/`ExitPlanMode`, plano aprovado antes de codar): módulo novo
+  `desktop/src-tauri/src/arweave.rs` — `fetch_content(tx_id) -> Result<Vec<u8>, AppError>`, `GET
+  https://arweave.net/{tx_id}` público (leitura Arweave não precisa de TruthID nem assinatura,
+  confirmado no `PHASE.md`). `sync_registry.rs` ganhou `parse_arweave_tx_id(cid)` (extrai o
+  `tx_id` de `ar://<tx_id>` — único formato possível, já que o registro nunca teve escrita real
+  antes da migração pro Arweave na Sessão 87). `sync_snapshot_cipher.rs` promoveu o
+  `decrypt_for_test` privado (só existia em teste desde a Fase 8.4) pra `pub fn decrypt` de
+  verdade — a tag de autenticação do AES-256-GCM na decifra é a prova criptográfica real de
+  integridade. `commands::truthid::derive_sync_snapshot_key_loopback` virou `pub(crate)` pra ser
+  reaproveitado pelo comando novo `commands::sync_registry::pull_and_verify_sync_snapshot`, que:
+  lê o `CidRecord` on-chain → busca o conteúdo Arweave → confere o hash on-chain do conteúdo bruto
+  (informativo) → decifra com a mesma chave determinística da Fase 8.4 (erro real se falhar) →
+  devolve um resumo (tx id, registro, os dois sinais de integridade, tamanho decifrado) **sem
+  nunca expor os bytes decifrados pro frontend**.
+- **Decisão de escopo explícita, já prevista no plano**: essa fatia não restaura nem sobrescreve o
+  banco SQLite local — só busca+decifra+verifica, mostrando um preview read-only. Aplicar um
+  snapshot puxado de forma ingênua antes do merge por replay causal (Fase 8.5) existir seria
+  destrutivo e prematuro; a Fase 8.5 continua não iniciada de propósito.
+- **UI**: seção nova "Pull & verify snapshot" em `TruthIdSettingsSection.tsx`, logo depois do
+  bloco "Read sync record" (Fase 8.1), mesmo padrão `useMutation`/`invoke`. 2 `AppError` novos
+  (`Arweave`, `Decryption`).
+- **Verificado**: `cargo test --lib` **200/200 sem regressão** (5 testes novos —
+  `parse_arweave_tx_id` aceita/rejeita, `decrypt` round-trip + rejeita chave errada/ciphertext
+  adulterado/blob curto demais), `tsc --noEmit` limpo.
+- **Não dá pra validar o caminho de sucesso real** (buscar+decifrar um snapshot de verdade) nesta
+  sessão — não existe nenhum conteúdo pinado real ainda, bloqueado pela wallet Arweave do
+  TruthID (item 4 da fila, fora deste repo). Fica pendente pra quando isso existir.
+- **Estado ao final**: fila da Fase 8 avança — item 3 fechado, restam (4) revalidação ponta a
+  ponta (bloqueada externamente) e (5) Fase 8.5 (loop completo de sync, ainda não iniciada).

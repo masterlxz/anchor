@@ -3,6 +3,7 @@ use std::sync::atomic::AtomicBool;
 use tauri::Manager;
 
 mod alert_checker;
+mod arweave;
 mod commands;
 mod db;
 mod dead_drop;
@@ -113,6 +114,7 @@ pub fn run() {
             commands::truthid::create_cross_device_sign_message_request,
             commands::truthid::await_cross_device_sign_message_response,
             commands::sync_registry::get_sync_record,
+            commands::sync_registry::pull_and_verify_sync_snapshot,
             commands::workspace::get_workspace,
             commands::workspace::list_workspaces,
             commands::workspace::create_workspace,

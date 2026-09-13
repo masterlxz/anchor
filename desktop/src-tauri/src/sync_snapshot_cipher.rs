@@ -4,6 +4,8 @@ use hkdf::Hkdf;
 use rand::rngs::OsRng;
 use sha2::Sha256;
 
+use crate::error::AppError;
+
 /// Fase 8.4, Sessão 87 — cifra do snapshot do banco *em repouso*, antes de
 /// pinar (diferente de `pin_content_cipher.rs`, que só cifra o *transporte*
 /// cross-device). A chave vem dos bytes de uma assinatura `personal_sign`
@@ -44,26 +46,28 @@ pub fn encrypt(plaintext: &[u8], key: &[u8; 32]) -> Vec<u8> {
     blob
 }
 
+/// Decifra um blob produzido por `encrypt` (`nonce(12) || ciphertext+tag`). A tag de autenticação
+/// do AES-256-GCM é a prova criptográfica de integridade: falha aqui significa chave errada (outra
+/// assinatura) ou conteúdo adulterado/corrompido — Fase 8, item 3 da fila (branch de leitura
+/// `ar://`, `arweave::fetch_content` + `commands::sync_registry::pull_and_verify_sync_snapshot`).
+pub fn decrypt(blob: &[u8], key: &[u8; 32]) -> Result<Vec<u8>, AppError> {
+    if blob.len() < NONCE_LEN {
+        return Err(AppError::Decryption(
+            "ciphertext shorter than the nonce".to_string(),
+        ));
+    }
+    let (nonce, ciphertext) = blob.split_at(NONCE_LEN);
+
+    let aes_key = Key::<Aes256Gcm>::from_slice(key);
+    let cipher = Aes256Gcm::new(aes_key);
+    cipher.decrypt(nonce.into(), ciphertext).map_err(|_| {
+        AppError::Decryption("authentication failed — wrong key or tampered content".to_string())
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// Sem consumidor de produção ainda — ler o snapshot pinado de volta é a
-    /// fatia 3/4 da fila da Fase 8 (branch `ar://` + revalidação ponta a
-    /// ponta). Mesmo padrão de `pin_content_cipher.rs::decrypt_for_test`.
-    fn decrypt_for_test(blob: &[u8], key: &[u8; 32]) -> Result<Vec<u8>, String> {
-        if blob.len() < NONCE_LEN {
-            return Err("blob too short".to_string());
-        }
-        let nonce = &blob[..NONCE_LEN];
-        let ciphertext = &blob[NONCE_LEN..];
-
-        let aes_key = Key::<Aes256Gcm>::from_slice(key);
-        let cipher = Aes256Gcm::new(aes_key);
-        cipher
-            .decrypt(nonce.into(), ciphertext)
-            .map_err(|_| "decrypt failed".to_string())
-    }
 
     #[test]
     fn round_trips_with_a_derived_key() {
@@ -71,9 +75,34 @@ mod tests {
         let plaintext = b"sqlite database snapshot bytes";
 
         let blob = encrypt(plaintext, &key);
-        let decrypted = decrypt_for_test(&blob, &key).expect("should decrypt");
+        let decrypted = decrypt(&blob, &key).expect("should decrypt");
 
         assert_eq!(decrypted, plaintext);
+    }
+
+    #[test]
+    fn decrypt_rejects_wrong_key() {
+        let key = derive_key(b"signature-one");
+        let wrong_key = derive_key(b"signature-two");
+        let blob = encrypt(b"sqlite database snapshot bytes", &key);
+
+        assert!(decrypt(&blob, &wrong_key).is_err());
+    }
+
+    #[test]
+    fn decrypt_rejects_tampered_ciphertext() {
+        let key = derive_key(b"fake-ecdsa-signature-bytes");
+        let mut blob = encrypt(b"sqlite database snapshot bytes", &key);
+        let last = blob.len() - 1;
+        blob[last] ^= 0xFF;
+
+        assert!(decrypt(&blob, &key).is_err());
+    }
+
+    #[test]
+    fn decrypt_rejects_blob_shorter_than_the_nonce() {
+        let key = derive_key(b"fake-ecdsa-signature-bytes");
+        assert!(decrypt(&[0u8; 4], &key).is_err());
     }
 
     #[test]

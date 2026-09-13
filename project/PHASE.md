@@ -544,7 +544,36 @@ multi-app...", pra o histórico completo da correção.
 7. **Achado de segurança novo**, elevando a prioridade da fatia 8.4 — ver nota na fatia 8.4 acima.
 8. TruthID documenta o próprio armazenamento via Arweave como "code-complete" mas **nunca provado com uma wallet financiada de verdade em Mainnet** — risco operacional do lado deles, não bloqueia o Anchor, só vale saber.
 
-Nenhuma fatia nova foi implementada na parte inicial desta sessão — o entregável ali foi só a atualização desta fase (`PHASE.md`) e do `ROADMAP.md`. **Continuação, mesmo dia**: fatias 1 (redeploy) e 2 (Fase 8.4) da fila abaixo foram implementadas de verdade — ver notas nas fatias 8.1 e 8.4. Fila de próximas fatias, pra sessões futuras, aos poucos: ~~(1) redeploy do `SyncRegistry.sol` em Base Mainnet~~ **feito**; ~~(2) Fase 8.4 (cifra real via `/sign-message`, HKDF)~~ **feito, os dois caminhos (loopback + cross-device)** — validado até onde o Anchor controla, falta só o TruthID ganhar uma wallet Arweave configurada (operacional, fora deste repo); (3) branch de leitura `ar://` no lado do Anchor (o registro nunca teve escrita real até hoje, então não deve existir caso legado de CID IPFS pra migrar); (4) revalidação ponta a ponta real (pin cifrado → `updateRecord` em Mainnet → `getRecord` → fetch Arweave → decifrar → conferir integridade) — bloqueada até a wallet Arweave do TruthID existir; (5) só depois, Fase 8.5 (loop completo de sync).
+Nenhuma fatia nova foi implementada na parte inicial desta sessão — o entregável ali foi só a atualização desta fase (`PHASE.md`) e do `ROADMAP.md`. **Continuação, mesmo dia**: fatias 1 (redeploy) e 2 (Fase 8.4) da fila abaixo foram implementadas de verdade — ver notas nas fatias 8.1 e 8.4. Fila de próximas fatias, pra sessões futuras, aos poucos: ~~(1) redeploy do `SyncRegistry.sol` em Base Mainnet~~ **feito**; ~~(2) Fase 8.4 (cifra real via `/sign-message`, HKDF)~~ **feito, os dois caminhos (loopback + cross-device)** — validado até onde o Anchor controla, falta só o TruthID ganhar uma wallet Arweave configurada (operacional, fora deste repo); ~~(3) branch de leitura `ar://` no lado do Anchor~~ **feito na Sessão 98 (2026-09-13)** — ver bloco "Sessão 98" no fim desta fase; (4) revalidação ponta a ponta real (pin cifrado → `updateRecord` em Mainnet → `getRecord` → fetch Arweave → decifrar → conferir integridade) — bloqueada até a wallet Arweave do TruthID existir; (5) só depois, Fase 8.5 (loop completo de sync).
+
+**Sessão 98 (2026-09-13) — fatia 3 da fila implementada: branch de leitura `ar://`**. Dono do
+projeto escolheu adiantar essa fatia mesmo com a 4 (revalidação ponta a ponta) ainda bloqueada
+externamente, deixando o código pronto pro dia em que a wallet Arweave do TruthID existir. Novo
+módulo `desktop/src-tauri/src/arweave.rs` (`fetch_content(tx_id) -> Result<Vec<u8>, AppError>`,
+`GET https://arweave.net/{tx_id}` público, sem TruthID no meio — leitura Arweave não exige
+assinatura). `sync_registry.rs` ganhou `parse_arweave_tx_id(cid)` (extrai o `tx_id` de
+`ar://<tx_id>`, único formato possível já que o registro nunca teve escrita real antes da migração
+pro Arweave). `sync_snapshot_cipher.rs` promoveu o `decrypt_for_test` privado (só usado em teste)
+pra `pub fn decrypt` de verdade — a tag de autenticação do AES-256-GCM na decifra é a prova
+criptográfica real de integridade (chave errada ou conteúdo adulterado falham aqui,
+independentemente do hash on-chain bater). `commands::truthid::derive_sync_snapshot_key_loopback`
+virou `pub(crate)` pra ser reaproveitado pelo novo comando
+`commands::sync_registry::pull_and_verify_sync_snapshot(address)`, que: lê o `CidRecord` on-chain
+→ busca o conteúdo Arweave → confere o hash on-chain do conteúdo bruto (`raw_content_hash_matches`,
+informativo — detecta gateway servindo conteúdo errado/desatualizado) → decifra com a mesma chave
+determinística da Fase 8.4 (erro real se falhar, já que é a prova criptográfica de verdade) →
+devolve um resumo (`tx_id`, registro, os dois booleans/tamanho) **sem nunca expor os bytes
+decifrados pro frontend** — decisão explícita de escopo: essa fatia é só busca+decifra+verificação,
+não restaura/sobrescreve o banco SQLite local (isso é trabalho da Fase 8.5, merge por replay
+causal, que ainda nem começou — aplicar um snapshot puxado de forma ingênua antes do merge existir
+seria destrutivo e prematuro). UI: seção nova "Pull & verify snapshot" em
+`TruthIdSettingsSection.tsx`, logo depois do bloco "Read sync record" (Fase 8.1), mesmo padrão
+`useMutation`. 2 novos `AppError` (`Arweave`, `Decryption`). `cargo test --lib` **200/200** (5
+testes novos — `parse_arweave_tx_id` aceita/rejeita, `decrypt` round-trip + rejeita chave
+errada/ciphertext adulterado/blob curto demais), `tsc --noEmit` limpo. **Não dá pra validar o
+caminho de sucesso real** (buscar+decifrar um snapshot de verdade) ainda — não existe nenhum
+conteúdo pinado real (bloqueado pela wallet Arweave do TruthID, fatia 4); fica pendente pra quando
+isso existir.
 
 **Sessão 23 (2026-07-16) — Practice Valuation vira o app requisitante de referência do transporte cross-device do `/sign-request`, fecha parte da 8.6**: até aqui, o canal de assinatura delegada (`commands/truthid.rs`) só tinha sido provado com TruthID Desktop na mesma máquina (Sessão 18) — nenhum app terceiro real tinha gerado o QR nem consumido o transporte LAN/dead-drop que o TruthID lado Mobile já expunha (Sessões 108-111 de lá, pro par `/sign-message`+`/sign-request`). Três commits, mesmo dia:
 - `2db1eab` — Practice Valuation passa a gerar o QR (par de chaves ECIES efêmero + `sessionId` de 128 bits) e varrer a LAN nas mesmas portas que `RemoteSignerLanServer` do TruthID Mobile usa. Novos `ecies.rs` (porta do decrypt ECIES já testado em Rust no TruthID Desktop) e `lan_sweep.rs` (porta da varredura já em TS na extensão do TruthID).
@@ -1402,7 +1431,7 @@ Sequência: 14.1/14.2/14.3 podem andar em paralelo entre si (todas dependem só 
 pronta); 14.4 era a maior e só fechou de verdade depois da Fase 1.11 do EasyBusiness (Sessão 92,
 independente de 14.1-14.3); 14.5 fechou na mesma sessão logo em seguida. **Fase 14 completa.**
 
-### Fase 15 — Storage Provider seletivo (desacopla anexos/documentos do Vault Web3, ideia trazida via spec na Sessão 95, puro registro, não iniciada)
+### Fase 15 — Storage Provider seletivo (desacopla anexos/documentos do Vault Web3, ideia trazida via spec na Sessão 95, implementada na Sessão 97 — LocalFSProvider único real)
 
 **Objetivo**: hoje o plano é que anexos e documentos financeiros (extratos bancários,
 comprovantes, notas fiscais, fotos/documentos de imóveis e empresas não listadas) fiquem

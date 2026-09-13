@@ -46,6 +46,10 @@ pub enum AppError {
     FinanceApiNotFound(String),
     #[error("Finance API error: {0}")]
     FinanceApi(String),
+    #[error("Arweave gateway error: {0}")]
+    Arweave(String),
+    #[error("decryption failed: {0}")]
+    Decryption(String),
 }
 
 impl AppError {
@@ -73,6 +77,8 @@ impl AppError {
             AppError::Io(_) => "IO_ERROR",
             AppError::FinanceApiNotFound(_) => "FINANCE_API_NOT_FOUND",
             AppError::FinanceApi(_) => "FINANCE_API_ERROR",
+            AppError::Arweave(_) => "ARWEAVE_ERROR",
+            AppError::Decryption(_) => "DECRYPTION_ERROR",
         }
     }
 }

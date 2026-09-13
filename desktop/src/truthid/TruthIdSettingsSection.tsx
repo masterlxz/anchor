@@ -34,6 +34,13 @@ type CidRecordResponse = {
   exists: boolean;
 };
 
+type PulledSnapshotSummary = {
+  tx_id: string;
+  record: CidRecordResponse;
+  raw_content_hash_matches: boolean;
+  decrypted_bytes: number;
+};
+
 type PinResult = {
   status: string;
   cid: string | null;
@@ -129,6 +136,16 @@ function TruthIdSettingsSection() {
   const [syncAddress, setSyncAddress] = useState("");
   const syncRecordMutation = useMutation<CidRecordResponse | null, AppError, string>({
     mutationFn: (address) => invoke("get_sync_record", { address }),
+  });
+
+  // Fase 8, item 3 da fila: busca o conteúdo Arweave do registro, decifra com
+  // a mesma chave determinística da Fase 8.4 e confere os dois checks de
+  // integridade — não restaura o banco local (isso é Fase 8.5, ainda não
+  // iniciada). Só funciona de ponta a ponta quando existir um snapshot
+  // pinado real, o que depende de uma wallet Arweave configurada no TruthID
+  // (pendência operacional, fora deste repo).
+  const pullSnapshotMutation = useMutation<PulledSnapshotSummary, AppError, string>({
+    mutationFn: (address) => invoke("pull_and_verify_sync_snapshot", { address }),
   });
 
   // Fase 8.2: escrita do CID via o canal delegado do TruthID (mesma máquina).
@@ -414,6 +431,41 @@ function TruthIdSettingsSection() {
             <p className="break-all">Content hash: {syncRecordMutation.data.content_hash}</p>
             <p>Version: {syncRecordMutation.data.version}</p>
             <p>Updated at: {new Date(syncRecordMutation.data.updated_at * 1000).toLocaleString()}</p>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-2 border-t pt-6">
+        <p className="text-sm text-muted-foreground">
+          Fase 8, item 3 — Pull &amp; verify snapshot: fetches the Arweave content pointed to by
+          the sync record, decrypts it and checks both integrity signals (on-chain content hash +
+          AES-GCM authentication tag). Read-only preview — does not restore the local database
+          (that's Fase 8.5, not started yet).
+        </p>
+        <div className="flex gap-2">
+          <Input
+            placeholder="0x..."
+            value={syncAddress}
+            onChange={(e) => setSyncAddress(e.target.value)}
+          />
+          <Button
+            variant="outline"
+            onClick={() => pullSnapshotMutation.mutate(syncAddress)}
+            disabled={pullSnapshotMutation.isPending || !syncAddress}
+          >
+            {pullSnapshotMutation.isPending ? "Pulling..." : "Pull & verify snapshot"}
+          </Button>
+        </div>
+        {pullSnapshotMutation.isError && (
+          <p className="text-red-600">{pullSnapshotMutation.error.message}</p>
+        )}
+        {pullSnapshotMutation.isSuccess && (
+          <div>
+            <p className="break-all">Tx id: {pullSnapshotMutation.data.tx_id}</p>
+            <p className={pullSnapshotMutation.data.raw_content_hash_matches ? "text-green-700" : "text-red-600"}>
+              On-chain content hash: {pullSnapshotMutation.data.raw_content_hash_matches ? "matches ✓" : "MISMATCH ✗"}
+            </p>
+            <p>Decrypted size: {pullSnapshotMutation.data.decrypted_bytes} bytes</p>
           </div>
         )}
       </div>

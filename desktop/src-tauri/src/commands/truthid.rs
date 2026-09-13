@@ -309,7 +309,7 @@ fn signature_hex_to_snapshot_key(signature_hex: &str) -> Result<[u8; 32], AppErr
 /// cifra do snapshot. Determinístico: a mesma `purpose` sempre deriva a mesma
 /// chave pra uma dada identidade, então não há nada a persistir aqui — só
 /// pedir de novo quando precisar.
-async fn derive_sync_snapshot_key_loopback() -> Result<[u8; 32], AppError> {
+pub(crate) async fn derive_sync_snapshot_key_loopback() -> Result<[u8; 32], AppError> {
     let (port, _) = discover().await?;
 
     let client = reqwest::Client::builder()
