@@ -57,6 +57,7 @@ mod m20260823_100000_add_underlying_asset_class_to_assets;
 mod m20260829_141241_create_finance_api_settings;
 mod m20260829_150000_add_reit_fundamentals_unique_index;
 mod m20260830_100000_create_cvm_dividend_notice_documents;
+mod m20260913_100000_create_storage_settings;
 
 pub struct Migrator;
 
@@ -121,6 +122,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260829_141241_create_finance_api_settings::Migration),
             Box::new(m20260829_150000_add_reit_fundamentals_unique_index::Migration),
             Box::new(m20260830_100000_create_cvm_dividend_notice_documents::Migration),
+            Box::new(m20260913_100000_create_storage_settings::Migration),
         ]
     }
 }

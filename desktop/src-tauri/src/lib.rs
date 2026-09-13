@@ -14,6 +14,7 @@ mod finance_api;
 mod ipns_key;
 mod lan_sweep;
 mod pin_content_cipher;
+mod storage;
 mod sync_registry;
 mod sync_snapshot_cipher;
 
@@ -132,6 +133,8 @@ pub fn run() {
             commands::fii::list_fii_cvm_properties,
             commands::finance_api_settings::get_finance_api_settings,
             commands::finance_api_settings::set_finance_api_settings,
+            commands::storage_settings::get_storage_settings,
+            commands::storage_settings::set_storage_settings,
             commands::reit::list_reit_fundamentals,
             commands::reit::get_reit_manual_indicators,
             commands::reit::save_reit_manual_indicators,

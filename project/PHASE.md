@@ -1469,10 +1469,46 @@ de implementado: modelo de billing do `ManagedCloudProvider`, implementação de
 rede/descoberta do `SelfHostedProvider`, UI final das telas de configuração (só o contrato de
 dados que ela precisa respeitar).
 
-**Estado**: puro registro de spec trazida pelo dono do projeto — nenhuma decisão de priorização
-tomada, nenhum código escrito. Depende logicamente da Fase 8 estar pelo menos desenhada (já
-está) antes de `DecentralizedVaultProvider` fazer sentido como implementação real; não bloqueia
-`LocalFSProvider` nem o desenho do resto do contrato.
+**Estado**: **implementada na Sessão 97 (2026-09-13)** — `StorageProvider` (trait Rust,
+`desktop/src-tauri/src/storage/mod.rs`) + `LocalFSProvider` (`storage/local_fs.rs`, único provider
+real) + `StorageProviderKind` (enum hand-rolled no estilo `domain::chat_provider`, reservando
+`self_hosted`/`managed_cloud`/`decentralized_vault` sem lógica). `resolve_active_provider` lê a
+tabela nova `storage_settings` (linha única, mesmo padrão "replace" de `finance_api_settings`,
+Fase 14.3) e por ora só sabe construir `LocalFSProvider` — `set_storage_settings` recusa
+qualquer outro valor até ganhar implementação real. `AuthProvider` ficou de fora do escopo desta
+fatia (só relevante pra providers pagos, nenhum existe ainda).
+
+**Retrofit dos anexos existentes** (decisão do dono do projeto via `AskUserQuestion`, escolhida
+sobre deixar o `StorageProvider` sem consumidor até a Fase 12): `commands/property.rs` e
+`commands/thesis.rs` (Fase 10 item 8 e Fase 10.5) trocaram os `std::fs::*` diretos por chamadas
+ao provider ativo — `add_{asset,thesis}_attachment` lê os bytes do `source_path` (caminho do OS
+file picker) e chama `provider.write()`; `delete_{asset,thesis}_attachment` chama
+`provider.delete()`; `delete_thesis` (que apagava a pasta inteira) chama
+`provider.delete_prefix()`; `get_{asset,thesis}_attachment_path` chama `provider.local_path()`
+(usado pelo frontend via `convertFileSrc`). `stored_relative_path` manteve o mesmo formato
+(`"asset_attachments/{id}/{arquivo}"`) — zero migração de dado nas linhas já existentes, zero
+mudança de contrato pro frontend (`ManualAssetDetails.tsx`/`ThesisSection.tsx` inalterados).
+
+**UI**: seção nova "Storage" em Settings (`StorageSettingsSection.tsx`, mesmo esqueleto de
+`FinanceApiSettingsSection.tsx`) — `<Select>` de 4 opções, as 3 não implementadas desabilitadas
+com "(coming soon)" e uma linha explicando em termos simples o que cada provider significa (quem
+tem acesso ao dado, precisa de servidor próprio ligado, custo), conforme pedido explícito da spec.
+
+**Verificação**: `cargo test --lib` 195/195 sem regressão (8 testes novos — 3 round-trip
+parse/reject de `StorageProviderKind`, 5 de `LocalFSProvider` cobrindo
+write/read/delete/delete_prefix/export_all+import_all), `tsc --noEmit` limpo. **Teste ao vivo da
+UI (app completo via WebKitGTK) pulado nesta sessão** — decisão explícita do dono do projeto via
+`AskUserQuestion`: os builds Rust já tinham disparado o watchdog de memória da máquina várias
+vezes (precisou `-j 1` e recuperar containers órfãos que sobreviviam a processos mortos), e o app
+completo seria mais pesado ainda. **Pendência registrada**: confirmar manualmente (criar
+asset/anexo/preview/apagar, mesmo fluxo pra tese, conferir a seção Storage) numa sessão futura ou
+diretamente pelo dono do projeto.
+
+**Segue reservado, sem implementação real**: `SelfHostedProvider` (avaliar quando/se entra),
+`ManagedCloudProvider` (billing/infra do plano pago, fora de escopo mesmo depois), fluxo de
+migração entre providers (`exportAll`/`importAll` — o contrato existe na trait e está testado
+via `LocalFSProvider`, mas sem UI/comando de migração, já que não há um segundo provider real pra
+migrar pra ele ainda), `DecentralizedVaultProvider` (depende da Fase 8/Vault Web3 avançar).
 
 ### Fase 16 — Backup do Workspace (ideia trazida em conversa pelo dono do projeto na Sessão 96, puro registro, não iniciada)
 

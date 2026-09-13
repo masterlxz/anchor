@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use rand::rngs::OsRng;
 use rand::RngCore;
@@ -6,24 +6,16 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set, Unchanged,
 };
 use serde::Deserialize;
-use tauri::Manager;
 
 use crate::entity::{theses, thesis_attachments};
 use crate::error::AppError;
 
 // Fase 10.5 — tese de investimento (vinculável a um ativo ou global/macro)
-// com anexos. Anexo vive em disco (app_data_dir/thesis_attachments/{thesis_id}/),
-// não em bucket — decisão explícita da sessão, ver PHASE.md item 10.5. Só
+// com anexos. Anexo vive atrás do `StorageProvider` ativo (Fase 15 — só o
+// disco local está implementado, ver `storage::resolve_active_provider`), não
+// em bucket — decisão explícita da sessão, ver PHASE.md item 10.5. Só
 // metadados (nome original, caminho relativo, tamanho, content-type) ficam
 // no banco.
-
-fn attachments_dir(app: &tauri::AppHandle, thesis_id: i32) -> Result<PathBuf, AppError> {
-    let base = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| AppError::InvalidInput(format!("could not resolve app data dir: {e}")))?;
-    Ok(base.join("thesis_attachments").join(thesis_id.to_string()))
-}
 
 // Remove separadores de path do nome original antes de gravar em disco —
 // evita que um nome de arquivo malicioso ("../../etc/passwd") escape do
@@ -130,9 +122,8 @@ pub async fn delete_thesis(
     db: tauri::State<'_, DatabaseConnection>,
     thesis_id: i32,
 ) -> Result<(), AppError> {
-    if let Ok(dir) = attachments_dir(&app, thesis_id) {
-        let _ = std::fs::remove_dir_all(&dir);
-    }
+    let provider = crate::storage::resolve_active_provider(&app, db.inner()).await?;
+    provider.delete_prefix(&format!("thesis_attachments/{thesis_id}"))?;
 
     theses::Entity::delete_by_id(thesis_id)
         .exec(db.inner())
@@ -175,8 +166,9 @@ pub async fn add_thesis_attachment(
         })?
         .to_string();
 
-    let dir = attachments_dir(&app, request.thesis_id)?;
-    std::fs::create_dir_all(&dir)?;
+    let provider = crate::storage::resolve_active_provider(&app, db.inner()).await?;
+    let content = std::fs::read(&request.source_path)?;
+    let file_size_bytes = content.len() as i64;
 
     let stored_name = format!(
         "{}_{:08x}_{}",
@@ -184,12 +176,11 @@ pub async fn add_thesis_attachment(
         OsRng.next_u32(),
         sanitize_file_name(&original_file_name)
     );
-    let dest = dir.join(&stored_name);
-    let file_size_bytes = std::fs::copy(&request.source_path, &dest)? as i64;
     let stored_relative_path = format!(
         "thesis_attachments/{}/{}",
         request.thesis_id, stored_name
     );
+    provider.write(&stored_relative_path, &content)?;
 
     let attachment = thesis_attachments::ActiveModel {
         thesis_id: Set(request.thesis_id),
@@ -217,9 +208,8 @@ pub async fn delete_thesis_attachment(
         .await?
         .ok_or_else(|| AppError::NotFound(format!("thesis attachment {attachment_id}")))?;
 
-    if let Ok(base) = app.path().app_data_dir() {
-        let _ = std::fs::remove_file(base.join(&existing.stored_relative_path));
-    }
+    let provider = crate::storage::resolve_active_provider(&app, db.inner()).await?;
+    provider.delete(&existing.stored_relative_path)?;
 
     thesis_attachments::Entity::delete_by_id(attachment_id)
         .exec(db.inner())
@@ -243,15 +233,16 @@ pub async fn get_thesis_attachment_path(
         .await?
         .ok_or_else(|| AppError::NotFound(format!("thesis attachment {attachment_id}")))?;
 
-    let base = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| AppError::InvalidInput(format!("could not resolve app data dir: {e}")))?;
+    let provider = crate::storage::resolve_active_provider(&app, db.inner()).await?;
+    let path = provider
+        .local_path(&existing.stored_relative_path)
+        .ok_or_else(|| {
+            AppError::InvalidInput(
+                "active storage provider does not expose a local file path".to_string(),
+            )
+        })?;
 
-    Ok(base
-        .join(&existing.stored_relative_path)
-        .to_string_lossy()
-        .into_owned())
+    Ok(path.to_string_lossy().into_owned())
 }
 
 #[cfg(test)]

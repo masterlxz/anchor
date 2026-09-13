@@ -1778,3 +1778,52 @@
   padrão da Sessão 95 — resumo de topo só é regravado em sessões com implementação real).
 - **Estado ao final**: 4 ideias registradas como puro desenho, nenhuma iniciada, nenhuma
   decisão de priorização entre elas tomada.
+
+### 2026-09-13 — Sessão 97
+
+- **Objetivo**: dono do projeto pediu pra continuar sem alvo específico. `AskUserQuestion` sobre
+  qual frente do roadmap seguir — escolhida a **Fase 15** (Storage Provider seletivo, spec
+  registrada na Sessão 95, `LocalFSProvider` não dependia de nada pra começar).
+- **Decisão de escopo levada ao dono do projeto via `AskUserQuestion`**: os anexos
+  (`asset_attachments`/`thesis_attachments`, Fase 10 item 8 e Fase 10.5) já existiam gravados
+  direto via `std::fs::*`, sem nenhuma abstração por trás — escolhido **fazer o retrofit deles
+  pra rodar por trás do `LocalFSProvider` novo** em vez de deixar a abstração sem consumidor até
+  a Fase 12 existir, pra validar a trait contra um caso real.
+- **Implementado** (`EnterPlanMode`/`ExitPlanMode`, plano aprovado antes de codar): módulo novo
+  `desktop/src-tauri/src/storage/` — trait `StorageProvider` (write/read/list/delete/
+  delete_prefix/local_path/export_all/import_all, todos síncronos — sem puxar `async-trait`,
+  já que o único provider real (`LocalFSProvider`) só usa `std::fs::*`) + `StorageProviderKind`
+  (enum hand-rolled no estilo `domain::chat_provider`, 4 variantes) + `resolve_active_provider`
+  (lê `storage_settings`, default `"local"`). Tabela nova `storage_settings` (linha única, mesmo
+  padrão "replace" de `finance_api_settings` da Fase 14.3) + comandos
+  `get_storage_settings`/`set_storage_settings` (recusa qualquer provider diferente de `"local"`
+  — os outros 3 ficam reservados no enum e na UI, sem lógica real). `commands/property.rs` e
+  `commands/thesis.rs` retrofitados: `add_*_attachment` lê os bytes do `source_path` (caminho do
+  OS file picker) e chama `provider.write()`; `delete_*_attachment` chama `provider.delete()`;
+  `delete_thesis` (apagava a pasta inteira) chama `provider.delete_prefix()`;
+  `get_*_attachment_path` chama `provider.local_path()` (usado pelo frontend via
+  `convertFileSrc`). `stored_relative_path` manteve o mesmo formato — zero migração de dado nas
+  linhas já existentes, zero mudança de contrato pro frontend. UI: seção nova "Storage" em
+  Settings (`StorageSettingsSection.tsx`, mesmo esqueleto de `FinanceApiSettingsSection.tsx`) —
+  `<Select>` de 4 opções, as 3 não implementadas desabilitadas com "(coming soon)" e texto
+  explicando em termos simples o que cada provider significa, conforme pedido da spec original.
+- **Verificado**: `cargo test --lib` **195/195 sem regressão** (8 testes novos — 3 round-trip
+  parse/reject de `StorageProviderKind`, 5 de `LocalFSProvider` cobrindo
+  write/read/delete/delete_prefix/export_all+import_all), `tsc --noEmit` limpo.
+- **Achado de ambiente, fora do código**: os builds Rust (`cargo build`/`cargo test`) dispararam
+  o watchdog de memória da máquina do dono do projeto várias vezes seguidas — precisou rodar com
+  `-j 1` e, mais importante, descobrir que containers `docker compose run` sobreviviam como
+  órfãos "Up" mesmo depois do processo que os lançou ser morto (dobrando o consumo de memória em
+  builds concorrentes até serem removidos manualmente). Também achado que `bash -lc` (login
+  shell) dentro do container reseta o `PATH` pro default do Debian via `/etc/profile`,
+  escondendo o `cargo` instalado em `/root/.cargo/bin` (`ENV PATH` do Dockerfile só sobrevive em
+  shell não-login, `bash -c`).
+- **Teste ao vivo da UI (app completo via WebKitGTK) pulado nesta sessão**: consultado o dono do
+  projeto via `AskUserQuestion` dado o histórico de memória apertada nos builds — escolhida a
+  opção de não tentar (`npm run tauri dev` seria mais pesado ainda que os builds que já quase
+  estouraram o limite). **Pendência registrada**: confirmar manualmente (criar asset, subir
+  anexo, abrir preview, apagar, mesmo fluxo pra tese, apagar a tese inteira, conferir a seção
+  Storage nas Settings) numa sessão futura ou diretamente pelo dono do projeto.
+- **Estado ao final**: Fase 15 passou de puro desenho pra implementada — `LocalFSProvider` é o
+  único provider real, os outros 3 seguem reservados sem lógica, e os anexos existentes já rodam
+  por trás da abstração nova. Sem regressão de teste/tipo; só falta a confirmação visual na UI.

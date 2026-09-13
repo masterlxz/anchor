@@ -34,6 +34,7 @@ pub mod reit;
 pub mod rim;
 pub mod rnav;
 pub mod stock_notes;
+pub mod storage_settings;
 pub mod sync_registry;
 pub mod thesis;
 pub mod transaction;

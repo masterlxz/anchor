@@ -48,6 +48,7 @@ pub mod stock_notes;
 pub mod stock_price_history;
 pub mod stock_quotes;
 pub mod stock_technicals;
+pub mod storage_settings;
 pub mod suggested_dividends;
 pub mod theses;
 pub mod thesis_attachments;

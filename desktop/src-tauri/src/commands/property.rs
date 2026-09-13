@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use rand::rngs::OsRng;
 use rand::RngCore;
@@ -6,26 +6,18 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
 };
 use serde::Deserialize;
-use tauri::Manager;
 
 use crate::entity::{asset_attachments, asset_valuations};
 use crate::error::AppError;
 
 // Fase 10, item 8 — classe `imovel` (cadastro manual, sem fonte de dados
 // externa). Histórico de avaliações + anexos (escritura, ITBI, IPTU) do
-// ativo, mesmo molde de `commands/thesis.rs` (Fase 10.5): anexo vive em
-// disco (`app_data_dir()/asset_attachments/{asset_id}/`), só metadados no
-// banco. `origin` de `asset_valuations` só grava `"manual"` por ora — o
-// mecanismo de reajuste automático por % (rascunho da Sessão 30) ainda não
-// foi decidido, ver PHASE.md item 8.
-
-fn attachments_dir(app: &tauri::AppHandle, asset_id: i32) -> Result<PathBuf, AppError> {
-    let base = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| AppError::InvalidInput(format!("could not resolve app data dir: {e}")))?;
-    Ok(base.join("asset_attachments").join(asset_id.to_string()))
-}
+// ativo, mesmo molde de `commands/thesis.rs` (Fase 10.5): anexo vive atrás
+// do `StorageProvider` ativo (Fase 15 — só metadados no banco, o disco local
+// segue sendo o único provider implementado, ver `storage::resolve_active_provider`).
+// `origin` de `asset_valuations` só grava `"manual"` por ora — o mecanismo de
+// reajuste automático por % (rascunho da Sessão 30) ainda não foi decidido,
+// ver PHASE.md item 8.
 
 fn sanitize_file_name(name: &str) -> String {
     name.replace(['/', '\\'], "_")
@@ -135,8 +127,9 @@ pub async fn add_asset_attachment(
         })?
         .to_string();
 
-    let dir = attachments_dir(&app, request.asset_id)?;
-    std::fs::create_dir_all(&dir)?;
+    let provider = crate::storage::resolve_active_provider(&app, db.inner()).await?;
+    let content = std::fs::read(&request.source_path)?;
+    let file_size_bytes = content.len() as i64;
 
     let stored_name = format!(
         "{}_{:08x}_{}",
@@ -144,9 +137,8 @@ pub async fn add_asset_attachment(
         OsRng.next_u32(),
         sanitize_file_name(&original_file_name)
     );
-    let dest = dir.join(&stored_name);
-    let file_size_bytes = std::fs::copy(&request.source_path, &dest)? as i64;
     let stored_relative_path = format!("asset_attachments/{}/{}", request.asset_id, stored_name);
+    provider.write(&stored_relative_path, &content)?;
 
     Ok(asset_attachments::ActiveModel {
         asset_id: Set(request.asset_id),
@@ -173,9 +165,8 @@ pub async fn delete_asset_attachment(
         .await?
         .ok_or_else(|| AppError::NotFound(format!("asset attachment {attachment_id}")))?;
 
-    if let Ok(base) = app.path().app_data_dir() {
-        let _ = std::fs::remove_file(base.join(&existing.stored_relative_path));
-    }
+    let provider = crate::storage::resolve_active_provider(&app, db.inner()).await?;
+    provider.delete(&existing.stored_relative_path)?;
 
     asset_attachments::Entity::delete_by_id(attachment_id)
         .exec(db.inner())
@@ -195,15 +186,16 @@ pub async fn get_asset_attachment_path(
         .await?
         .ok_or_else(|| AppError::NotFound(format!("asset attachment {attachment_id}")))?;
 
-    let base = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| AppError::InvalidInput(format!("could not resolve app data dir: {e}")))?;
+    let provider = crate::storage::resolve_active_provider(&app, db.inner()).await?;
+    let path = provider
+        .local_path(&existing.stored_relative_path)
+        .ok_or_else(|| {
+            AppError::InvalidInput(
+                "active storage provider does not expose a local file path".to_string(),
+            )
+        })?;
 
-    Ok(base
-        .join(&existing.stored_relative_path)
-        .to_string_lossy()
-        .into_owned())
+    Ok(path.to_string_lossy().into_owned())
 }
 
 #[cfg(test)]
